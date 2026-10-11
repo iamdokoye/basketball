@@ -4,10 +4,15 @@ import { rankPlayers, SORTS, type Ranked, type SortKey } from "@/lib/rankings";
 import { fmtAvg, fmtPct, fmtSigned } from "@/lib/stats";
 import { Avatar } from "@/app/components/Avatar";
 import { RankBadge } from "@/app/components/RankBadge";
+import { SortPills } from "./SortPills";
 
 export const dynamic = "force-dynamic";
 
-const COLUMNS: { key: SortKey | null; label: string; cell: (c: Ranked) => string }[] = [
+const COLUMNS: {
+  key: SortKey | null;
+  label: string;
+  cell: (c: Ranked) => string;
+}[] = [
   { key: "rating", label: "RTG", cell: (c) => c.rating.toFixed(1) },
   { key: null, label: "GP", cell: (c) => String(c.gp) },
   { key: "win", label: "W-L", cell: (c) => `${c.wins}-${c.losses}` },
@@ -30,29 +35,32 @@ export default async function RankingsPage({
   const sortKey: SortKey = sort && sort in SORTS ? (sort as SortKey) : "rating";
 
   const [games, players] = await Promise.all([listGames(), listPlayers()]);
-  const { rows, qualifyAt } = rankPlayers(careerTotals(games, players), sortKey);
+  const { rows, qualifyAt } = rankPlayers(
+    careerTotals(games, players),
+    sortKey,
+  );
   const hasProvisional = rows.some((r) => r.rank === null);
 
   return (
     <div className="space-y-5">
       <div className="space-y-1 px-1">
-        <h1 className="text-[32px] font-extrabold leading-[38px] tracking-tight">Rankings</h1>
-        <p className="text-sm text-muted">Ranked by average Game Score per game.</p>
+        <h1 className="text-[32px] font-extrabold leading-[38px] tracking-tight">
+          Rankings
+        </h1>
+        <p className="text-sm text-muted">
+          Sorted by {SORTS[sortKey].label}. Tap the selected stat to see what it
+          means.
+        </p>
       </div>
 
-      <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {(Object.keys(SORTS) as SortKey[]).map((k) => (
-          <Link
-            key={k}
-            href={k === "rating" ? "/rankings" : `/rankings?sort=${k}`}
-            className={`shrink-0 rounded-full px-4 py-2 text-xs font-semibold transition-colors ${
-              k === sortKey ? "bg-ink text-paper shadow-sm" : "glass-1 text-muted"
-            }`}
-          >
-            {SORTS[k].label}
-          </Link>
-        ))}
-      </div>
+      <SortPills
+        key={sortKey}
+        active={sortKey}
+        items={(Object.keys(SORTS) as SortKey[]).map((k) => ({
+          key: k,
+          label: SORTS[k].label,
+        }))}
+      />
 
       {rows.length === 0 ? (
         <p className="glass-1 rounded-2xl p-8 text-center text-sm text-muted">
@@ -64,7 +72,9 @@ export default async function RankingsPage({
             <table className="tabular w-full whitespace-nowrap text-sm">
               <thead>
                 <tr className="label text-muted">
-                  <th className="sticky-cell px-3 py-3 text-left font-semibold"># Player</th>
+                  <th className="sticky-cell px-3 py-3 text-left font-semibold">
+                    # Player
+                  </th>
                   {COLUMNS.map((c) => (
                     <th
                       key={c.label}
@@ -77,9 +87,15 @@ export default async function RankingsPage({
               </thead>
               <tbody className="divide-y divide-black/[0.06]">
                 {rows.map((r) => (
-                  <tr key={r.playerId} className={r.rank === null ? "opacity-45" : ""}>
+                  <tr
+                    key={r.playerId}
+                    className={r.rank === null ? "opacity-45" : ""}
+                  >
                     <td className="sticky-cell px-3 py-2.5">
-                      <Link href={`/players/${r.playerId}`} className="flex items-center gap-2.5">
+                      <Link
+                        href={`/players/${r.playerId}`}
+                        className="flex items-center gap-2.5"
+                      >
                         <RankBadge rank={r.rank} />
                         <Avatar id={r.playerId} name={r.name} size="sm" />
                         <span className="font-bold">{r.name}</span>
@@ -92,9 +108,17 @@ export default async function RankingsPage({
                         <td
                           key={c.label}
                           className={`px-2.5 py-2.5 text-right ${
-                            c.key === sortKey ? "bg-court-soft/10 font-extrabold" : ""
+                            c.key === sortKey
+                              ? "bg-court-soft/10 font-extrabold"
+                              : ""
                           } ${c.key === "rating" ? "font-bold" : ""} ${
-                            signed ? (v.startsWith("+") ? "text-win" : v.startsWith("-") ? "text-loss" : "") : ""
+                            signed
+                              ? v.startsWith("+")
+                                ? "text-win"
+                                : v.startsWith("-")
+                                  ? "text-loss"
+                                  : ""
+                              : ""
                           }`}
                         >
                           {v}

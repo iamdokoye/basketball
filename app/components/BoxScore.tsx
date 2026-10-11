@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { formatGameDateTime } from "@/lib/format";
 import { fmtEfg, fmtMinutes, fmtPct, fmtSigned, fmtTs, type StatLine, type Team } from "@/lib/stats";
 
 const HEAD = ["PTS", "FG", "3P", "FT", "REB", "AST", "STL", "BLK", "TO", "PF", "+/-", "MIN"];
@@ -106,6 +107,7 @@ export function BoxScoreTable({ lines, team }: { lines: StatLine[]; team: Team }
   );
 }
 
+/** Full date and start time in the league timezone, e.g. "Sat, Oct 10, 2026 · 7:42 AM". */
 export function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+  return formatGameDateTime(iso);
 }

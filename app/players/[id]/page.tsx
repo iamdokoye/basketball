@@ -171,7 +171,7 @@ export default async function PlayerPage({
                               {mine > theirs ? "W" : "L"}
                             </span>{" "}
                             {mine}-{theirs}
-                            <span className="ml-1.5 text-xs text-muted">
+                            <span className="block text-xs font-medium text-muted">
                               {formatDate(game.playedAt)}
                             </span>
                           </Link>
