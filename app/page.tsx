@@ -1,9 +1,20 @@
 import Link from "next/link";
 import { getAccess } from "@/lib/access";
+import { leagueGameDay, leagueTimeZone } from "@/lib/format";
+import {
+  computeMvp,
+  featuredPeriod,
+  groupByPeriod,
+  monthKey,
+  weekKey,
+} from "@/lib/mvp";
 import { careerTotals, listGames, listPlayers } from "@/lib/queries";
 import { rankPlayers, SORTS, type Ranked, type SortKey } from "@/lib/rankings";
 import { GameRow, LiveGameCard } from "@/app/components/GameRow";
 import { Avatar, shortName } from "@/app/components/Avatar";
+import { MvpCard } from "@/app/components/MvpCard";
+import { AwardsCard } from "@/app/components/AwardsCard";
+import { monthAwards } from "@/lib/awards";
 import { Countdown } from "@/app/components/Countdown";
 
 export const dynamic = "force-dynamic";
@@ -27,6 +38,25 @@ export default async function Home() {
   const career = careerTotals(games, players);
   const { rows: ranked } = rankPlayers(career);
   const top3 = ranked.filter((r) => r.rank !== null).slice(0, 3);
+
+  // MVP of the week (Sat–Fri, so midweek this is last Saturday's games) and of the month.
+  const tz = leagueTimeZone();
+  const day = leagueGameDay();
+  const mvps = (["week", "month"] as const).map((kind) => {
+    const periods = groupByPeriod(games, kind, tz, day);
+    const currentKey =
+      kind === "week" ? weekKey(access.now, tz, day) : monthKey(access.now, tz);
+    const featured = featuredPeriod(periods, currentKey);
+    const result = featured ? computeMvp(featured.period.games) : null;
+    return featured && result ? { kind, featured, result } : null;
+  });
+
+  // Awards are handed out when a month is over: show the latest completed month.
+  const thisMonth = monthKey(access.now, tz);
+  const lastDone = groupByPeriod(games, "month", tz, day).find(
+    (p) => p.key < thisMonth,
+  );
+  const lastAwards = lastDone ? monthAwards(lastDone.games) : [];
 
   const leaders = LEADER_CATEGORIES.flatMap(({ key, label, unit }) => {
     const best = rankPlayers(career, key).rows[0];
@@ -132,6 +162,54 @@ export default async function Home() {
           {live.map((g) => (
             <LiveGameCard key={g.id} game={g} />
           ))}
+        </section>
+      )}
+
+      {/* MVPs */}
+      <section className="space-y-3">
+        <div className="flex items-center justify-between px-1">
+          <h2 className="label">MVPs</h2>
+          <Link
+            href="/mvp"
+            className="text-xs font-semibold text-court-ink hover:underline"
+          >
+            History
+          </Link>
+        </div>
+        {mvps.every((m) => !m) ? (
+          <p className="glass-1 rounded-2xl p-6 text-center text-sm text-muted">
+            The weekly and monthly MVPs appear after the first finished game.
+          </p>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2">
+            {mvps.map(
+              (m) =>
+                m && (
+                  <MvpCard
+                    key={m.kind}
+                    kind={m.kind}
+                    periodLabel={m.featured.period.label}
+                    isCurrent={m.featured.isCurrent}
+                    result={m.result}
+                  />
+                ),
+            )}
+          </div>
+        )}
+      </section>
+
+      {lastDone && lastAwards.length > 0 && (
+        <section className="space-y-3">
+          <div className="flex items-center justify-between px-1">
+            <h2 className="label">Awards</h2>
+            <Link
+              href="/mvp"
+              className="text-xs font-semibold text-court-ink hover:underline"
+            >
+              All months
+            </Link>
+          </div>
+          <AwardsCard monthLabel={lastDone.label} awards={lastAwards} />
         </section>
       )}
 

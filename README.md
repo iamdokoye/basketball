@@ -49,6 +49,14 @@ Sign in at `/admin` (the pill in the header). The session lasts 30 days on that 
 
 A game that is still running when the window closes can't be saved to by the public, so set `LEAGUE_WINDOW_GRACE_MIN` if games tend to run over.
 
+## MVPs and awards
+
+- **MVP of the week:** the best average rating across that week's finished games. A week runs Saturday to Friday (it starts on your game day), so midweek this is last Saturday's games. If this week has no finished game yet, the most recent week with games is shown.
+- **MVP of the month:** the same, across the calendar month.
+- **Month awards card:** appears once a month has ended: MVP, Top Scorer, Best Shooter (effective FG%), Best Finisher (2-point %), Best Playmaker (assists), Best Defender (steals + blocks + deflections), Board Man (rebounds), Winner (win rate) and Difference Maker (plus/minus). One player can win several.
+- To be considered, a player needs at least half as many games as the busiest player that month. The two percentage awards also need real shot volume, so a lucky 1-for-1 night can't win. Awards with no qualifying player show "No winner".
+- Weeks and months use `LEAGUE_TIMEZONE`.
+
 ## How scoring works
 
 One person keeps stats on their phone. Tap a player, then the action. Related stats are linked so you only tap once more:

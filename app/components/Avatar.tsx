@@ -1,6 +1,9 @@
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/);
-  const letters = parts.length > 1 ? parts[0][0] + parts[parts.length - 1][0] : name.slice(0, 2);
+  const letters =
+    parts.length > 1
+      ? parts[0][0] + parts[parts.length - 1][0]
+      : name.slice(0, 2);
   return letters.toUpperCase();
 }
 
@@ -16,8 +19,15 @@ export function Avatar({
   size?: "sm" | "md" | "lg";
   tone?: "soft" | "ink";
 }) {
-  const dims = { sm: "h-7 w-7 text-[11px]", md: "h-10 w-10 text-sm", lg: "h-14 w-14 text-lg" }[size];
-  const look = tone === "ink" ? "bg-ink text-paper shadow-md" : "bg-black/[0.07] text-ink shadow-inner";
+  const dims = {
+    sm: "h-7 w-7 text-[11px]",
+    md: "h-10 w-10 text-sm",
+    lg: "h-14 w-14 text-lg",
+  }[size];
+  const look =
+    tone === "ink"
+      ? "bg-ink text-paper shadow-md"
+      : "bg-black/[0.07] text-ink shadow-inner";
   return (
     <span
       aria-hidden
@@ -28,8 +38,10 @@ export function Avatar({
   );
 }
 
-/** "Marcus King" -> "M. King"; single names are left alone. */
+/** "Marcus King" -> "Marcus K." (surname shortened, first name kept); single names are left alone. */
 export function shortName(name: string): string {
   const parts = name.trim().split(/\s+/);
-  return parts.length > 1 ? `${parts[0][0]}. ${parts[parts.length - 1]}` : name;
+  return parts.length > 1
+    ? `${parts[0]} ${parts[parts.length - 1][0].toUpperCase()}.`
+    : name;
 }
