@@ -1,27 +1,32 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { getAccess } from "@/lib/access";
 import { getGame } from "@/lib/queries";
-import { reopenGame } from "@/lib/actions";
 import { BoxScoreTable, formatDate } from "@/app/components/BoxScore";
-import DeleteGameButton from "./DeleteGameButton";
+import GameAdminActions from "./GameAdminActions";
 import Scorekeeper from "./Scorekeeper";
 
 export const dynamic = "force-dynamic";
 
 export default async function GamePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const game = await getGame(Number(id));
+  const [game, access] = await Promise.all([getGame(Number(id)), getAccess()]);
   if (!game) notFound();
 
   if (game.status === "live") {
     return (
       <Scorekeeper
+        key={access.canPlay ? "edit" : "view"}
         gameId={game.id}
         roster={game.roster}
         initialEvents={game.events}
         startMs={game.startMs}
         target={game.target}
         winBy={game.winBy}
+        readOnly={!access.canPlay}
+        windowLabel={access.windowLabel}
+        opensAt={access.opensAt}
+        serverNow={access.now}
       />
     );
   }
@@ -57,14 +62,7 @@ export default async function GamePage({ params }: { params: Promise<{ id: strin
       <BoxScoreTable lines={game.lines} team="A" />
       <BoxScoreTable lines={game.lines} team="B" />
 
-      <div className="flex gap-2">
-        <form action={reopenGame.bind(null, game.id)}>
-          <button className="glass-1 rounded-full px-4 py-2 text-sm font-semibold active:scale-95">
-            Reopen to fix stats
-          </button>
-        </form>
-        <DeleteGameButton gameId={game.id} />
-      </div>
+      {access.isAdmin && <GameAdminActions gameId={game.id} />}
     </div>
   );
 }

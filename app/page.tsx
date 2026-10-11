@@ -1,8 +1,10 @@
 import Link from "next/link";
+import { getAccess } from "@/lib/access";
 import { careerTotals, listGames, listPlayers } from "@/lib/queries";
 import { rankPlayers, SORTS, type Ranked, type SortKey } from "@/lib/rankings";
 import { GameRow, LiveGameCard } from "@/app/components/GameRow";
 import { Avatar, shortName } from "@/app/components/Avatar";
+import { Countdown } from "@/app/components/Countdown";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +17,11 @@ const LEADER_CATEGORIES: { key: SortKey; label: string; unit: string }[] = [
 ];
 
 export default async function Home() {
-  const [games, players] = await Promise.all([listGames(), listPlayers()]);
+  const [games, players, access] = await Promise.all([
+    listGames(),
+    listPlayers(),
+    getAccess(),
+  ]);
   const live = games.filter((g) => g.status === "live");
   const final = games.filter((g) => g.status === "final");
   const career = careerTotals(games, players);
@@ -29,25 +35,90 @@ export default async function Home() {
 
   return (
     <div className="space-y-8">
-      {/* Start a game */}
-      <Link
-        href="/games/new"
-        className="glass-1 group relative block overflow-hidden rounded-3xl p-5 transition-transform active:scale-[0.99]"
-      >
-        <div className="pointer-events-none absolute inset-0 bg-court-soft/10" />
-        <div className="relative flex items-center justify-between gap-4">
+      {/* Start a game (view-only visitors see when scoring opens instead) */}
+      {!access.canPlay && (
+        <div className="glass-1 flex items-center justify-between gap-4 rounded-3xl p-5">
           <div className="space-y-1">
-            <div className="label text-court-ink">Ready?</div>
-            <h1 className="text-[32px] font-extrabold leading-[38px] tracking-tight">Start a game</h1>
-            <p className="text-sm text-muted">Pick teams, set the target score, tip off.</p>
+            <div className="label text-muted">View only · scoring opens in</div>
+            <h1 className="text-[30px] font-extrabold leading-9 tracking-tight">
+              {access.opensAt ? (
+                <Countdown target={access.opensAt} serverNow={access.now} />
+              ) : (
+                "Scoring is closed"
+              )}
+            </h1>
+            <p className="text-sm text-muted">
+              {access.windowLabel}.{" "}
+              <Link
+                href="/admin"
+                className="font-semibold text-court-ink underline-offset-2 hover:underline"
+              >
+                Admin sign in
+              </Link>
+            </p>
           </div>
-          <span className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-ink text-paper shadow-md transition-transform group-hover:scale-105">
-            <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-              <path d="M5 12h14M13 6l6 6-6 6" />
+          <span className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-black/[0.06] text-muted">
+            <svg
+              viewBox="0 0 24 24"
+              className="h-6 w-6"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={1.8}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden
+            >
+              <rect x="5" y="11" width="14" height="9" rx="2" />
+              <path d="M8 11V8a4 4 0 0 1 8 0v3" />
             </svg>
           </span>
         </div>
-      </Link>
+      )}
+      {access.canPlay && (
+        <Link
+          href="/games/new"
+          className="glass-1 group relative block overflow-hidden rounded-3xl p-5 transition-transform active:scale-[0.99]"
+        >
+          <div className="pointer-events-none absolute inset-0 bg-court-soft/10" />
+          <div className="relative flex items-center justify-between gap-4">
+            <div className="space-y-1">
+              <div className="label text-court-ink">Ready?</div>
+              <h1 className="text-[32px] font-extrabold leading-[38px] tracking-tight">
+                Start a game
+              </h1>
+              <p className="text-sm text-muted">
+                Pick teams, set the target score, tip off.
+                {!access.isAdmin && access.closesAt && (
+                  <>
+                    {" "}
+                    Scoring closes in{" "}
+                    <Countdown
+                      target={access.closesAt}
+                      serverNow={access.now}
+                      compact
+                    />
+                    .
+                  </>
+                )}
+              </p>
+            </div>
+            <span className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-ink text-paper shadow-md transition-transform group-hover:scale-105">
+              <svg
+                viewBox="0 0 24 24"
+                className="h-6 w-6"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden
+              >
+                <path d="M5 12h14M13 6l6 6-6 6" />
+              </svg>
+            </span>
+          </div>
+        </Link>
+      )}
 
       {live.length > 0 && (
         <section className="space-y-2.5">
@@ -68,7 +139,10 @@ export default async function Home() {
       <section className="space-y-3">
         <div className="flex items-center justify-between px-1">
           <h2 className="label">Top players</h2>
-          <Link href="/rankings" className="text-xs font-semibold text-court-ink hover:underline">
+          <Link
+            href="/rankings"
+            className="text-xs font-semibold text-court-ink hover:underline"
+          >
             Full rankings
           </Link>
         </div>
@@ -99,14 +173,25 @@ export default async function Home() {
                   >
                     {place}
                   </span>
-                  <Avatar id={r.playerId} name={r.name} size={first ? "lg" : "md"} tone={first ? "ink" : "soft"} />
-                  <span className="mt-2 w-full truncate text-sm font-bold">{shortName(r.name)}</span>
-                  <span className={`tabular text-xs font-semibold ${first ? "text-court-ink" : "text-muted"}`}>
+                  <Avatar
+                    id={r.playerId}
+                    name={r.name}
+                    size={first ? "lg" : "md"}
+                    tone={first ? "ink" : "soft"}
+                  />
+                  <span className="mt-2 w-full truncate text-sm font-bold">
+                    {shortName(r.name)}
+                  </span>
+                  <span
+                    className={`tabular text-xs font-semibold ${first ? "text-court-ink" : "text-muted"}`}
+                  >
                     {r.rating.toFixed(1)} rtg
                   </span>
                   <span
                     className={`tabular mt-2 w-full rounded py-1 text-[10px] font-semibold uppercase tracking-wide ${
-                      first ? "bg-court-soft/10 text-court-ink" : "bg-white/50 text-muted"
+                      first
+                        ? "bg-court-soft/10 text-court-ink"
+                        : "bg-white/50 text-muted"
                     }`}
                   >
                     {r.wins}-{r.losses} rec
@@ -137,9 +222,13 @@ export default async function Home() {
                   <span className="tabular text-[32px] font-extrabold leading-9 tracking-tight">
                     {SORTS[key].value(player).toFixed(1)}
                   </span>
-                  <span className="ml-1 text-[11px] font-semibold text-muted">{unit}</span>
+                  <span className="ml-1 text-[11px] font-semibold text-muted">
+                    {unit}
+                  </span>
                 </div>
-                <span className="truncate text-[11px] font-semibold text-muted">{player.name}</span>
+                <span className="truncate text-[11px] font-semibold text-muted">
+                  {player.name}
+                </span>
               </Link>
             ))}
           </div>
@@ -150,12 +239,17 @@ export default async function Home() {
       <section className="space-y-3">
         <div className="flex items-center justify-between px-1">
           <h2 className="label">Recent games</h2>
-          <Link href="/games" className="text-xs font-semibold text-court-ink hover:underline">
+          <Link
+            href="/games"
+            className="text-xs font-semibold text-court-ink hover:underline"
+          >
             View all
           </Link>
         </div>
         {final.length === 0 ? (
-          <p className="glass-1 rounded-2xl p-6 text-center text-sm text-muted">No finished games yet.</p>
+          <p className="glass-1 rounded-2xl p-6 text-center text-sm text-muted">
+            No finished games yet.
+          </p>
         ) : (
           <ul className="space-y-3">
             {final.slice(0, 5).map((g) => (

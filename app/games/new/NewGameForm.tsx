@@ -9,11 +9,39 @@ type Assign = { team: "A" | "B"; seq: number };
 /** Players on court per side. The first 3 picked for each team start; the rest are bench. */
 const STARTERS = 3;
 
-export default function NewGameForm({ players }: { players: { id: number; name: string }[] }) {
+type ModeId = "first" | "winby2";
+
+/** First-to-target is the default: the game ends the moment a team reaches the score. */
+const MODES: {
+  id: ModeId;
+  winBy: number;
+  title: (t: number) => string;
+  hint: (t: number) => string;
+}[] = [
+  {
+    id: "first",
+    winBy: 1,
+    title: (t) => `First to ${t}`,
+    hint: (t) => `Ends as soon as a team reaches ${t}`,
+  },
+  {
+    id: "winby2",
+    winBy: 2,
+    title: () => "Win by 2",
+    hint: (t) => `Reach ${t} and lead by 2`,
+  },
+];
+
+export default function NewGameForm({
+  players,
+}: {
+  players: { id: number; name: string }[];
+}) {
   const [assign, setAssign] = useState<Record<number, Assign | undefined>>({});
   const seq = useRef(0);
   const [target, setTarget] = useState(20);
-  const [winBy, setWinBy] = useState(1);
+  const [mode, setMode] = useState<ModeId>("first");
+  const winBy = MODES.find((m) => m.id === mode)!.winBy;
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -28,14 +56,19 @@ export default function NewGameForm({ players }: { players: { id: number; name: 
     setAssign((cur) => {
       const now = cur[id]?.team;
       const next = now === undefined ? "A" : now === "A" ? "B" : undefined;
-      return { ...cur, [id]: next ? { team: next, seq: ++seq.current } : undefined };
+      return {
+        ...cur,
+        [id]: next ? { team: next, seq: ++seq.current } : undefined,
+      };
     });
   }
 
   function role(id: number): "Starter" | "Bench" | null {
     const t = assign[id]?.team;
     if (!t) return null;
-    return teamOf(t).findIndex((p) => p.id === id) < STARTERS ? "Starter" : "Bench";
+    return teamOf(t).findIndex((p) => p.id === id) < STARTERS
+      ? "Starter"
+      : "Bench";
   }
 
   function start() {
@@ -45,10 +78,15 @@ export default function NewGameForm({ players }: { players: { id: number; name: 
     );
     startTransition(async () => {
       try {
-        await createGame({ players: payload, target, winBy });
-      } catch {
-        // On success the action redirects, so reaching here means it failed.
-        setError("Couldn't start the game. Check that each team has players and try again.");
+        // On success the action redirects; it only returns when something is wrong.
+        const res = await createGame({ players: payload, target, winBy });
+        if (res && !res.ok) setError(res.error);
+      } catch (e) {
+        // A redirect is thrown as a control-flow error; let Next handle it.
+        if (typeof e === "object" && e !== null && "digest" in e) throw e;
+        setError(
+          "Couldn't start the game. Check that each team has players and try again.",
+        );
       }
     });
   }
@@ -58,8 +96,9 @@ export default function NewGameForm({ players }: { players: { id: number; name: 
   return (
     <div className="space-y-5">
       <p className="px-1 text-sm text-muted">
-        Tap a player to cycle <b className="text-court-ink">Team A</b> → <b className="text-away-dark">Team B</b> → out.
-        The first {STARTERS} on each team start; anyone after that begins on the bench.
+        Tap a player to cycle <b className="text-court-ink">Team A</b> →{" "}
+        <b className="text-away-dark">Team B</b> → out. The first {STARTERS} on
+        each team start; anyone after that begins on the bench.
       </p>
       <div className="grid grid-cols-2 gap-2">
         {players.map((p) => {
@@ -78,9 +117,13 @@ export default function NewGameForm({ players }: { players: { id: number; name: 
               }`}
             >
               <Avatar id={p.id} name={p.name} size="sm" />
-              <span className="min-w-0 flex-1 truncate">{shortName(p.name)}</span>
+              <span className="min-w-0 flex-1 truncate">
+                {shortName(p.name)}
+              </span>
               {t && (
-                <span className={`text-right text-[10px] font-bold uppercase leading-tight ${t === "A" ? "text-court-ink" : "text-away-dark"}`}>
+                <span
+                  className={`text-right text-[10px] font-bold uppercase leading-tight ${t === "A" ? "text-court-ink" : "text-away-dark"}`}
+                >
                   {t}
                   <br />
                   {r}
@@ -91,32 +134,57 @@ export default function NewGameForm({ players }: { players: { id: number; name: 
         })}
       </div>
 
-      <div className="glass-1 grid grid-cols-2 gap-3 rounded-2xl p-4">
-        <label className="label text-muted">
+      <div className="glass-1 space-y-4 rounded-2xl p-4">
+        <label className="label block text-muted">
           Play to
           <input
             type="number"
             inputMode="numeric"
             min={1}
+            max={100}
             value={target}
             onChange={(e) => setTarget(Number(e.target.value))}
             className="mt-1 block h-12 w-full rounded-xl border border-white/80 bg-white/60 px-3 text-base font-semibold normal-case tracking-normal text-ink shadow-inner outline-none focus:ring-2 focus:ring-court"
           />
         </label>
-        <label className="label text-muted">
-          Win by
-          <select
-            value={winBy}
-            onChange={(e) => setWinBy(Number(e.target.value))}
-            className="mt-1 block h-12 w-full rounded-xl border border-white/80 bg-white/60 px-3 text-base font-semibold normal-case tracking-normal text-ink shadow-inner outline-none focus:ring-2 focus:ring-court"
+
+        <fieldset>
+          <legend className="label text-muted">Game mode</legend>
+          <div
+            role="radiogroup"
+            className="mt-1 grid grid-cols-2 gap-1 rounded-2xl bg-black/[0.05] p-1"
           >
-            <option value={1}>1</option>
-            <option value={2}>2</option>
-          </select>
-        </label>
+            {MODES.map((m) => {
+              const selected = mode === m.id;
+              return (
+                <button
+                  key={m.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={selected}
+                  onClick={() => setMode(m.id)}
+                  className={`rounded-xl px-3 py-2.5 text-left transition ${
+                    selected
+                      ? "bg-white shadow-sm ring-1 ring-black/5"
+                      : "text-muted"
+                  }`}
+                >
+                  <div className="text-sm font-bold">{m.title(target)}</div>
+                  <div className="text-[11px] font-semibold leading-snug text-muted">
+                    {m.hint(target)}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </fieldset>
       </div>
 
-      {error && <p className="rounded-xl bg-loss/10 p-3 text-sm font-semibold text-loss">{error}</p>}
+      {error && (
+        <p className="rounded-xl bg-loss/10 p-3 text-sm font-semibold text-loss">
+          {error}
+        </p>
+      )}
 
       <button
         onClick={start}

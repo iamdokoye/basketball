@@ -25,6 +25,30 @@ Add your friends under **Players**, then **Start a game**.
 
 The service role key is used only in server code (`lib/supabase.ts` imports `server-only`). Row Level Security is on with no policies, so the public anon key can't read or write anything. The app itself has no login yet, so anyone with the link can record stats. See "Next steps" below.
 
+## Who can edit
+
+| | Public (no password) | Admin |
+|---|---|---|
+| View stats, rankings, games, live scores | Always | Always |
+| Start games, score, undo, finish games, add players | **Only during the open window** | Any time |
+| Rename or archive players, reopen or delete games | Never | Any time |
+
+The open window is **Saturdays 6:00 AM – 1:00 PM** in `LEAGUE_TIMEZONE` (default `Africa/Lagos`). A live countdown in the header and on Home shows when it opens (or closes), and the page flips by itself when the time comes. Outside the window everyone sees a read-only view, and a live game can still be followed (it refreshes every few seconds).
+
+Set these in `.env.local` and in your host's environment variables:
+
+```
+LEAGUE_TIMEZONE=Africa/Lagos
+ADMIN_PASSWORD=<choose a long, unique password>
+# optional
+# LEAGUE_WINDOW=Sat 06:00-13:00          day and 24h start-end, in LEAGUE_TIMEZONE
+# LEAGUE_WINDOW_GRACE_MIN=0              keep scoring open this many minutes after the window ends
+```
+
+Sign in at `/admin` (the pill in the header). The session lasts 30 days on that device, and changing `ADMIN_PASSWORD` signs everyone out. If `ADMIN_PASSWORD` is unset nobody can sign in as admin. The rules are enforced on the server in every action, not just by hiding buttons.
+
+A game that is still running when the window closes can't be saved to by the public, so set `LEAGUE_WINDOW_GRACE_MIN` if games tend to run over.
+
 ## How scoring works
 
 One person keeps stats on their phone. Tap a player, then the action. Related stats are linked so you only tap once more:

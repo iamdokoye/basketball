@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { finishGame, recordGroup, undoGroup } from "@/lib/actions";
 import {
@@ -15,12 +16,23 @@ import {
   type Team,
 } from "@/lib/stats";
 import { Avatar, shortName } from "@/app/components/Avatar";
+import { Countdown } from "@/app/components/Countdown";
 
 type Ev = { playerId: number; type: EventType };
 
-type Option = { label: string; hint?: string; tone?: "good" | "bad" | "neutral" | "sub"; onPick: () => void };
+type Option = {
+  label: string;
+  hint?: string;
+  tone?: "good" | "bad" | "neutral" | "sub";
+  onPick: () => void;
+};
 type Section = { heading?: string; cols: 1 | 2 | 3; options: Option[] };
-type Sheet = { title: string; subtitle?: string; player?: RosterEntry; sections: Section[] };
+type Sheet = {
+  title: string;
+  subtitle?: string;
+  player?: RosterEntry;
+  sections: Section[];
+};
 
 const TONES = {
   good: "bg-win/15 text-emerald-800 ring-1 ring-win/30 active:bg-win/25",
@@ -35,8 +47,18 @@ const eventTime = () => Date.now();
 const COLS = { 1: "grid-cols-1", 2: "grid-cols-2", 3: "grid-cols-3" };
 
 const TEAM_STYLE = {
-  A: { bar: "bg-court-soft", text: "text-court-ink", ring: "active:ring-court", label: "Team A" },
-  B: { bar: "bg-away-soft", text: "text-away-dark", ring: "active:ring-away", label: "Team B" },
+  A: {
+    bar: "bg-court-soft",
+    text: "text-court-ink",
+    ring: "active:ring-court",
+    label: "Team A",
+  },
+  B: {
+    bar: "bg-away-soft",
+    text: "text-away-dark",
+    ring: "active:ring-away",
+    label: "Team B",
+  },
 } as const;
 
 export default function Scorekeeper({
@@ -46,6 +68,10 @@ export default function Scorekeeper({
   startMs,
   target,
   winBy,
+  readOnly = false,
+  windowLabel = "",
+  opensAt = null,
+  serverNow = 0,
 }: {
   gameId: number;
   roster: RosterEntry[];
@@ -53,23 +79,42 @@ export default function Scorekeeper({
   startMs: number;
   target: number;
   winBy: number;
+  /** Spectator mode: nothing is tappable and the page follows the live game. */
+  readOnly?: boolean;
+  windowLabel?: string;
+  /** Epoch ms when scoring next opens (view-only banner countdown). */
+  opensAt?: number | null;
+  serverNow?: number;
 }) {
   const router = useRouter();
-  const [events, setEvents] = useState<GameEvent[]>(initialEvents);
+  const [localEvents, setEvents] = useState<GameEvent[]>(initialEvents);
+  // Spectators always render the server's copy, which router.refresh() keeps current.
+  const events = readOnly ? initialEvents : localEvents;
   const [sheet, setSheet] = useState<Sheet | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showLog, setShowLog] = useState(false);
   const [, startTransition] = useTransition();
   const [finishing, startFinish] = useTransition();
 
-  const lines = useMemo(() => boxScore(roster, events, startMs), [roster, events, startMs]);
+  const lines = useMemo(
+    () => boxScore(roster, events, startMs),
+    [roster, events, startMs],
+  );
   const court = useMemo(() => onCourt(roster, events), [roster, events]);
   const score = teamScores(lines);
   const result = gameResult(score, { target, winBy });
+  useEffect(() => {
+    if (!readOnly) return;
+    const id = setInterval(() => router.refresh(), 8000);
+    return () => clearInterval(id);
+  }, [readOnly, router]);
+
   const nameOf = (id: number) => roster.find((p) => p.id === id)?.name ?? "?";
 
-  const active = (t: Team) => roster.filter((p) => p.team === t && court.has(p.id));
-  const bench = (t: Team) => roster.filter((p) => p.team === t && !court.has(p.id));
+  const active = (t: Team) =>
+    roster.filter((p) => p.team === t && court.has(p.id));
+  const bench = (t: Team) =>
+    roster.filter((p) => p.team === t && !court.has(p.id));
   const opponents = (p: RosterEntry) => active(p.team === "A" ? "B" : "A");
   const mates = (p: RosterEntry) => active(p.team).filter((m) => m.id !== p.id);
 
@@ -95,10 +140,16 @@ export default function Scorekeeper({
     setEvents((cur) => [...cur, ...evs.map((e) => ({ ...e, grp, at }))]);
     startTransition(async () => {
       try {
-        await recordGroup(gameId, grp, at, evs);
+        const res = await recordGroup(gameId, grp, at, evs);
+        if (!res.ok) {
+          setEvents((cur) => cur.filter((e) => e.grp !== grp));
+          setError(res.error);
+        }
       } catch {
         setEvents((cur) => cur.filter((e) => e.grp !== grp));
-        setError("Couldn't save that play. Check your connection and try again.");
+        setError(
+          "Couldn't save that play. Check your connection and try again.",
+        );
       }
     });
   }
@@ -107,11 +158,15 @@ export default function Scorekeeper({
     const removed = events.filter((e) => e.grp === grp);
     setEvents((cur) => cur.filter((e) => e.grp !== grp));
     startTransition(async () => {
-      try {
-        await undoGroup(gameId, grp);
-      } catch {
+      const restore = (msg: string) => {
         setEvents((cur) => [...cur, ...removed].sort((a, b) => a.at - b.at));
-        setError("Couldn't undo. Check your connection and try again.");
+        setError(msg);
+      };
+      try {
+        const res = await undoGroup(gameId, grp);
+        if (!res.ok) restore(res.error);
+      } catch {
+        restore("Couldn't undo. Check your connection and try again.");
       }
     });
   }
@@ -138,7 +193,12 @@ export default function Scorekeeper({
             onPick: () => commit([...miss, { playerId: p.id, type: "DREB" }]),
           })),
         },
-        { cols: 1, options: [{ label: "No rebound / out of bounds", onPick: () => commit(miss) }] },
+        {
+          cols: 1,
+          options: [
+            { label: "No rebound / out of bounds", onPick: () => commit(miss) },
+          ],
+        },
       ],
     });
   }
@@ -155,9 +215,14 @@ export default function Scorekeeper({
           options: [
             ...mates(p).map((m) => ({
               label: m.name,
-              onPick: () => commit([make, { playerId: m.id, type: "AST" as const }]),
+              onPick: () =>
+                commit([make, { playerId: m.id, type: "AST" as const }]),
             })),
-            { label: "Unassisted", tone: "neutral" as const, onPick: () => commit([make]) },
+            {
+              label: "Unassisted",
+              tone: "neutral" as const,
+              onPick: () => commit([make]),
+            },
           ],
         },
       ],
@@ -165,7 +230,10 @@ export default function Scorekeeper({
   }
 
   function missStep(p: RosterEntry, shot: 2 | 3, extra: Ev[] = []) {
-    reboundStep(p, [{ playerId: p.id, type: shot === 3 ? "MISS3" : "MISS2" }, ...extra]);
+    reboundStep(p, [
+      { playerId: p.id, type: shot === 3 ? "MISS3" : "MISS2" },
+      ...extra,
+    ]);
   }
 
   function stealStep(p: RosterEntry) {
@@ -180,9 +248,14 @@ export default function Scorekeeper({
           options: [
             ...opponents(p).map((o) => ({
               label: o.name,
-              onPick: () => commit([steal, { playerId: o.id, type: "TOV" as const }]),
+              onPick: () =>
+                commit([steal, { playerId: o.id, type: "TOV" as const }]),
             })),
-            { label: "Skip", tone: "neutral" as const, onPick: () => commit([steal]) },
+            {
+              label: "Skip",
+              tone: "neutral" as const,
+              onPick: () => commit([steal]),
+            },
           ],
         },
       ],
@@ -209,8 +282,14 @@ export default function Scorekeeper({
                   {
                     cols: 2,
                     options: [
-                      { label: "2-pointer", onPick: () => missStep(shooter, 2, [block]) },
-                      { label: "3-pointer", onPick: () => missStep(shooter, 3, [block]) },
+                      {
+                        label: "2-pointer",
+                        onPick: () => missStep(shooter, 2, [block]),
+                      },
+                      {
+                        label: "3-pointer",
+                        onPick: () => missStep(shooter, 3, [block]),
+                      },
                     ],
                   },
                 ],
@@ -266,7 +345,10 @@ export default function Scorekeeper({
   }
 
   function playerSheet(p: RosterEntry) {
-    const solo = (type: EventType): (() => void) => () => commit([{ playerId: p.id, type }]);
+    const solo =
+      (type: EventType): (() => void) =>
+      () =>
+        commit([{ playerId: p.id, type }]);
     const l = lines.find((x) => x.playerId === p.id)!;
     setSheet({
       title: p.name,
@@ -277,8 +359,18 @@ export default function Scorekeeper({
           heading: "Shooting",
           cols: 2,
           options: [
-            { label: "Made 2", hint: "+2", tone: "good", onPick: () => makeStep(p, 2) },
-            { label: "Made 3", hint: "+3", tone: "good", onPick: () => makeStep(p, 3) },
+            {
+              label: "Made 2",
+              hint: "+2",
+              tone: "good",
+              onPick: () => makeStep(p, 2),
+            },
+            {
+              label: "Made 3",
+              hint: "+3",
+              tone: "good",
+              onPick: () => makeStep(p, 3),
+            },
             { label: "Missed 2", tone: "bad", onPick: () => missStep(p, 2) },
             { label: "Missed 3", tone: "bad", onPick: () => missStep(p, 3) },
           ],
@@ -287,7 +379,12 @@ export default function Scorekeeper({
           heading: "Free throws",
           cols: 2,
           options: [
-            { label: "FT made", hint: "+1", tone: "good", onPick: solo("MAKE_FT") },
+            {
+              label: "FT made",
+              hint: "+1",
+              tone: "good",
+              onPick: solo("MAKE_FT"),
+            },
             { label: "FT missed", tone: "bad", onPick: solo("MISS_FT") },
           ],
         },
@@ -316,7 +413,13 @@ export default function Scorekeeper({
               {
                 heading: "Substitution",
                 cols: 1 as const,
-                options: [{ label: "Sub out…", tone: "sub" as const, onPick: () => subOutStep(p) }],
+                options: [
+                  {
+                    label: "Sub out…",
+                    tone: "sub" as const,
+                    onPick: () => subOutStep(p),
+                  },
+                ],
               },
             ]
           : []),
@@ -326,8 +429,9 @@ export default function Scorekeeper({
 
   function finish() {
     startFinish(async () => {
-      await finishGame(gameId);
-      router.refresh();
+      const res = await finishGame(gameId);
+      if (!res.ok) setError(res.error);
+      else router.refresh();
     });
   }
 
@@ -344,41 +448,79 @@ export default function Scorekeeper({
                 key={t}
                 className={`relative px-4 py-3 ${t === "B" ? "order-3 text-right" : "order-1"}`}
               >
-                <span className={`absolute inset-y-0 ${t === "A" ? "left-0" : "right-0"} w-1 ${TEAM_STYLE[t].bar}`} />
-                <div className="label text-muted">
-                  {TEAM_STYLE[t].label}
-                </div>
-                <div key={score[t]} className="pop tabular text-[64px] font-extrabold leading-none tracking-tighter">
+                <span
+                  className={`absolute inset-y-0 ${t === "A" ? "left-0" : "right-0"} w-1 ${TEAM_STYLE[t].bar}`}
+                />
+                <div className="label text-muted">{TEAM_STYLE[t].label}</div>
+                <div
+                  key={score[t]}
+                  className="pop tabular text-[64px] font-extrabold leading-none tracking-tighter"
+                >
                   {score[t]}
                 </div>
               </div>
             ))}
             <div className="order-2 flex flex-col items-center justify-center px-1 text-[11px] font-semibold text-muted">
-              <span>to {target}</span>
+              <span>{winBy > 1 ? `to ${target}` : `first to ${target}`}</span>
               {winBy > 1 && <span>win by {winBy}</span>}
             </div>
           </div>
         </div>
       </div>
 
+      {readOnly && (
+        <div className="glass-1 flex items-center justify-between gap-3 rounded-2xl p-3.5">
+          <div className="min-w-0">
+            <div className="text-sm font-bold">View only</div>
+            <div className="text-xs text-muted">
+              Following live.{" "}
+              {opensAt ? (
+                <>
+                  Scoring opens in{" "}
+                  <Countdown target={opensAt} serverNow={serverNow} compact /> (
+                  {windowLabel}).
+                </>
+              ) : (
+                <>Scoring opens {windowLabel}.</>
+              )}
+            </div>
+          </div>
+          <Link
+            href="/admin"
+            className="shrink-0 rounded-full bg-black/[0.06] px-3 py-1.5 text-xs font-semibold text-muted active:scale-95"
+          >
+            Admin
+          </Link>
+        </div>
+      )}
+
       {result.over && (
         <div className="glass-1 flex items-center justify-between gap-3 rounded-2xl !bg-win/15 p-4">
           <div>
-            <div className="font-extrabold text-emerald-900">Team {result.winner} wins!</div>
-            <div className="text-sm text-muted">Check the log, then lock it in.</div>
+            <div className="font-extrabold text-emerald-900">
+              Team {result.winner} wins!
+            </div>
+            <div className="text-sm text-muted">
+              Check the log, then lock it in.
+            </div>
           </div>
-          <button
-            onClick={finish}
-            disabled={finishing}
-            className="rounded-full bg-ink px-4 py-2 text-sm font-semibold text-paper active:scale-95 disabled:opacity-60"
-          >
-            {finishing ? "Finishing…" : "Finish game"}
-          </button>
+          {!readOnly && (
+            <button
+              onClick={finish}
+              disabled={finishing}
+              className="rounded-full bg-ink px-4 py-2 text-sm font-semibold text-paper active:scale-95 disabled:opacity-60"
+            >
+              {finishing ? "Finishing…" : "Finish game"}
+            </button>
+          )}
         </div>
       )}
 
       {error && (
-        <div role="alert" className="rounded-xl bg-loss/10 p-3 text-sm font-semibold text-loss">
+        <div
+          role="alert"
+          className="rounded-xl bg-loss/10 p-3 text-sm font-semibold text-loss"
+        >
           {error}
         </div>
       )}
@@ -392,13 +534,23 @@ export default function Scorekeeper({
               return (
                 <button
                   key={p.id}
-                  onClick={() => playerSheet(p)}
-                  className={`glass-1 w-full rounded-2xl p-3 text-left transition-transform active:scale-[0.98] active:ring-2 ${TEAM_STYLE[t].ring}`}
+                  onClick={() => !readOnly && playerSheet(p)}
+                  aria-disabled={readOnly}
+                  className={`glass-1 w-full rounded-2xl p-3 text-left ${
+                    readOnly
+                      ? "cursor-default"
+                      : `transition-transform active:scale-[0.98] active:ring-2 ${TEAM_STYLE[t].ring}`
+                  }`}
                 >
                   <div className="flex items-center gap-2">
                     <Avatar id={p.id} name={p.name} size="sm" />
-                    <span className="min-w-0 flex-1 truncate font-bold">{shortName(p.name)}</span>
-                    <span key={l.pts} className="pop tabular text-2xl font-extrabold tracking-tight">
+                    <span className="min-w-0 flex-1 truncate font-bold">
+                      {shortName(p.name)}
+                    </span>
+                    <span
+                      key={l.pts}
+                      className="pop tabular text-2xl font-extrabold tracking-tight"
+                    >
                       {l.pts}
                     </span>
                   </div>
@@ -417,7 +569,9 @@ export default function Scorekeeper({
                     <span>{l.blk} blk</span>
                     {l.tov > 0 && <span>{l.tov} to</span>}
                     {l.pf > 0 && (
-                      <span className={l.pf >= 4 ? "font-bold text-loss" : ""}>{l.pf} pf</span>
+                      <span className={l.pf >= 4 ? "font-bold text-loss" : ""}>
+                        {l.pf} pf
+                      </span>
                     )}
                   </div>
                 </button>
@@ -426,14 +580,17 @@ export default function Scorekeeper({
             {bench(t).length > 0 && (
               <div className="rounded-2xl bg-black/[0.04] p-2">
                 <div className="label mb-1 px-1 text-[10px] text-muted">
-                  Bench · tap to sub in
+                  {readOnly ? "Bench" : "Bench · tap to sub in"}
                 </div>
                 <div className="flex flex-wrap gap-1.5">
                   {bench(t).map((b) => (
                     <button
                       key={b.id}
-                      onClick={() => subInStep(b)}
-                      className="flex items-center gap-1.5 rounded-full bg-white/70 py-1 pl-1 pr-3 text-sm font-semibold ring-1 ring-black/5 active:bg-sub/10"
+                      onClick={() => !readOnly && subInStep(b)}
+                      aria-disabled={readOnly}
+                      className={`flex items-center gap-1.5 rounded-full bg-white/70 py-1 pl-1 pr-3 text-sm font-semibold ring-1 ring-black/5 ${
+                        readOnly ? "cursor-default" : "active:bg-sub/10"
+                      }`}
                     >
                       <Avatar id={b.id} name={b.name} size="sm" />
                       {b.name}
@@ -449,43 +606,62 @@ export default function Scorekeeper({
       {/* Play log */}
       <div className="glass-1 rounded-2xl p-3">
         <div className="flex items-center justify-between gap-2">
-          <button onClick={() => setShowLog((s) => !s)} className="text-sm font-semibold text-muted">
+          <button
+            onClick={() => setShowLog((s) => !s)}
+            className="text-sm font-semibold text-muted"
+          >
             Play log ({groups.length}) {showLog ? "▲" : "▼"}
           </button>
-          <button
-            disabled={!last}
-            onClick={() => last && removeGroup(last.grp)}
-            className="rounded-full bg-ink px-4 py-1.5 text-sm font-semibold text-paper disabled:opacity-30"
-          >
-            ↶ Undo last
-          </button>
+          {!readOnly && (
+            <button
+              disabled={!last}
+              onClick={() => last && removeGroup(last.grp)}
+              className="rounded-full bg-ink px-4 py-1.5 text-sm font-semibold text-paper disabled:opacity-30"
+            >
+              ↶ Undo last
+            </button>
+          )}
         </div>
         {!showLog && last && (
-          <p className="mt-2 text-sm text-muted">Last: {describeGroup(last.events, nameOf)}</p>
+          <p className="mt-2 text-sm text-muted">
+            Last: {describeGroup(last.events, nameOf)}
+          </p>
         )}
         {showLog && (
           <ol className="mt-2 divide-y divide-black/[0.06]">
             {[...groups].reverse().map((g) => (
-              <li key={g.grp} className="flex items-center justify-between gap-2 py-2 text-sm">
+              <li
+                key={g.grp}
+                className="flex items-center justify-between gap-2 py-2 text-sm"
+              >
                 <span>{describeGroup(g.events, nameOf)}</span>
-                <button
-                  onClick={() => removeGroup(g.grp)}
-                  aria-label="Delete this play"
-                  className="shrink-0 rounded-full px-2 py-1 text-loss active:bg-loss/10"
-                >
-                  ✕
-                </button>
+                {!readOnly && (
+                  <button
+                    onClick={() => removeGroup(g.grp)}
+                    aria-label="Delete this play"
+                    className="shrink-0 rounded-full px-2 py-1 text-loss active:bg-loss/10"
+                  >
+                    ✕
+                  </button>
+                )}
               </li>
             ))}
-            {groups.length === 0 && <li className="py-2 text-sm text-muted">No plays yet.</li>}
+            {groups.length === 0 && (
+              <li className="py-2 text-sm text-muted">No plays yet.</li>
+            )}
           </ol>
         )}
       </div>
 
-      {!result.over && (
+      {!result.over && !readOnly && (
         <button
           onClick={() => {
-            if (confirm("End the game now? Use this if you stopped before the target score.")) finish();
+            if (
+              confirm(
+                "End the game now? Use this if you stopped before the target score.",
+              )
+            )
+              finish();
           }}
           className="w-full rounded-xl py-2 text-sm font-semibold text-muted active:bg-black/5"
         >
@@ -495,7 +671,10 @@ export default function Scorekeeper({
 
       {/* Action sheet */}
       {sheet && (
-        <div className="fixed inset-0 z-40 flex items-end bg-ink/25 backdrop-blur-sm" onClick={() => setSheet(null)}>
+        <div
+          className="fixed inset-0 z-40 flex items-end bg-ink/25 backdrop-blur-sm"
+          onClick={() => setSheet(null)}
+        >
           <div
             role="dialog"
             aria-label={sheet.title}
@@ -503,10 +682,18 @@ export default function Scorekeeper({
             className="glass-3 sheet-up mx-auto max-h-[88vh] w-full max-w-3xl space-y-4 overflow-y-auto rounded-t-[28px] p-4 pb-8"
           >
             <div className="flex items-center gap-3">
-              {sheet.player && <Avatar id={sheet.player.id} name={sheet.player.name} />}
+              {sheet.player && (
+                <Avatar id={sheet.player.id} name={sheet.player.name} />
+              )}
               <div className="min-w-0 flex-1">
-                <h2 className="truncate text-lg font-extrabold leading-tight tracking-tight">{sheet.title}</h2>
-                {sheet.subtitle && <p className="text-sm font-semibold text-muted">{sheet.subtitle}</p>}
+                <h2 className="truncate text-lg font-extrabold leading-tight tracking-tight">
+                  {sheet.title}
+                </h2>
+                {sheet.subtitle && (
+                  <p className="text-sm font-semibold text-muted">
+                    {sheet.subtitle}
+                  </p>
+                )}
               </div>
               <button
                 onClick={() => setSheet(null)}
@@ -519,9 +706,7 @@ export default function Scorekeeper({
             {sheet.sections.map((s, i) => (
               <div key={i}>
                 {s.heading && (
-                  <div className="label mb-1.5 text-muted">
-                    {s.heading}
-                  </div>
+                  <div className="label mb-1.5 text-muted">{s.heading}</div>
                 )}
                 <div className={`grid gap-2 ${COLS[s.cols]}`}>
                   {s.options.map((o) => (
@@ -531,7 +716,11 @@ export default function Scorekeeper({
                       className={`min-h-14 rounded-xl px-3 py-3 text-base font-semibold transition-transform active:scale-[0.98] ${TONES[o.tone ?? "neutral"]}`}
                     >
                       {o.label}
-                      {o.hint && <span className="ml-1 text-sm font-semibold opacity-80">{o.hint}</span>}
+                      {o.hint && (
+                        <span className="ml-1 text-sm font-semibold opacity-80">
+                          {o.hint}
+                        </span>
+                      )}
                     </button>
                   ))}
                 </div>

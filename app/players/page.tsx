@@ -1,3 +1,4 @@
+import { getAccess } from "@/lib/access";
 import { careerTotals, listGames, listPlayers } from "@/lib/queries";
 import { fmtAvg } from "@/lib/stats";
 import { PlayerRoster } from "./PlayerRoster";
@@ -5,7 +6,7 @@ import { PlayerRoster } from "./PlayerRoster";
 export const dynamic = "force-dynamic";
 
 export default async function PlayersPage() {
-  const [players, games] = await Promise.all([listPlayers(), listGames()]);
+  const [players, games, access] = await Promise.all([listPlayers(), listGames(), getAccess()]);
   const totals = new Map(careerTotals(games, players).map((c) => [c.playerId, c]));
 
   const roster = players.map((p) => {
@@ -24,7 +25,7 @@ export default async function PlayersPage() {
   return (
     <div className="space-y-5">
       <h1 className="px-1 text-[32px] font-extrabold leading-[38px] tracking-tight">Players</h1>
-      <PlayerRoster players={roster} />
+      <PlayerRoster players={roster} canAdd={access.canPlay} isAdmin={access.isAdmin} />
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 import { GeistSans } from "geist/font/sans";
+import { AccessBadge } from "./components/AccessBadge";
 import { BottomNav, TopNav } from "./components/Nav";
 import "./globals.css";
 
@@ -39,6 +40,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               Pickup League
             </Link>
             <TopNav />
+            <AccessBadge />
           </div>
         </header>
         <main className="mx-auto w-full max-w-3xl flex-1 px-4 pb-32 pt-6 md:pb-12">{children}</main>
