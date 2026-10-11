@@ -12,7 +12,7 @@ const EXPLAIN: Record<
 > = {
   rating: {
     title: "Rating",
-    body: "One number for how much a player helps in a game, averaged over every game they play. Scoring, rebounds, assists, steals and blocks add to it; missed shots, turnovers and fouls take away. Around 10 is a solid game and 20 or more is a great one.",
+    body: "One number for how much a player helps in a game, averaged over every game they play. Scoring, rebounds, assists, steals and blocks add to it; missed shots, turnovers and fouls take away. In a game to 20, about 10 is a solid game, 15 or more is a strong one, and 20+ is an all-time night. There is no fixed maximum, and a bad game can go below zero.",
     formula:
       "PTS + 0.4·FGM − 0.7·FGA − 0.4·(FTA − FTM) + 0.7·OREB + 0.3·DREB + STL + 0.7·AST + 0.7·BLK − 0.4·PF − TOV",
   },
