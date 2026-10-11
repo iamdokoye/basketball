@@ -5,6 +5,7 @@ import { rankPlayers } from "@/lib/rankings";
 import { fmtAvg, fmtEfg, fmtMinutes, fmtPct, fmtSigned, fmtTs } from "@/lib/stats";
 import { formatDate } from "@/app/components/BoxScore";
 import { Avatar } from "@/app/components/Avatar";
+import { RenamePlayer } from "@/app/components/RenamePlayer";
 
 export const dynamic = "force-dynamic";
 
@@ -57,6 +58,11 @@ export default async function PlayerPage({ params }: { params: Promise<{ id: str
             {c.gp} {c.gp === 1 ? "game" : "games"} · {c.wins}-{c.losses}
             {c.gp > 0 && <> · {fmtMinutes(c.sec / c.gp)} min/g</>}
           </p>
+          <RenamePlayer
+            playerId={player.id}
+            name={player.name}
+            className="mt-1.5 rounded-full bg-sub/10 px-3 py-1.5 text-xs font-semibold text-sub ring-1 ring-sub/25 transition hover:bg-sub/15 active:scale-95"
+          />
         </div>
       </div>
 

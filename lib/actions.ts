@@ -25,6 +25,24 @@ export async function addPlayer(formData: FormData) {
   revalidatePath("/", "layout");
 }
 
+export type RenameResult = { ok: true } | { ok: false; error: string };
+
+/** Renames a player everywhere (games read names from the player record). */
+export async function renamePlayer(playerId: number, rawName: string): Promise<RenameResult> {
+  const name = rawName.trim().slice(0, 40);
+  if (!name) return { ok: false, error: "Name can't be empty." };
+
+  const { error } = await db().from("players").update({ name }).eq("id", playerId);
+  if (error) {
+    return {
+      ok: false,
+      error: error.code === "23505" ? "Another player already has that name." : "Couldn't save the name. Try again.",
+    };
+  }
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
 export async function setPlayerArchived(playerId: number, archived: boolean) {
   check((await db().from("players").update({ archived }).eq("id", playerId)).error);
   revalidatePath("/", "layout");

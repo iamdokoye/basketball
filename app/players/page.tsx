@@ -3,6 +3,7 @@ import { addPlayer, setPlayerArchived } from "@/lib/actions";
 import { careerTotals, listGames, listPlayers } from "@/lib/queries";
 import { fmtAvg } from "@/lib/stats";
 import { Avatar } from "@/app/components/Avatar";
+import { RenamePlayer } from "@/app/components/RenamePlayer";
 
 export const dynamic = "force-dynamic";
 
@@ -48,8 +49,13 @@ export default async function PlayersPage() {
                   </div>
                 </div>
               </Link>
+              <RenamePlayer
+                playerId={p.id}
+                name={p.name}
+                className="rounded-full px-3 py-1.5 text-xs font-semibold transition active:scale-95 bg-sub/10 text-sub ring-1 ring-sub/25 hover:bg-sub/15"
+              />
               <form action={setPlayerArchived.bind(null, p.id, true)}>
-                <button className="rounded-full px-3 py-1.5 text-xs font-semibold text-muted active:bg-black/5">
+                <button className="rounded-full px-3 py-1.5 text-xs font-semibold transition active:scale-95 bg-loss/10 text-loss ring-1 ring-loss/25 hover:bg-loss/15">
                   Archive
                 </button>
               </form>
@@ -76,7 +82,7 @@ export default async function PlayersPage() {
                   {p.name}
                 </Link>
                 <form action={setPlayerArchived.bind(null, p.id, false)}>
-                  <button className="rounded-full px-3 py-1.5 text-xs font-semibold text-court-ink active:bg-court/10">
+                  <button className="rounded-full px-3 py-1.5 text-xs font-semibold transition active:scale-95 bg-win/10 text-emerald-800 ring-1 ring-win/30 hover:bg-win/15">
                     Restore
                   </button>
                 </form>
