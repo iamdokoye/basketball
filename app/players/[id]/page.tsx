@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getAccess } from "@/lib/access";
+import { gameContext, rateLine } from "@/lib/rating";
 import { pairStats, relationsFor, type Mate } from "@/lib/chemistry";
 import { leagueGameDay, leagueTimeZone } from "@/lib/format";
 import { shelfEntries, trophyShelf } from "@/lib/trophies";
@@ -170,6 +171,7 @@ export default async function PlayerPage({
                     </th>
                     {[
                       "PTS",
+                      "RTG",
                       "FG",
                       "3P",
                       "FT",
@@ -210,6 +212,14 @@ export default async function PlayerPage({
                           </Link>
                         </td>
                         <td className={`${td} font-extrabold`}>{line.pts}</td>
+                        <td className={`${td} font-bold`}>
+                          {rateLine(
+                            line,
+                            gameContext(game.lines),
+                          )?.rating.toFixed(1) ?? (
+                            <span className="text-muted">DNP</span>
+                          )}
+                        </td>
                         <td className={td}>
                           {line.fgm}-{line.fga}
                         </td>

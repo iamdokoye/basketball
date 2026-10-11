@@ -94,12 +94,14 @@ Minutes are wall-clock time from the first recorded play until the last, minus t
 
 **Rating** is a score out of 10 (`lib/rating.ts`), used for rankings, MVPs, awards, player of the game and team balancing.
 
-- **Start:** every player who takes the court starts a game at **6.5**, whether they start or check in off the bench. Someone who never plays isn't rated; someone who plays but records nothing stays at 6.5.
+- **Start:** every player who takes the court starts a game at **6.5**, whether they start or check in off the bench. Someone who never plays isn't rated.
 - **Production** moves it up or down: `PTS + 0.4·FGM − 0.7·FGA − 0.4·(missed FT) + 0.7·OREB + 0.3·DREB + STL + 0.7·AST + 0.7·BLK + 0.3·deflections − 0.4·PF − TOV` (Hollinger's Game Score, plus deflections).
 - **Pace:** the same line counts for more in a low-scoring game (scaled against a typical game to 20, about 36 points in total).
 - **Time on the floor:** a lot in few minutes counts for more (and a bad stint hurts more), capped so a 30-second cameo can't explode. Short stints also count for less when averaging games.
 - **Team impact:** plus/minus (how your team did while you were on court) nudges it slightly.
-- **Curve:** the result is squeezed onto a curve between **3.0 and 10.0**; 10 is nearly unreachable. Rough guide: doing nothing 6.5, a normal game about 7, strong about 8 to 9, awful about 4.
+- **Idle decay:** a player with no recorded action at all (no shot, rebound, assist, steal, block, deflection, turnover or foul) stays at 6.5 for a short stint (the first 8% of the game on court is a grace period, which also covers a quick cameo or a sub who just checked in). Past that the rating sinks the longer they stay on court: about 5.9 after a third of the game, about 4.5 for a whole game. Any recorded action, even a foul, ends it. Starters and subs follow the same rule.
+- **Did not play:** a player who never takes the court has no rating; the box score shows `–` and `DNP`.
+- **Curve:** the result is squeezed onto a curve between **3.0 and 10.0**; 10 is nearly unreachable. Rough guide: a short cameo with nothing recorded 6.5, a normal game about 7, strong about 8 to 9, awful or a whole game of nothing about 4 to 4.5.
 - **Averages** (season, week, month) weight each game by the share of the game played. A player is ranked once they've played 3 games (fewer if nobody has played that many yet).
 - **Not included:** positional benchmarking, since pickup 3v3 has no positions. Each player gets one rating per game, built from all their minutes (it isn't reset on every substitution).
 

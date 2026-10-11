@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { gameContext, rateLine } from "@/lib/rating";
 import { formatGameDateTime } from "@/lib/format";
 import {
   fmtEfg,
@@ -10,8 +11,20 @@ import {
   type Team,
 } from "@/lib/stats";
 
+/** Colour a 0-10 rating: strong games green, poor games red, the rest plain. */
+function ratingTone(r: number | undefined): string {
+  return r === undefined
+    ? "text-muted"
+    : r >= 8
+      ? "text-win"
+      : r < 6
+        ? "text-loss"
+        : "";
+}
+
 const HEAD = [
   "PTS",
+  "RTG",
   "FG",
   "3P",
   "FT",
@@ -55,6 +68,7 @@ export function BoxScoreTable({
   const total = Object.fromEntries(
     SUM_KEYS.map((k) => [k, rows.reduce((t, l) => t + l[k], 0)]),
   ) as Record<(typeof SUM_KEYS)[number], number>;
+  const ctx = gameContext(lines);
   const accent = team === "A" ? "bg-court-soft" : "bg-away-soft";
 
   const cell = "px-2 py-2 text-right";
@@ -88,6 +102,11 @@ export function BoxScoreTable({
                   >
                     {l.name}
                   </Link>
+                  {!rateLine(l, ctx) && (
+                    <span className="ml-1.5 text-[10px] font-bold uppercase tracking-wide text-muted">
+                      DNP
+                    </span>
+                  )}
                   {l.playerId === pogId && (
                     <span
                       title="Player of the game"
@@ -99,6 +118,11 @@ export function BoxScoreTable({
                   )}
                 </td>
                 <td className={`${cell} font-extrabold`}>{l.pts}</td>
+                <td
+                  className={`${cell} font-bold ${ratingTone(rateLine(l, ctx)?.rating)}`}
+                >
+                  {rateLine(l, ctx)?.rating.toFixed(1) ?? "–"}
+                </td>
                 <td className={cell}>
                   {l.fgm}-{l.fga}
                 </td>
@@ -133,6 +157,7 @@ export function BoxScoreTable({
             <tr className="hairline border-t bg-white/40 font-bold">
               <td className={stickyName}>Total</td>
               <td className={cell}>{total.pts}</td>
+              <td className={cell} />
               <td className={cell}>
                 {total.fgm}-{total.fga}
               </td>

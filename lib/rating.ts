@@ -10,9 +10,14 @@ import type { StatLine } from "./stats";
 //   2. Context scales it: scoring in a low-scoring game counts for more (pace), and doing a lot
 //      in few minutes counts for more (time on the floor).
 //   3. How their team did while they were on court (plus/minus) nudges it a little.
-//   4. The result is squeezed onto a curve so it stays between 3.0 and 10.0. 10 is almost
+//   4. Doing nothing for a long time costs you. A player who records no action at all (no shot,
+//      rebound, assist, steal, block, turnover, foul or deflection) stays at about 6.5 for a short
+//      stint (a sub's grace period, or a late cameo), but the longer they stay on court with zero
+//      involvement the further they sink: roughly 6.0 after a third of the game, around 4.5 for a
+//      whole game. Any recorded action ends the decay.
+//   5. The result is squeezed onto a curve so it stays between 3.0 and 10.0. 10 is almost
 //      unreachable; a perfect scoring game lands around 9.
-// Anyone who plays but records nothing stays at about 6.5. Someone who never plays isn't rated.
+// Someone who never plays isn't rated.
 // Pickup 3v3 has no positions, so there is no positional benchmarking.
 
 export const RATING = {
@@ -31,6 +36,10 @@ export const RATING = {
   weightFloor: 0.25,
   /** Rating points per point of on-court margin, before pace scaling. */
   plusMinusWeight: 0.1,
+  /** Share of the game someone can be on court with zero actions before the idle decay starts (a sub's grace period). */
+  idleGrace: 0.08,
+  /** Impact lost by being on court a whole game with zero actions (about 4.5 out of 10). */
+  idleFull: 6,
 } as const;
 
 /** Game-wide numbers a rating is judged against. */
@@ -60,6 +69,11 @@ export function played(l: StatLine): boolean {
   );
 }
 
+/** Anything recorded for this player in the game: a shot, free throw, rebound, assist, steal, block, turnover, foul or deflection. */
+export function actions(l: StatLine): number {
+  return l.fga + l.fta + l.reb + l.ast + l.stl + l.blk + l.tov + l.pf + l.defl;
+}
+
 /** Raw contribution in "points of impact": Game Score plus deflections. */
 export function production(l: StatLine): number {
   return (
@@ -78,7 +92,8 @@ export function production(l: StatLine): number {
   );
 }
 
-const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
+const clamp = (n: number, lo: number, hi: number) =>
+  Math.min(hi, Math.max(lo, n));
 
 /** Fraction of the game this player was on court, measured against the longest-playing player. */
 export function shareOfGame(l: StatLine, ctx: GameContext): number {
@@ -89,7 +104,10 @@ export function shareOfGame(l: StatLine, ctx: GameContext): number {
  * One player's rating for one game, or null if they didn't play. `weight` is how much this game
  * counts when averaging several (a short stint counts for less).
  */
-export function rateLine(l: StatLine, ctx: GameContext): { rating: number; weight: number } | null {
+export function rateLine(
+  l: StatLine,
+  ctx: GameContext,
+): { rating: number; weight: number } | null {
   if (!played(l)) return null;
   const R = RATING;
 
@@ -97,13 +115,23 @@ export function rateLine(l: StatLine, ctx: GameContext): { rating: number; weigh
   const share = shareOfGame(l, ctx);
   const time = 1 / Math.sqrt(Math.max(share, R.minShare));
 
-  const impact = production(l) * pace * time + R.plusMinusWeight * l.plusMinus * pace;
+  // On court a long time with nothing recorded: the longer, the lower. Needs real timing to mean anything.
+  const idle =
+    actions(l) === 0 && l.sec > 0 && ctx.maxSec > 0
+      ? -R.idleFull * (Math.max(0, share - R.idleGrace) / (1 - R.idleGrace))
+      : 0;
+
+  const impact =
+    production(l) * pace * time + R.plusMinusWeight * l.plusMinus * pace + idle;
   const rating =
     impact >= 0
       ? R.base + (R.max - R.base) * Math.tanh(impact / R.upScale)
       : R.base - (R.base - R.min) * Math.tanh(-impact / R.downScale);
 
-  return { rating: clamp(rating, R.min, R.max), weight: Math.max(share, R.weightFloor) };
+  return {
+    rating: clamp(rating, R.min, R.max),
+    weight: Math.max(share, R.weightFloor),
+  };
 }
 
 /** Weighted average of game ratings (e.g. across a week, month or season). */
