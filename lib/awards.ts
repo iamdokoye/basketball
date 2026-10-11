@@ -170,7 +170,7 @@ export function monthAwards(games: Game[]): Award[] {
       ? {
           playerId: mvp.winner.playerId,
           name: mvp.winner.name,
-          value: `${mvp.winner.rating.toFixed(1)} rating`,
+          value: `${mvp.winner.rating.toFixed(1)}/10`,
           detail: `${mvp.winner.wins}-${mvp.winner.losses} in ${mvp.winner.gp} ${mvp.winner.gp === 1 ? "game" : "games"}`,
         }
       : null,

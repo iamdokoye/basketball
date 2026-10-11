@@ -1,20 +1,21 @@
 import type { Game } from "./queries";
-import { gameScore, type StatLine } from "./stats";
+import { gameContext, rateLine } from "./rating";
+import type { StatLine } from "./stats";
 
 export type Performance = { line: StatLine; rating: number };
 
 /**
- * Everyone in a finished game, best performance first. Rating is Game Score; ties go to
- * the winning team, then points, then name.
+ * Everyone who played in a finished game, best performance first. Rating is the 0-10 player
+ * rating; ties go to the winning team, then points, then name.
  */
 export function rankPerformances(game: Game): Performance[] {
   if (game.status !== "final") return [];
+  const ctx = gameContext(game.lines);
   return game.lines
-    .map((line) => ({
-      line,
-      rating: gameScore(line),
-      won: game.winner === line.team,
-    }))
+    .flatMap((line) => {
+      const r = rateLine(line, ctx);
+      return r ? [{ line, rating: r.rating, won: game.winner === line.team }] : [];
+    })
     .sort(
       (a, b) =>
         b.rating - a.rating ||

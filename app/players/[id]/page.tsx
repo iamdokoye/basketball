@@ -114,6 +114,7 @@ export default async function PlayerPage({
             <div className="label text-muted">Rating</div>
             <div className="tabular text-3xl font-extrabold tracking-tight text-court-ink">
               {ranked.rating.toFixed(1)}
+              <span className="text-sm font-bold text-muted">/10</span>
             </div>
           </div>
         </Link>

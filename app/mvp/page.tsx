@@ -59,6 +59,7 @@ function Rows({
               <div className="text-right">
                 <div className="tabular text-xl font-extrabold leading-6 text-court-ink">
                   {w.rating.toFixed(1)}
+                  <span className="text-xs font-bold text-muted">/10</span>
                 </div>
                 <div className="label text-[10px] text-muted">rating</div>
               </div>

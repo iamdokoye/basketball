@@ -1,13 +1,13 @@
 import type { CareerLine } from "./queries";
-import { gameScore } from "./stats";
+import { RATING, averageRating } from "./rating";
 
 // Fair-teams suggestion. Each player gets one "strength" number, then we search for the
 // split of the chosen players into two teams whose strengths are closest.
 
 /** Games' worth of "average player" each person starts with, so a new player isn't rated on one fluke night. */
 const PRIOR_GAMES = 3;
-/** How much win rate counts next to rating (rating points per 100% win rate swing). */
-const WIN_WEIGHT = 8;
+/** How much win rate counts next to rating (rating points, out of 10, per 100% win rate swing). */
+const WIN_WEIGHT = 2;
 
 /**
  * strength = shrunk average rating + WIN_WEIGHT × (shrunk win rate − 50%).
@@ -16,14 +16,14 @@ const WIN_WEIGHT = 8;
  */
 export function playerStrengths(career: CareerLine[]): Map<number, number> {
   const played = career.filter((c) => c.gp > 0);
-  const ratings = played.map((c) => gameScore(c) / c.gp);
+  const ratings = played.map((c) => averageRating(c.ratingSum, c.ratingW));
   const meanRating = ratings.length
     ? ratings.reduce((a, b) => a + b, 0) / ratings.length
-    : 0;
+    : RATING.base;
 
   const out = new Map<number, number>();
   for (const c of career) {
-    const rating = c.gp > 0 ? gameScore(c) / c.gp : meanRating;
+    const rating = c.gp > 0 ? averageRating(c.ratingSum, c.ratingW) : meanRating;
     const shrunkRating =
       (c.gp * rating + PRIOR_GAMES * meanRating) / (c.gp + PRIOR_GAMES);
     const decided = c.wins + c.losses;
@@ -44,7 +44,7 @@ export type Split = {
 };
 
 export function fairness(gap: number): "Very even" | "Even" | "Lopsided" {
-  return gap < 0.5 ? "Very even" : gap < 1.5 ? "Even" : "Lopsided";
+  return gap < 0.12 ? "Very even" : gap < 0.35 ? "Even" : "Lopsided";
 }
 
 const EXHAUSTIVE_LIMIT = 16;
@@ -71,7 +71,7 @@ export function balanceTeams(
   ids: number[],
   strength: (id: number) => number,
   random: () => number = Math.random,
-  tolerance = 0.35,
+  tolerance = 0.08,
 ): Split | null {
   const n = ids.length;
   if (n < 2) return null;

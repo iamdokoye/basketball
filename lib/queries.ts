@@ -1,5 +1,6 @@
 import "server-only";
 import { db, fetchAll } from "./supabase";
+import { gameContext, played, rateLine } from "./rating";
 import {
   boxScore,
   emptyLine,
@@ -123,9 +124,13 @@ export async function getGame(id: number): Promise<Game | null> {
 }
 
 export type CareerLine = StatLine & {
+  /** Games actually played (benched all game doesn't count). */
   gp: number;
   wins: number;
   losses: number;
+  /** Sum of (per-game rating x weight) and of the weights; average rating = ratingSum / ratingW. */
+  ratingSum: number;
+  ratingW: number;
 };
 
 const SUMMED: (keyof StatLine)[] = [
@@ -139,7 +144,7 @@ export function careerTotals(games: Game[], players: Player[]): CareerLine[] {
   const get = (id: number, name: string): CareerLine => {
     let l = byId.get(id);
     if (!l) {
-      l = { ...emptyLine({ id, name, team: "A" }), gp: 0, wins: 0, losses: 0 };
+      l = { ...emptyLine({ id, name, team: "A" }), gp: 0, wins: 0, losses: 0, ratingSum: 0, ratingW: 0 };
       byId.set(id, l);
     }
     return l;
@@ -148,9 +153,16 @@ export function careerTotals(games: Game[], players: Player[]): CareerLine[] {
 
   for (const g of games) {
     if (g.status !== "final") continue;
+    const ctx = gameContext(g.lines);
     for (const line of g.lines) {
+      if (!played(line)) continue; // on the roster but never took the court
       const c = get(line.playerId, line.name);
       c.gp++;
+      const r = rateLine(line, ctx);
+      if (r) {
+        c.ratingSum += r.rating * r.weight;
+        c.ratingW += r.weight;
+      }
       for (const k of SUMMED) (c[k] as number) += line[k] as number;
       const mine = g.score[line.team];
       const theirs = g.score[line.team === "A" ? "B" : "A"];

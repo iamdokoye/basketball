@@ -56,6 +56,7 @@ export function MvpCard({
         <div className="text-right">
           <div className="tabular text-3xl font-extrabold leading-8 tracking-tight text-court-ink">
             {w.rating.toFixed(1)}
+            <span className="text-sm font-bold text-muted">/10</span>
           </div>
           <div className="label text-muted">rating</div>
         </div>

@@ -137,7 +137,7 @@ export default function NewGameForm({
           {balanced ? (
             <>
               <span className="text-ink">{fairness(balanced.gap)}</span> ·
-              strength gap {balanced.gap.toFixed(1)}. Shuffle for another fair
+              strength gap {balanced.gap.toFixed(2)}. Shuffle for another fair
               split.
             </>
           ) : a.length + b.length < 2 ? (

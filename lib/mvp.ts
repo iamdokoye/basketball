@@ -1,5 +1,6 @@
 import type { Game } from "./queries";
-import { gameScore, emptyLine, type StatLine } from "./stats";
+import { averageRating, gameContext, played, rateLine } from "./rating";
+import { emptyLine, type StatLine } from "./stats";
 
 // MVP of the week / month. Pure functions: pass in finished games and the league's
 // timezone. A "week" starts on the league's game day (Saturday by default) and runs
@@ -137,6 +138,9 @@ export type PlayerTotals = {
   losses: number;
   /** Summed stats across the games. */
   total: StatLine;
+  /** Sum of (per-game rating x weight) and of the weights. */
+  ratingSum: number;
+  ratingW: number;
 };
 
 /** Per-player totals across the finished games given. */
@@ -144,7 +148,9 @@ export function aggregatePlayers(games: Game[]): PlayerTotals[] {
   const acc = new Map<number, PlayerTotals>();
   for (const g of games) {
     if (g.status !== "final") continue;
+    const ctx = gameContext(g.lines);
     for (const line of g.lines) {
+      if (!played(line)) continue; // on the roster but never took the court
       let a = acc.get(line.playerId);
       if (!a) {
         a = {
@@ -154,10 +160,17 @@ export function aggregatePlayers(games: Game[]): PlayerTotals[] {
           wins: 0,
           losses: 0,
           total: emptyLine({ id: line.playerId, name: line.name, team: "A" }),
+          ratingSum: 0,
+          ratingW: 0,
         };
         acc.set(line.playerId, a);
       }
       a.gp++;
+      const r = rateLine(line, ctx);
+      if (r) {
+        a.ratingSum += r.rating * r.weight;
+        a.ratingW += r.weight;
+      }
       for (const k of Object.keys(a.total) as (keyof StatLine)[]) {
         if (typeof line[k] === "number" && k !== "playerId") (a.total[k] as number) += line[k] as number;
       }
@@ -189,7 +202,7 @@ export function computeMvp(games: Game[]): MvpResult | null {
       gp: a.gp,
       wins: a.wins,
       losses: a.losses,
-      rating: gameScore(a.total) / a.gp,
+      rating: averageRating(a.ratingSum, a.ratingW),
       pts: a.total.pts / a.gp,
       reb: a.total.reb / a.gp,
       ast: a.total.ast / a.gp,

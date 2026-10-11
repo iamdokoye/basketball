@@ -1,5 +1,5 @@
 import type { CareerLine } from "./queries";
-import { gameScore } from "./stats";
+import { averageRating } from "./rating";
 
 export type Ranked = CareerLine & {
   /** Average Hollinger Game Score per game. */
@@ -37,7 +37,7 @@ export function rankPlayers(career: CareerLine[], sort: SortKey = "rating"): {
   const qualifyAt = Math.min(MAX_QUALIFY_GAMES, Math.max(1, ...played.map((c) => c.gp)));
   const value = SORTS[sort].value;
 
-  const all: Ranked[] = played.map((c) => ({ ...c, rating: gameScore(c) / c.gp, rank: null }));
+  const all: Ranked[] = played.map((c) => ({ ...c, rating: averageRating(c.ratingSum, c.ratingW), rank: null }));
   const byValue = (a: Ranked, b: Ranked) => value(b) - value(a) || b.rating - a.rating;
   const qualified = all.filter((c) => c.gp >= qualifyAt).sort(byValue);
   const rest = all.filter((c) => c.gp < qualifyAt).sort(byValue);

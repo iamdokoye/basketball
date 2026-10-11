@@ -30,7 +30,7 @@ export function buildRecap(game: Game, timeZone: string): string | null {
 
   const [pog, ...rest] = perf;
   lines.push(`⭐ Player of the game: ${pog.line.name}`);
-  lines.push(`${statSummary(pog.line)} (rating ${pog.rating.toFixed(1)})`);
+  lines.push(`${statSummary(pog.line)} (rating ${pog.rating.toFixed(1)}/10)`);
 
   const standouts = rest.slice(0, 2);
   if (standouts.length > 0) {

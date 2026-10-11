@@ -11,10 +11,9 @@ const EXPLAIN: Record<
   { title: string; body: string; formula?: string }
 > = {
   rating: {
-    title: "Rating",
-    body: "One number for how much a player helps in a game, averaged over every game they play. Scoring, rebounds, assists, steals and blocks add to it; missed shots, turnovers and fouls take away. In a game to 20, about 10 is a solid game, 15 or more is a strong one, and 20+ is an all-time night. There is no fixed maximum, and a bad game can go below zero.",
-    formula:
-      "PTS + 0.4·FGM − 0.7·FGA − 0.4·(FTA − FTM) + 0.7·OREB + 0.3·DREB + STL + 0.7·AST + 0.7·BLK − 0.4·PF − TOV",
+    title: "Rating · out of 10",
+    body: "Every player starts a game at 6.5 when they take the court, as a starter or when they check in off the bench. Their plays then move it: points, rebounds, assists, steals, blocks and deflections push it up; missed shots, turnovers and fouls pull it down. Scoring in a low-scoring game counts for more, and so does doing a lot in few minutes. How your team did while you were on court nudges it too. It never goes above 10 or below 3, and 10 is nearly impossible. About 7 is a normal game, 8 is strong and 9 is a night to remember. The table shows each player's average across their games.",
+    formula: "6.5 → up or down by points + 0.4·FGM − 0.7·FGA − 0.4·missed FT + 0.7·OREB + 0.3·DREB + STL + 0.7·AST + 0.7·BLK + 0.3·deflections − 0.4·PF − TOV, scaled for pace and minutes, plus a small team plus/minus effect",
   },
   ppg: {
     title: "PPG · Points per game",

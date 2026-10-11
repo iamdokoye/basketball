@@ -1,6 +1,7 @@
 import type { Game } from "./queries";
 import { computeMvp, groupByPeriod } from "./mvp";
-import { gameScore, type StatLine } from "./stats";
+import { gameContext, played, rateLine, type GameContext } from "./rating";
+import type { StatLine } from "./stats";
 
 export type RecordItem = {
   id: string;
@@ -19,7 +20,7 @@ const finals = (games: Game[]) => games.filter((g) => g.status === "final");
 type Stat = {
   id: string;
   label: string;
-  get: (l: StatLine) => number;
+  get: (l: StatLine, ctx: GameContext) => number;
   fmt?: (n: number) => string;
 };
 const STATS: Stat[] = [
@@ -32,7 +33,7 @@ const STATS: Stat[] = [
   {
     id: "rating",
     label: "Best single-game rating",
-    get: (l) => gameScore(l),
+    get: (l, ctx) => rateLine(l, ctx)?.rating ?? 0,
     fmt: (n) => n.toFixed(1),
   },
 ];
@@ -46,8 +47,9 @@ export function singleGameRecords(games: Game[]): RecordItem[] {
   for (const stat of STATS) {
     let best: { v: number; line: StatLine; game: Game } | null = null;
     for (const game of ordered) {
+      const ctx = gameContext(game.lines);
       for (const line of game.lines) {
-        const v = stat.get(line);
+        const v = stat.get(line, ctx);
         if (v > 0 && (!best || v > best.v + 1e-9)) best = { v, line, game };
       }
     }
@@ -117,6 +119,7 @@ export function winStreaks(games: Game[]): Streak[] {
   const byPlayer = new Map<number, { name: string; results: boolean[] }>();
   for (const g of ordered) {
     for (const line of g.lines) {
+      if (!played(line)) continue; // sat out the whole game: not part of their streak
       const mine = g.score[line.team];
       const theirs = g.score[line.team === "A" ? "B" : "A"];
       if (mine === theirs) continue;
@@ -157,7 +160,7 @@ export function bestMonthEver(
       best = {
         id: "bestMonth",
         label: "Best month ever",
-        value: `${mvp.winner.rating.toFixed(1)} rating`,
+        value: `${mvp.winner.rating.toFixed(1)}/10`,
         player: { id: mvp.winner.playerId, name: mvp.winner.name },
         when: "",
         detail: `${month.label} · ${mvp.winner.wins}-${mvp.winner.losses} in ${mvp.winner.gp} ${mvp.winner.gp === 1 ? "game" : "games"}`,

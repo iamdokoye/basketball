@@ -97,6 +97,7 @@ export default async function GamePage({
           <div className="text-right">
             <div className="tabular text-2xl font-extrabold leading-7 text-court-ink">
               {pog.rating.toFixed(1)}
+              <span className="text-xs font-bold text-muted">/10</span>
             </div>
             <div className="label text-muted">rating</div>
           </div>

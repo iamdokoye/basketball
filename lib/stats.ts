@@ -234,26 +234,6 @@ export function gameResult(
   return { over, winner: over ? leader : null };
 }
 
-/**
- * Hollinger's Game Score: a single-number box score summary. A solid game is
- * ~10, a great one 20+. Free throws are counted separately from field goals.
- */
-export function gameScore(l: StatLine): number {
-  return (
-    l.pts +
-    0.4 * l.fgm -
-    0.7 * l.fga -
-    0.4 * (l.fta - l.ftm) +
-    0.7 * l.oreb +
-    0.3 * l.dreb +
-    l.stl +
-    0.7 * l.ast +
-    0.7 * l.blk -
-    0.4 * l.pf -
-    l.tov
-  );
-}
-
 export function fmtPct(made: number, att: number): string {
   return att === 0 ? "–" : `${((made / att) * 100).toFixed(0)}%`;
 }

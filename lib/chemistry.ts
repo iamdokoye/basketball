@@ -1,4 +1,5 @@
 import type { Game } from "./queries";
+import { played } from "./rating";
 
 export type Mate = {
   playerId: number;
@@ -24,7 +25,7 @@ export function pairStats(games: Game[]): Pair[] {
   for (const g of games) {
     if (g.status !== "final" || g.score.A === g.score.B) continue;
     const winner = g.score.A > g.score.B ? "A" : "B";
-    const lines = g.lines;
+    const lines = g.lines.filter(played); // sat out the whole game: not a teammate or opponent
     for (let i = 0; i < lines.length; i++) {
       for (let j = i + 1; j < lines.length; j++) {
         // a is always the smaller id so results have a stable point of view
