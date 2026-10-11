@@ -1,23 +1,17 @@
 import Link from "next/link";
 import { careerTotals, listGames, listPlayers } from "@/lib/queries";
 import { rankPlayers, SORTS, type Ranked, type SortKey } from "@/lib/rankings";
-import { GameRow } from "@/app/components/GameRow";
-import { Avatar } from "@/app/components/Avatar";
+import { GameRow, LiveGameCard } from "@/app/components/GameRow";
+import { Avatar, shortName } from "@/app/components/Avatar";
 
 export const dynamic = "force-dynamic";
 
-const LEADER_CATEGORIES: { key: SortKey; label: string }[] = [
-  { key: "ppg", label: "Scoring" },
-  { key: "rpg", label: "Rebounds" },
-  { key: "apg", label: "Assists" },
-  { key: "spg", label: "Steals" },
-  { key: "bpg", label: "Blocks" },
-];
-
-const PODIUM = [
-  { place: 2, bar: "h-16 bg-stone-300", order: "order-1" },
-  { place: 1, bar: "h-24 bg-amber-400", order: "order-2" },
-  { place: 3, bar: "h-12 bg-orange-300", order: "order-3" },
+const LEADER_CATEGORIES: { key: SortKey; label: string; unit: string }[] = [
+  { key: "ppg", label: "PPG", unit: "pts" },
+  { key: "rpg", label: "RPG", unit: "reb" },
+  { key: "apg", label: "APG", unit: "ast" },
+  { key: "spg", label: "SPG", unit: "stl" },
+  { key: "bpg", label: "BPG", unit: "blk" },
 ];
 
 export default async function Home() {
@@ -28,60 +22,95 @@ export default async function Home() {
   const { rows: ranked } = rankPlayers(career);
   const top3 = ranked.filter((r) => r.rank !== null).slice(0, 3);
 
-  const leaders = LEADER_CATEGORIES.flatMap(({ key, label }) => {
-    const { rows } = rankPlayers(career, key);
-    const best = rows[0];
-    return best ? [{ label, key, player: best }] : [];
+  const leaders = LEADER_CATEGORIES.flatMap(({ key, label, unit }) => {
+    const best = rankPlayers(career, key).rows[0];
+    return best ? [{ label, unit, key, player: best }] : [];
   });
 
   return (
-    <div className="space-y-7">
+    <div className="space-y-8">
+      {/* Start a game */}
       <Link
         href="/games/new"
-        className="flex items-center justify-between rounded-3xl bg-gradient-to-br from-court to-orange-500 p-5 text-white shadow-lg active:scale-[0.99]"
+        className="glass-1 group relative block overflow-hidden rounded-3xl p-5 transition-transform active:scale-[0.99]"
       >
-        <div>
-          <div className="text-sm font-bold uppercase tracking-widest text-orange-100">Ready?</div>
-          <div className="text-3xl font-black leading-tight">Start a game</div>
+        <div className="pointer-events-none absolute inset-0 bg-court-soft/10" />
+        <div className="relative flex items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="label text-court-ink">Ready?</div>
+            <h1 className="text-[32px] font-extrabold leading-[38px] tracking-tight">Start a game</h1>
+            <p className="text-sm text-muted">Pick teams, set the target score, tip off.</p>
+          </div>
+          <span className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-ink text-paper shadow-md transition-transform group-hover:scale-105">
+            <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M5 12h14M13 6l6 6-6 6" />
+            </svg>
+          </span>
         </div>
-        <span className="grid h-14 w-14 place-items-center rounded-full bg-white/20 text-3xl">🏀</span>
       </Link>
 
       {live.length > 0 && (
-        <section>
-          <h2 className="mb-2 text-xs font-bold uppercase tracking-widest text-stone-500">In progress</h2>
-          <ul className="space-y-2">
-            {live.map((g) => (
-              <GameRow key={g.id} game={g} />
-            ))}
-          </ul>
+        <section className="space-y-2.5">
+          <div className="flex items-center gap-2 px-1">
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-court-soft opacity-75" />
+              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-court-soft" />
+            </span>
+            <h2 className="label">Live on court</h2>
+          </div>
+          {live.map((g) => (
+            <LiveGameCard key={g.id} game={g} />
+          ))}
         </section>
       )}
 
-      <section>
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-xs font-bold uppercase tracking-widest text-stone-500">Top players</h2>
-          <Link href="/rankings" className="text-xs font-bold text-court hover:underline">
-            Full rankings →
+      {/* Top players */}
+      <section className="space-y-3">
+        <div className="flex items-center justify-between px-1">
+          <h2 className="label">Top players</h2>
+          <Link href="/rankings" className="text-xs font-semibold text-court-ink hover:underline">
+            Full rankings
           </Link>
         </div>
         {top3.length === 0 ? (
-          <p className="rounded-2xl bg-white p-6 text-center text-sm text-stone-500 ring-1 ring-stone-200">
+          <p className="glass-1 rounded-2xl p-6 text-center text-sm text-muted">
             Finish a game to crown a champion.
           </p>
         ) : (
-          <div className="grid grid-cols-3 items-end gap-2 rounded-3xl bg-white p-4 shadow-sm ring-1 ring-stone-200">
-            {PODIUM.map(({ place, bar, order }) => {
+          <div className="grid grid-cols-3 items-end gap-2.5 pt-4">
+            {[2, 1, 3].map((place) => {
               const r: Ranked | undefined = top3[place - 1];
-              if (!r) return <div key={place} className={order} />;
+              if (!r) return <div key={place} />;
+              const first = place === 1;
               return (
-                <Link key={place} href={`/players/${r.playerId}`} className={`${order} flex flex-col items-center text-center`}>
-                  <Avatar id={r.playerId} name={r.name} size={place === 1 ? "lg" : "md"} />
-                  <div className="mt-1.5 w-full truncate text-sm font-black">{r.name}</div>
-                  <div className="tabular text-xs font-semibold text-stone-500">{r.rating.toFixed(1)} rtg</div>
-                  <div className={`mt-2 grid w-full place-items-center rounded-t-xl text-2xl font-black ${bar}`}>
+                <Link
+                  key={place}
+                  href={`/players/${r.playerId}`}
+                  className={`relative flex flex-col items-center rounded-2xl p-3 text-center ${
+                    first ? "glass-2 -mt-4 pt-7 shadow-md" : "glass-1 pt-6"
+                  }`}
+                >
+                  <span
+                    className={`tabular absolute -top-3 grid place-items-center rounded-full font-extrabold shadow-sm ${
+                      first
+                        ? "h-7 w-7 bg-court-soft text-sm text-white"
+                        : "h-6 w-6 bg-white text-xs text-ink ring-1 ring-black/10"
+                    }`}
+                  >
                     {place}
-                  </div>
+                  </span>
+                  <Avatar id={r.playerId} name={r.name} size={first ? "lg" : "md"} tone={first ? "ink" : "soft"} />
+                  <span className="mt-2 w-full truncate text-sm font-bold">{shortName(r.name)}</span>
+                  <span className={`tabular text-xs font-semibold ${first ? "text-court-ink" : "text-muted"}`}>
+                    {r.rating.toFixed(1)} rtg
+                  </span>
+                  <span
+                    className={`tabular mt-2 w-full rounded py-1 text-[10px] font-semibold uppercase tracking-wide ${
+                      first ? "bg-court-soft/10 text-court-ink" : "bg-white/50 text-muted"
+                    }`}
+                  >
+                    {r.wins}-{r.losses} rec
+                  </span>
                 </Link>
               );
             })}
@@ -89,43 +118,46 @@ export default async function Home() {
         )}
       </section>
 
+      {/* Category leaders */}
       {leaders.length > 0 && (
-        <section>
-          <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-stone-500">Category leaders</h2>
-          <div className="-mx-4 flex gap-2.5 overflow-x-auto px-4 pb-1">
-            {leaders.map(({ label, key, player }) => (
+        <section className="space-y-2.5">
+          <h2 className="label px-1">Category leaders</h2>
+          <div className="-mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {leaders.map(({ label, unit, key, player }) => (
               <Link
                 key={key}
                 href={`/rankings?sort=${key}`}
-                className="w-36 shrink-0 rounded-2xl bg-white p-3 shadow-sm ring-1 ring-stone-200"
+                className="glass-1 flex w-36 shrink-0 snap-start flex-col justify-between rounded-2xl p-3"
               >
-                <div className="text-[11px] font-bold uppercase tracking-widest text-stone-400">{label}</div>
-                <div className="tabular mt-1 text-3xl font-black">
-                  {SORTS[key].value(player).toFixed(1)}
-                </div>
-                <div className="mt-1 flex items-center gap-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="label text-court-ink">{label}</span>
                   <Avatar id={player.playerId} name={player.name} size="sm" />
-                  <span className="truncate text-sm font-bold">{player.name}</span>
                 </div>
+                <div className="my-2">
+                  <span className="tabular text-[32px] font-extrabold leading-9 tracking-tight">
+                    {SORTS[key].value(player).toFixed(1)}
+                  </span>
+                  <span className="ml-1 text-[11px] font-semibold text-muted">{unit}</span>
+                </div>
+                <span className="truncate text-[11px] font-semibold text-muted">{player.name}</span>
               </Link>
             ))}
           </div>
         </section>
       )}
 
-      <section>
-        <div className="mb-2 flex items-center justify-between">
-          <h2 className="text-xs font-bold uppercase tracking-widest text-stone-500">Recent games</h2>
-          <Link href="/games" className="text-xs font-bold text-court hover:underline">
-            See all →
+      {/* Recent games */}
+      <section className="space-y-3">
+        <div className="flex items-center justify-between px-1">
+          <h2 className="label">Recent games</h2>
+          <Link href="/games" className="text-xs font-semibold text-court-ink hover:underline">
+            View all
           </Link>
         </div>
         {final.length === 0 ? (
-          <p className="rounded-2xl bg-white p-6 text-center text-sm text-stone-500 ring-1 ring-stone-200">
-            No finished games yet.
-          </p>
+          <p className="glass-1 rounded-2xl p-6 text-center text-sm text-muted">No finished games yet.</p>
         ) : (
-          <ul className="space-y-2">
+          <ul className="space-y-3">
             {final.slice(0, 5).map((g) => (
               <GameRow key={g.id} game={g} />
             ))}

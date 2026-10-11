@@ -34,22 +34,19 @@ export default async function RankingsPage({
   const hasProvisional = rows.some((r) => r.rank === null);
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-3xl font-black tracking-tight">Rankings</h1>
-        <p className="text-sm text-stone-500">
-          Ranked by rating: your average Game Score per game, which rolls scoring, efficiency,
-          rebounds, assists, steals, blocks, turnovers and fouls into one number.
-        </p>
+    <div className="space-y-5">
+      <div className="space-y-1 px-1">
+        <h1 className="text-[32px] font-extrabold leading-[38px] tracking-tight">Rankings</h1>
+        <p className="text-sm text-muted">Ranked by average Game Score per game.</p>
       </div>
 
-      <div className="-mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1">
+      <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {(Object.keys(SORTS) as SortKey[]).map((k) => (
           <Link
             key={k}
             href={k === "rating" ? "/rankings" : `/rankings?sort=${k}`}
-            className={`shrink-0 rounded-full px-3.5 py-1.5 text-xs font-bold ${
-              k === sortKey ? "bg-ink text-white" : "bg-white text-stone-600 ring-1 ring-stone-200"
+            className={`shrink-0 rounded-full px-4 py-2 text-xs font-semibold transition-colors ${
+              k === sortKey ? "bg-ink text-paper shadow-sm" : "glass-1 text-muted"
             }`}
           >
             {SORTS[k].label}
@@ -58,58 +55,60 @@ export default async function RankingsPage({
       </div>
 
       {rows.length === 0 ? (
-        <p className="rounded-2xl bg-white p-8 text-center text-stone-500 ring-1 ring-stone-200">
+        <p className="glass-1 rounded-2xl p-8 text-center text-sm text-muted">
           Finish a game and the rankings show up here.
         </p>
       ) : (
-        <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-stone-200">
+        <div className="glass-2 overflow-hidden rounded-2xl">
           <div className="overflow-x-auto">
             <table className="tabular w-full whitespace-nowrap text-sm">
               <thead>
-                <tr className="text-[11px] uppercase tracking-wider text-stone-400">
-                  <th className="sticky left-0 z-[1] bg-white px-3 py-2.5 text-left font-semibold">
-                    # Player
-                  </th>
+                <tr className="label text-muted">
+                  <th className="sticky-cell px-3 py-3 text-left font-semibold"># Player</th>
                   {COLUMNS.map((c) => (
                     <th
                       key={c.label}
-                      className={`px-2.5 py-2.5 text-right font-semibold ${
-                        c.key === sortKey ? "text-court" : ""
-                      }`}
+                      className={`px-2.5 py-3 text-right font-semibold ${c.key === sortKey ? "text-court-ink" : ""}`}
                     >
                       {c.label}
                     </th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-stone-100">
+              <tbody className="divide-y divide-black/[0.06]">
                 {rows.map((r) => (
-                  <tr key={r.playerId} className={r.rank === null ? "text-stone-400" : ""}>
-                    <td className="sticky left-0 z-[1] bg-white px-3 py-2.5">
+                  <tr key={r.playerId} className={r.rank === null ? "opacity-45" : ""}>
+                    <td className="sticky-cell px-3 py-2.5">
                       <Link href={`/players/${r.playerId}`} className="flex items-center gap-2.5">
                         <RankBadge rank={r.rank} />
                         <Avatar id={r.playerId} name={r.name} size="sm" />
-                        <span className="font-bold text-ink">{r.name}</span>
+                        <span className="font-bold">{r.name}</span>
                       </Link>
                     </td>
-                    {COLUMNS.map((c) => (
-                      <td
-                        key={c.label}
-                        className={`px-2.5 py-2.5 text-right ${
-                          c.key === sortKey ? "bg-orange-50 font-black text-ink" : ""
-                        } ${c.key === "rating" ? "font-bold" : ""}`}
-                      >
-                        {c.cell(r)}
-                      </td>
-                    ))}
+                    {COLUMNS.map((c) => {
+                      const v = c.cell(r);
+                      const signed = c.label === "+/-";
+                      return (
+                        <td
+                          key={c.label}
+                          className={`px-2.5 py-2.5 text-right ${
+                            c.key === sortKey ? "bg-court-soft/10 font-extrabold" : ""
+                          } ${c.key === "rating" ? "font-bold" : ""} ${
+                            signed ? (v.startsWith("+") ? "text-win" : v.startsWith("-") ? "text-loss" : "") : ""
+                          }`}
+                        >
+                          {v}
+                        </td>
+                      );
+                    })}
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
           {hasProvisional && (
-            <p className="border-t border-stone-100 px-3 py-2 text-xs text-stone-500">
-              Players need {qualifyAt} games to get a rank. Greyed rows are still qualifying.
+            <p className="hairline border-t px-3 py-2 text-xs text-muted">
+              Players need {qualifyAt} games to get a rank.
             </p>
           )}
         </div>

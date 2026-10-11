@@ -14,7 +14,7 @@ import {
   type RosterEntry,
   type Team,
 } from "@/lib/stats";
-import { Avatar } from "@/app/components/Avatar";
+import { Avatar, shortName } from "@/app/components/Avatar";
 
 type Ev = { playerId: number; type: EventType };
 
@@ -23,10 +23,10 @@ type Section = { heading?: string; cols: 1 | 2 | 3; options: Option[] };
 type Sheet = { title: string; subtitle?: string; player?: RosterEntry; sections: Section[] };
 
 const TONES = {
-  good: "bg-emerald-600 text-white active:bg-emerald-700",
-  bad: "bg-rose-50 text-rose-800 ring-1 ring-rose-200 active:bg-rose-100",
-  neutral: "bg-stone-100 text-stone-900 active:bg-stone-200",
-  sub: "bg-indigo-50 text-indigo-800 ring-1 ring-indigo-200 active:bg-indigo-100",
+  good: "bg-win/15 text-emerald-800 ring-1 ring-win/30 active:bg-win/25",
+  bad: "bg-white/60 text-loss ring-1 ring-black/5 active:bg-loss/10",
+  neutral: "bg-white/60 text-ink ring-1 ring-black/5 active:bg-white",
+  sub: "bg-sub/10 text-sub ring-1 ring-sub/25 active:bg-sub/20",
 };
 
 /** Timestamp for a new event; only ever called from tap handlers. */
@@ -35,8 +35,8 @@ const eventTime = () => Date.now();
 const COLS = { 1: "grid-cols-1", 2: "grid-cols-2", 3: "grid-cols-3" };
 
 const TEAM_STYLE = {
-  A: { bar: "bg-court", text: "text-court", ring: "active:ring-court", label: "Team A" },
-  B: { bar: "bg-away", text: "text-away", ring: "active:ring-away", label: "Team B" },
+  A: { bar: "bg-court-soft", text: "text-court-ink", ring: "active:ring-court", label: "Team A" },
+  B: { bar: "bg-away-soft", text: "text-away-dark", ring: "active:ring-away", label: "Team B" },
 } as const;
 
 export default function Scorekeeper({
@@ -335,24 +335,24 @@ export default function Scorekeeper({
   return (
     <div className="space-y-4">
       {/* Scoreboard */}
-      <div className="sticky top-[60px] z-10 -mx-4 bg-paper/95 px-4 pb-2 pt-1 backdrop-blur">
-        <div className="overflow-hidden rounded-2xl bg-ink text-white shadow-lg">
+      <div className="sticky top-[72px] z-10 -mx-4 px-4 pb-2 pt-1">
+        <div className="glass-3 overflow-hidden rounded-3xl">
           <div className="grid grid-cols-[1fr_auto_1fr] items-stretch">
             {(["A", "B"] as const).map((t) => (
               <div
                 key={t}
                 className={`relative px-4 py-3 ${t === "B" ? "order-3 text-right" : "order-1"}`}
               >
-                <span className={`absolute inset-y-0 ${t === "A" ? "left-0" : "right-0"} w-1.5 ${TEAM_STYLE[t].bar}`} />
-                <div className="text-[11px] font-bold uppercase tracking-widest text-stone-400">
+                <span className={`absolute inset-y-0 ${t === "A" ? "left-0" : "right-0"} w-1 ${TEAM_STYLE[t].bar}`} />
+                <div className="label text-muted">
                   {TEAM_STYLE[t].label}
                 </div>
-                <div key={score[t]} className="pop tabular text-6xl font-black leading-none">
+                <div key={score[t]} className="pop tabular text-[64px] font-extrabold leading-none tracking-tighter">
                   {score[t]}
                 </div>
               </div>
             ))}
-            <div className="order-2 flex flex-col items-center justify-center px-1 text-[11px] font-semibold text-stone-400">
+            <div className="order-2 flex flex-col items-center justify-center px-1 text-[11px] font-semibold text-muted">
               <span>to {target}</span>
               {winBy > 1 && <span>win by {winBy}</span>}
             </div>
@@ -361,14 +361,14 @@ export default function Scorekeeper({
       </div>
 
       {result.over && (
-        <div className="flex items-center justify-between gap-3 rounded-2xl bg-emerald-600 p-4 text-white">
+        <div className="glass-1 flex items-center justify-between gap-3 rounded-2xl !bg-win/15 p-4">
           <div>
-            <div className="font-black">Team {result.winner} wins!</div>
-            <div className="text-sm text-emerald-100">Check the log, then lock it in.</div>
+            <div className="font-extrabold text-emerald-900">Team {result.winner} wins!</div>
+            <div className="text-sm text-muted">Check the log, then lock it in.</div>
           </div>
           <button
             onClick={finish}
-            className="rounded-full bg-white px-4 py-2 text-sm font-black text-emerald-700 active:bg-emerald-50"
+            className="rounded-full bg-ink px-4 py-2 text-sm font-semibold text-paper active:scale-95"
           >
             Finish game
           </button>
@@ -376,7 +376,7 @@ export default function Scorekeeper({
       )}
 
       {error && (
-        <div role="alert" className="rounded-xl bg-rose-100 p-3 text-sm font-medium text-rose-900">
+        <div role="alert" className="rounded-xl bg-loss/10 p-3 text-sm font-semibold text-loss">
           {error}
         </div>
       )}
@@ -391,16 +391,16 @@ export default function Scorekeeper({
                 <button
                   key={p.id}
                   onClick={() => playerSheet(p)}
-                  className={`w-full rounded-2xl bg-white p-3 text-left shadow-sm ring-1 ring-stone-200 active:ring-2 ${TEAM_STYLE[t].ring}`}
+                  className={`glass-1 w-full rounded-2xl p-3 text-left transition-transform active:scale-[0.98] active:ring-2 ${TEAM_STYLE[t].ring}`}
                 >
                   <div className="flex items-center gap-2">
                     <Avatar id={p.id} name={p.name} size="sm" />
-                    <span className="min-w-0 flex-1 truncate font-bold">{p.name}</span>
-                    <span key={l.pts} className="pop tabular text-2xl font-black">
+                    <span className="min-w-0 flex-1 truncate font-bold">{shortName(p.name)}</span>
+                    <span key={l.pts} className="pop tabular text-2xl font-extrabold tracking-tight">
                       {l.pts}
                     </span>
                   </div>
-                  <div className="tabular mt-2 flex flex-wrap gap-x-2 gap-y-0.5 text-[11px] font-medium text-stone-500">
+                  <div className="tabular mt-2 flex flex-wrap gap-x-2 gap-y-0.5 text-[11px] font-semibold text-muted">
                     <span>
                       FG {l.fgm}/{l.fga}
                     </span>
@@ -415,15 +415,15 @@ export default function Scorekeeper({
                     <span>{l.blk} blk</span>
                     {l.tov > 0 && <span>{l.tov} to</span>}
                     {l.pf > 0 && (
-                      <span className={l.pf >= 4 ? "font-bold text-rose-600" : ""}>{l.pf} pf</span>
+                      <span className={l.pf >= 4 ? "font-bold text-loss" : ""}>{l.pf} pf</span>
                     )}
                   </div>
                 </button>
               );
             })}
             {bench(t).length > 0 && (
-              <div className="rounded-2xl bg-stone-200/60 p-2">
-                <div className="mb-1 px-1 text-[10px] font-bold uppercase tracking-widest text-stone-500">
+              <div className="rounded-2xl bg-black/[0.04] p-2">
+                <div className="label mb-1 px-1 text-[10px] text-muted">
                   Bench · tap to sub in
                 </div>
                 <div className="flex flex-wrap gap-1.5">
@@ -431,7 +431,7 @@ export default function Scorekeeper({
                     <button
                       key={b.id}
                       onClick={() => subInStep(b)}
-                      className="flex items-center gap-1.5 rounded-full bg-white py-1 pl-1 pr-3 text-sm font-semibold ring-1 ring-stone-300 active:bg-indigo-50"
+                      className="flex items-center gap-1.5 rounded-full bg-white/70 py-1 pl-1 pr-3 text-sm font-semibold ring-1 ring-black/5 active:bg-sub/10"
                     >
                       <Avatar id={b.id} name={b.name} size="sm" />
                       {b.name}
@@ -445,37 +445,37 @@ export default function Scorekeeper({
       </div>
 
       {/* Play log */}
-      <div className="rounded-2xl bg-white p-3 shadow-sm ring-1 ring-stone-200">
+      <div className="glass-1 rounded-2xl p-3">
         <div className="flex items-center justify-between gap-2">
-          <button onClick={() => setShowLog((s) => !s)} className="text-sm font-bold text-stone-600">
+          <button onClick={() => setShowLog((s) => !s)} className="text-sm font-semibold text-muted">
             Play log ({groups.length}) {showLog ? "▲" : "▼"}
           </button>
           <button
             disabled={!last}
             onClick={() => last && removeGroup(last.grp)}
-            className="rounded-full bg-ink px-4 py-1.5 text-sm font-bold text-white disabled:opacity-30"
+            className="rounded-full bg-ink px-4 py-1.5 text-sm font-semibold text-paper disabled:opacity-30"
           >
             ↶ Undo last
           </button>
         </div>
         {!showLog && last && (
-          <p className="mt-2 text-sm text-stone-500">Last: {describeGroup(last.events, nameOf)}</p>
+          <p className="mt-2 text-sm text-muted">Last: {describeGroup(last.events, nameOf)}</p>
         )}
         {showLog && (
-          <ol className="mt-2 divide-y divide-stone-100">
+          <ol className="mt-2 divide-y divide-black/[0.06]">
             {[...groups].reverse().map((g) => (
               <li key={g.grp} className="flex items-center justify-between gap-2 py-2 text-sm">
                 <span>{describeGroup(g.events, nameOf)}</span>
                 <button
                   onClick={() => removeGroup(g.grp)}
                   aria-label="Delete this play"
-                  className="shrink-0 rounded-full px-2 py-1 text-rose-700 active:bg-rose-100"
+                  className="shrink-0 rounded-full px-2 py-1 text-loss active:bg-loss/10"
                 >
                   ✕
                 </button>
               </li>
             ))}
-            {groups.length === 0 && <li className="py-2 text-sm text-stone-400">No plays yet.</li>}
+            {groups.length === 0 && <li className="py-2 text-sm text-muted">No plays yet.</li>}
           </ol>
         )}
       </div>
@@ -485,7 +485,7 @@ export default function Scorekeeper({
           onClick={() => {
             if (confirm("End the game now? Use this if you stopped before the target score.")) finish();
           }}
-          className="w-full rounded-xl py-2 text-sm font-semibold text-stone-500 active:bg-stone-200"
+          className="w-full rounded-xl py-2 text-sm font-semibold text-muted active:bg-black/5"
         >
           End game early
         </button>
@@ -493,23 +493,23 @@ export default function Scorekeeper({
 
       {/* Action sheet */}
       {sheet && (
-        <div className="fixed inset-0 z-40 flex items-end bg-black/50" onClick={() => setSheet(null)}>
+        <div className="fixed inset-0 z-40 flex items-end bg-ink/25 backdrop-blur-sm" onClick={() => setSheet(null)}>
           <div
             role="dialog"
             aria-label={sheet.title}
             onClick={(e) => e.stopPropagation()}
-            className="sheet-up mx-auto max-h-[88vh] w-full max-w-3xl space-y-4 overflow-y-auto rounded-t-3xl bg-white p-4 pb-8 shadow-2xl"
+            className="glass-3 sheet-up mx-auto max-h-[88vh] w-full max-w-3xl space-y-4 overflow-y-auto rounded-t-[28px] p-4 pb-8"
           >
             <div className="flex items-center gap-3">
               {sheet.player && <Avatar id={sheet.player.id} name={sheet.player.name} />}
               <div className="min-w-0 flex-1">
-                <h2 className="truncate text-lg font-black leading-tight">{sheet.title}</h2>
-                {sheet.subtitle && <p className="text-sm font-medium text-stone-500">{sheet.subtitle}</p>}
+                <h2 className="truncate text-lg font-extrabold leading-tight tracking-tight">{sheet.title}</h2>
+                {sheet.subtitle && <p className="text-sm font-semibold text-muted">{sheet.subtitle}</p>}
               </div>
               <button
                 onClick={() => setSheet(null)}
                 aria-label="Close"
-                className="rounded-full px-3 py-1 text-stone-500 active:bg-stone-100"
+                className="rounded-full px-3 py-1 text-muted active:bg-black/5"
               >
                 ✕
               </button>
@@ -517,7 +517,7 @@ export default function Scorekeeper({
             {sheet.sections.map((s, i) => (
               <div key={i}>
                 {s.heading && (
-                  <div className="mb-1.5 text-[11px] font-bold uppercase tracking-widest text-stone-400">
+                  <div className="label mb-1.5 text-muted">
                     {s.heading}
                   </div>
                 )}
@@ -526,7 +526,7 @@ export default function Scorekeeper({
                     <button
                       key={o.label}
                       onClick={o.onPick}
-                      className={`min-h-14 rounded-xl px-3 py-3 text-base font-bold ${TONES[o.tone ?? "neutral"]}`}
+                      className={`min-h-14 rounded-xl px-3 py-3 text-base font-semibold transition-transform active:scale-[0.98] ${TONES[o.tone ?? "neutral"]}`}
                     >
                       {o.label}
                       {o.hint && <span className="ml-1 text-sm font-semibold opacity-80">{o.hint}</span>}

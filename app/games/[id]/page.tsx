@@ -34,21 +34,21 @@ export default async function GamePage({ params }: { params: Promise<{ id: strin
 
   return (
     <div className="space-y-4">
-      <Link href="/games" className="text-sm text-stone-500 hover:underline">
+      <Link href="/games" className="px-1 text-sm font-semibold text-muted hover:underline">
         ← All games
       </Link>
-      <div className="rounded-2xl bg-stone-900 p-5 text-white">
-        <div className="text-xs uppercase tracking-wider text-stone-400">
+      <div className="glass-2 rounded-3xl p-5">
+        <div className="label text-muted">
           {formatDate(game.playedAt)} · Final
         </div>
         <div className="mt-3 grid grid-cols-2 gap-4">
           {(["A", "B"] as const).map((t) => (
             <div key={t} className={t === "B" ? "text-right" : ""}>
-              <div className="tabular text-5xl font-black">
+              <div className="tabular text-6xl font-extrabold leading-none tracking-tighter">
                 {game.score[t]}
-                {game.winner === t && <span className="ml-2 text-lg text-emerald-400">W</span>}
+                {game.winner === t && <span className="ml-2 align-middle text-lg font-extrabold text-win">W</span>}
               </div>
-              <div className="mt-1 text-sm text-stone-400">{names(t)}</div>
+              <div className="mt-2 text-xs font-semibold text-muted">{names(t)}</div>
             </div>
           ))}
         </div>
@@ -59,7 +59,7 @@ export default async function GamePage({ params }: { params: Promise<{ id: strin
 
       <div className="flex gap-2">
         <form action={reopenGame.bind(null, game.id)}>
-          <button className="rounded-full bg-white px-4 py-2 text-sm font-semibold ring-1 ring-stone-300 active:bg-stone-100">
+          <button className="glass-1 rounded-full px-4 py-2 text-sm font-semibold active:scale-95">
             Reopen to fix stats
           </button>
         </form>

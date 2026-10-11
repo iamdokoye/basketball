@@ -48,7 +48,7 @@ function Icon({ name }: { name: keyof typeof ICONS }) {
   return (
     <svg
       viewBox="0 0 24 24"
-      className="h-6 w-6"
+      className="h-5 w-5"
       fill="none"
       stroke="currentColor"
       strokeWidth={1.8}
@@ -64,14 +64,17 @@ function Icon({ name }: { name: keyof typeof ICONS }) {
 export function TopNav() {
   const active = useActive();
   return (
-    <nav className="hidden gap-1 text-sm font-semibold md:flex" aria-label="Main">
+    <nav
+      className="hidden gap-0.5 rounded-full bg-black/[0.05] p-1 text-[13px] font-semibold shadow-[inset_0_1px_0_rgb(255_255_255/0.8)] md:flex"
+      aria-label="Main"
+    >
       {TABS.map((t) => (
         <Link
           key={t.href}
           href={t.href}
           aria-current={active(t.href) ? "page" : undefined}
-          className={`rounded-full px-3.5 py-1.5 ${
-            active(t.href) ? "bg-ink text-white" : "text-stone-600 hover:bg-stone-200"
+          className={`rounded-full px-4 py-1.5 transition-colors ${
+            active(t.href) ? "bg-ink text-paper shadow-sm" : "text-muted hover:bg-white/60 hover:text-ink"
           }`}
         >
           {t.label}
@@ -86,16 +89,17 @@ export function BottomNav() {
   return (
     <nav
       aria-label="Main"
-      className="safe-bottom fixed inset-x-0 bottom-0 z-30 border-t border-stone-200 bg-white/95 backdrop-blur md:hidden"
+      className="glass-2 fixed inset-x-4 bottom-4 z-30 mx-auto max-w-sm rounded-full p-1.5 md:hidden"
+      style={{ marginBottom: "env(safe-area-inset-bottom)" }}
     >
-      <ul className="mx-auto grid max-w-md grid-cols-4">
+      <ul className="grid grid-cols-4 gap-1">
         {TABS.map((t) => (
           <li key={t.href}>
             <Link
               href={t.href}
               aria-current={active(t.href) ? "page" : undefined}
-              className={`flex flex-col items-center gap-0.5 py-2 text-[11px] font-bold ${
-                active(t.href) ? "text-court" : "text-stone-500"
+              className={`flex flex-col items-center gap-0.5 rounded-full py-1.5 text-[11px] font-semibold transition-colors ${
+                active(t.href) ? "bg-ink text-paper" : "text-muted"
               }`}
             >
               <Icon name={t.icon} />

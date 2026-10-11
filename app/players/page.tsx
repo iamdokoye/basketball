@@ -14,7 +14,7 @@ export default async function PlayersPage() {
 
   return (
     <div className="space-y-5">
-      <h1 className="text-3xl font-black tracking-tight">Players</h1>
+      <h1 className="px-1 text-[32px] font-extrabold leading-[38px] tracking-tight">Players</h1>
 
       <form action={addPlayer} className="flex gap-2">
         <input
@@ -22,26 +22,26 @@ export default async function PlayersPage() {
           required
           maxLength={40}
           placeholder="Add a player"
-          className="min-w-0 flex-1 rounded-full border border-stone-300 bg-white px-4 py-3 text-base"
+          className="glass-1 h-12 min-w-0 flex-1 rounded-full px-5 text-base font-semibold outline-none placeholder:font-medium placeholder:text-muted focus:ring-2 focus:ring-court"
         />
-        <button className="rounded-full bg-court px-6 py-3 font-black text-white active:bg-court-dark">
+        <button className="h-12 rounded-full bg-ink px-6 text-sm font-semibold text-paper shadow-sm active:scale-95">
           Add
         </button>
       </form>
 
-      <ul className="space-y-2">
+      <ul className="space-y-3">
         {active.map((p) => {
           const c = totals.get(p.id);
           return (
             <li
               key={p.id}
-              className="flex items-center gap-3 rounded-2xl bg-white p-3 shadow-sm ring-1 ring-stone-200"
+              className="glass-1 flex items-center gap-3 rounded-2xl p-3"
             >
               <Link href={`/players/${p.id}`} className="flex min-w-0 flex-1 items-center gap-3">
                 <Avatar id={p.id} name={p.name} />
                 <div className="min-w-0">
                   <div className="truncate font-bold">{p.name}</div>
-                  <div className="tabular text-xs text-stone-500">
+                  <div className="tabular text-xs font-semibold text-muted">
                     {c && c.gp > 0
                       ? `${c.gp} GP · ${fmtAvg(c.pts, c.gp)} pts · ${fmtAvg(c.reb, c.gp)} reb · ${fmtAvg(c.ast, c.gp)} ast`
                       : "No games yet"}
@@ -49,7 +49,7 @@ export default async function PlayersPage() {
                 </div>
               </Link>
               <form action={setPlayerArchived.bind(null, p.id, true)}>
-                <button className="rounded-full px-3 py-1.5 text-xs font-semibold text-stone-500 active:bg-stone-100">
+                <button className="rounded-full px-3 py-1.5 text-xs font-semibold text-muted active:bg-black/5">
                   Archive
                 </button>
               </form>
@@ -57,7 +57,7 @@ export default async function PlayersPage() {
           );
         })}
         {active.length === 0 && (
-          <li className="rounded-2xl bg-white p-8 text-center text-stone-500 ring-1 ring-stone-200">
+          <li className="glass-1 rounded-2xl p-8 text-center text-sm text-muted">
             Add your friends to get started.
           </li>
         )}
@@ -65,18 +65,18 @@ export default async function PlayersPage() {
 
       {archived.length > 0 && (
         <section>
-          <h2 className="mb-2 text-xs font-bold uppercase tracking-widest text-stone-500">Archived</h2>
+          <h2 className="label mb-2 px-1 text-muted">Archived</h2>
           <ul className="space-y-2">
             {archived.map((p) => (
               <li
                 key={p.id}
-                className="flex items-center justify-between rounded-2xl bg-stone-50 p-3 ring-1 ring-stone-200"
+                className="glass-1 flex items-center justify-between rounded-2xl p-3 opacity-70"
               >
-                <Link href={`/players/${p.id}`} className="font-semibold text-stone-500">
+                <Link href={`/players/${p.id}`} className="font-semibold text-muted">
                   {p.name}
                 </Link>
                 <form action={setPlayerArchived.bind(null, p.id, false)}>
-                  <button className="rounded-full px-3 py-1.5 text-xs font-bold text-court active:bg-orange-100">
+                  <button className="rounded-full px-3 py-1.5 text-xs font-semibold text-court-ink active:bg-court/10">
                     Restore
                   </button>
                 </form>

@@ -12,7 +12,7 @@ export default function DeleteGameButton({ gameId }: { gameId: number }) {
         }
       }}
     >
-      <button className="rounded-full px-4 py-2 text-sm font-semibold text-rose-700 active:bg-rose-100">
+      <button className="rounded-full px-4 py-2 text-sm font-semibold text-loss active:bg-loss/10">
         Delete game
       </button>
     </form>

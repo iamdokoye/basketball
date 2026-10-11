@@ -13,21 +13,21 @@ export function BoxScoreTable({ lines, team }: { lines: StatLine[]; team: Team }
     (typeof SUM_KEYS)[number],
     number
   >;
-  const accent = team === "A" ? "bg-court" : "bg-away";
+  const accent = team === "A" ? "bg-court-soft" : "bg-away-soft";
 
   const cell = "px-2 py-2 text-right";
-  const stickyName = "sticky left-0 z-[1] bg-white px-3 py-2 text-left";
+  const stickyName = "sticky-cell px-3 py-2 text-left";
 
   return (
-    <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-stone-200">
-      <div className="flex items-center gap-2 border-b border-stone-200 px-3 py-2 text-xs font-bold uppercase tracking-widest text-stone-500">
+    <div className="glass-2 overflow-hidden rounded-2xl">
+      <div className="label hairline flex items-center gap-2 border-b px-3 py-2.5 text-muted">
         <span className={`h-2.5 w-2.5 rounded-full ${accent}`} />
         Team {team}
       </div>
       <div className="overflow-x-auto">
         <table className="tabular w-full whitespace-nowrap text-sm">
           <thead>
-            <tr className="text-[11px] uppercase tracking-wider text-stone-400">
+            <tr className="label text-muted">
               <th className={`${stickyName} font-semibold`}>Player</th>
               {HEAD.map((h) => (
                 <th key={h} className={`${cell} font-semibold`}>
@@ -36,7 +36,7 @@ export function BoxScoreTable({ lines, team }: { lines: StatLine[]; team: Team }
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-stone-100">
+          <tbody className="divide-y divide-black/[0.06]">
             {rows.map((l) => (
               <tr key={l.playerId}>
                 <td className={`${stickyName} font-semibold`}>
@@ -44,7 +44,7 @@ export function BoxScoreTable({ lines, team }: { lines: StatLine[]; team: Team }
                     {l.name}
                   </Link>
                 </td>
-                <td className={`${cell} font-black`}>{l.pts}</td>
+                <td className={`${cell} font-extrabold`}>{l.pts}</td>
                 <td className={cell}>
                   {l.fgm}-{l.fga}
                 </td>
@@ -62,18 +62,18 @@ export function BoxScoreTable({ lines, team }: { lines: StatLine[]; team: Team }
                 <td className={cell}>{l.pf}</td>
                 <td
                   className={`${cell} font-semibold ${
-                    l.plusMinus > 0 ? "text-emerald-700" : l.plusMinus < 0 ? "text-rose-700" : ""
+                    l.plusMinus > 0 ? "text-win" : l.plusMinus < 0 ? "text-loss" : ""
                   }`}
                 >
                   {fmtSigned(l.plusMinus)}
                 </td>
-                <td className={`${cell} text-stone-500`}>{fmtMinutes(l.sec)}</td>
+                <td className={`${cell} text-muted`}>{fmtMinutes(l.sec)}</td>
               </tr>
             ))}
           </tbody>
           <tfoot>
-            <tr className="border-t border-stone-200 bg-stone-50 font-bold">
-              <td className={`${stickyName} bg-stone-50`}>Total</td>
+            <tr className="hairline border-t bg-white/40 font-bold">
+              <td className={stickyName}>Total</td>
               <td className={cell}>{total.pts}</td>
               <td className={cell}>
                 {total.fgm}-{total.fga}
@@ -96,7 +96,7 @@ export function BoxScoreTable({ lines, team }: { lines: StatLine[]; team: Team }
           </tfoot>
         </table>
       </div>
-      <div className="border-t border-stone-100 px-3 py-2 text-xs text-stone-500">
+      <div className="hairline border-t px-3 py-2 text-xs text-muted">
         FG {fmtPct(total.fgm, total.fga)} · 3P {fmtPct(total.fg3m, total.fg3a)} · FT{" "}
         {fmtPct(total.ftm, total.fta)} · eFG{" "}
         {fmtEfg({ fgm: total.fgm, fg3m: total.fg3m, fga: total.fga })} · TS{" "}

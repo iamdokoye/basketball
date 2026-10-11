@@ -1,19 +1,34 @@
 @import "tailwindcss";
 
+/* Design system: "Court Glass Minimal" (from the Stitch export).
+   Light theme. Three glass elevations over a soft mesh-gradient backdrop. */
+
 @theme {
-  --color-court: #ea580c; /* Team A / brand */
+  --color-paper: #f4f1ec;
+  --color-ink: #1c1917;
+  --color-muted: #6f6762;
+
+  --color-court: #ea580c; /* Team A + brand */
   --color-court-dark: #c2410c;
+  --color-court-ink: #a73a00; /* orange for small text, passes contrast on glass */
+  --color-court-soft: #fd651e;
   --color-away: #0284c7; /* Team B */
   --color-away-dark: #0369a1;
-  --color-paper: #f5f3ef;
-  --color-ink: #1c1917;
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --color-away-soft: #93ccff;
+
+  --color-win: #059669;
+  --color-loss: #e11d48;
+  --color-sub: #4f46e5;
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    Helvetica, Arial, sans-serif;
 }
 
 body {
   background: var(--color-paper);
   color: var(--color-ink);
   font-family: var(--font-sans);
+  font-weight: 500;
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -21,9 +36,113 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-/* Keep content clear of the iOS home indicator when the bottom tab bar shows. */
-.safe-bottom {
-  padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+/* ---- Backdrop: fixed blurred colour blobs so glass always has something behind it ---- */
+.mesh {
+  position: fixed;
+  inset: 0;
+  z-index: -10;
+  overflow: hidden;
+  pointer-events: none;
+}
+.mesh i {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(64px);
+}
+.mesh i:nth-child(1) {
+  top: -8rem;
+  left: -5rem;
+  width: 24rem;
+  height: 24rem;
+  background: rgb(253 186 116 / 0.4);
+}
+.mesh i:nth-child(2) {
+  top: 25%;
+  right: -6rem;
+  width: 32rem;
+  height: 32rem;
+  background: rgb(125 211 252 / 0.32);
+}
+.mesh i:nth-child(3) {
+  bottom: 2.5rem;
+  left: 33%;
+  width: 20rem;
+  height: 20rem;
+  background: rgb(196 181 253 / 0.28);
+}
+
+/* ---- Glass elevations ---- */
+.glass-1,
+.glass-2,
+.glass-3 {
+  border: 1px solid rgb(255 255 255 / 0.7);
+}
+.glass-1 {
+  background: rgb(255 255 255 / 0.55);
+  -webkit-backdrop-filter: blur(16px) saturate(1.3);
+  backdrop-filter: blur(16px) saturate(1.3);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.8),
+    0 4px 24px rgb(28 25 23 / 0.06);
+}
+.glass-2 {
+  background: rgb(255 255 255 / 0.7);
+  -webkit-backdrop-filter: blur(24px) saturate(1.3);
+  backdrop-filter: blur(24px) saturate(1.3);
+  border-color: rgb(255 255 255 / 0.8);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.8),
+    0 8px 32px rgb(28 25 23 / 0.1);
+}
+.glass-3 {
+  background: rgb(255 255 255 / 0.82);
+  -webkit-backdrop-filter: blur(32px) saturate(1.3);
+  backdrop-filter: blur(32px) saturate(1.3);
+  border-color: rgb(255 255 255 / 0.9);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.8),
+    0 -8px 40px rgb(28 25 23 / 0.14);
+}
+
+/* Solid fallback: browsers without backdrop-filter, or "reduce transparency". */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass-1,
+  .glass-2,
+  .glass-3 {
+    background: rgb(255 255 255 / 0.92);
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .glass-1,
+  .glass-2,
+  .glass-3 {
+    background: rgb(255 255 255 / 0.94);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+/* Sticky first column in scrolling tables: frosted, but opaque enough to hide what scrolls under it. */
+.sticky-cell {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: rgb(250 248 245 / 0.9);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+
+/* Section label: 11px, uppercase, tracked. */
+.label {
+  font-size: 11px;
+  line-height: 14px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.hairline {
+  border-color: rgb(28 25 23 / 0.08);
 }
 
 @keyframes sheet-up {
@@ -37,7 +156,7 @@ body {
   }
 }
 .sheet-up {
-  animation: sheet-up 160ms ease-out;
+  animation: sheet-up 180ms ease-out;
 }
 
 @keyframes pop {
@@ -45,12 +164,19 @@ body {
     transform: scale(1);
   }
   40% {
-    transform: scale(1.12);
+    transform: scale(1.1);
   }
   100% {
     transform: scale(1);
   }
 }
 .pop {
-  animation: pop 260ms ease-out;
+  animation: pop 220ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sheet-up,
+  .pop {
+    animation: none;
+  }
 }

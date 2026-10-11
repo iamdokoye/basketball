@@ -2,7 +2,7 @@
 
 import { useRef, useState, useTransition } from "react";
 import { createGame } from "@/lib/actions";
-import { Avatar } from "@/app/components/Avatar";
+import { Avatar, shortName } from "@/app/components/Avatar";
 
 type Assign = { team: "A" | "B"; seq: number };
 
@@ -57,8 +57,8 @@ export default function NewGameForm({ players }: { players: { id: number; name: 
 
   return (
     <div className="space-y-5">
-      <p className="text-sm text-stone-500">
-        Tap a player to cycle <b className="text-court">Team A</b> → <b className="text-away">Team B</b> → out.
+      <p className="px-1 text-sm text-muted">
+        Tap a player to cycle <b className="text-court-ink">Team A</b> → <b className="text-away-dark">Team B</b> → out.
         The first {STARTERS} on each team start; anyone after that begins on the bench.
       </p>
       <div className="grid grid-cols-2 gap-2">
@@ -69,18 +69,18 @@ export default function NewGameForm({ players }: { players: { id: number; name: 
             <button
               key={p.id}
               onClick={() => cycle(p.id)}
-              className={`flex items-center gap-2 rounded-2xl px-3 py-3 text-left font-bold ring-1 transition active:scale-[0.98] ${
+              className={`flex min-h-14 items-center gap-2 rounded-2xl px-3 py-2.5 text-left font-semibold transition active:scale-[0.98] ${
                 t === "A"
-                  ? "bg-court text-white ring-court"
+                  ? "glass-1 !border-court !bg-court/20 text-ink"
                   : t === "B"
-                    ? "bg-away text-white ring-away"
-                    : "bg-white text-stone-700 ring-stone-200"
+                    ? "glass-1 !border-away !bg-away/20 text-ink"
+                    : "glass-1"
               }`}
             >
               <Avatar id={p.id} name={p.name} size="sm" />
-              <span className="min-w-0 flex-1 truncate">{p.name}</span>
+              <span className="min-w-0 flex-1 truncate">{shortName(p.name)}</span>
               {t && (
-                <span className="text-right text-[10px] font-bold uppercase leading-tight opacity-90">
+                <span className={`text-right text-[10px] font-bold uppercase leading-tight ${t === "A" ? "text-court-ink" : "text-away-dark"}`}>
                   {t}
                   <br />
                   {r}
@@ -91,8 +91,8 @@ export default function NewGameForm({ players }: { players: { id: number; name: 
         })}
       </div>
 
-      <div className="grid grid-cols-2 gap-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-stone-200">
-        <label className="text-sm font-bold">
+      <div className="glass-1 grid grid-cols-2 gap-3 rounded-2xl p-4">
+        <label className="label text-muted">
           Play to
           <input
             type="number"
@@ -100,15 +100,15 @@ export default function NewGameForm({ players }: { players: { id: number; name: 
             min={1}
             value={target}
             onChange={(e) => setTarget(Number(e.target.value))}
-            className="mt-1 block w-full rounded-xl border border-stone-300 px-3 py-2 text-base"
+            className="mt-1 block h-12 w-full rounded-xl border border-white/80 bg-white/60 px-3 text-base font-semibold normal-case tracking-normal text-ink shadow-inner outline-none focus:ring-2 focus:ring-court"
           />
         </label>
-        <label className="text-sm font-bold">
+        <label className="label text-muted">
           Win by
           <select
             value={winBy}
             onChange={(e) => setWinBy(Number(e.target.value))}
-            className="mt-1 block w-full rounded-xl border border-stone-300 px-3 py-2 text-base"
+            className="mt-1 block h-12 w-full rounded-xl border border-white/80 bg-white/60 px-3 text-base font-semibold normal-case tracking-normal text-ink shadow-inner outline-none focus:ring-2 focus:ring-court"
           >
             <option value={1}>1</option>
             <option value={2}>2</option>
@@ -116,12 +116,12 @@ export default function NewGameForm({ players }: { players: { id: number; name: 
         </label>
       </div>
 
-      {error && <p className="rounded-xl bg-rose-100 p-3 text-sm text-rose-900">{error}</p>}
+      {error && <p className="rounded-xl bg-loss/10 p-3 text-sm font-semibold text-loss">{error}</p>}
 
       <button
         onClick={start}
         disabled={!ready || pending}
-        className="w-full rounded-full bg-court py-4 text-base font-black text-white shadow-md active:bg-court-dark disabled:opacity-40"
+        className="h-14 w-full rounded-full bg-ink text-base font-semibold text-paper shadow-md transition active:scale-[0.99] disabled:opacity-40"
       >
         {pending ? "Starting…" : `Tip off · ${a.length} vs ${b.length}`}
       </button>

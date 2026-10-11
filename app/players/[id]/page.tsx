@@ -45,15 +45,15 @@ export default async function PlayerPage({ params }: { params: Promise<{ id: str
 
   return (
     <div className="space-y-5">
-      <Link href="/players" className="text-sm font-semibold text-stone-500 hover:underline">
+      <Link href="/players" className="px-1 text-sm font-semibold text-muted hover:underline">
         ← Players
       </Link>
 
       <div className="flex items-center gap-4">
-        <Avatar id={player.id} name={player.name} size="lg" />
+        <Avatar id={player.id} name={player.name} size="lg" tone="ink" />
         <div className="min-w-0">
-          <h1 className="truncate text-3xl font-black tracking-tight">{player.name}</h1>
-          <p className="tabular text-sm text-stone-500">
+          <h1 className="truncate text-[32px] font-extrabold leading-[38px] tracking-tight">{player.name}</h1>
+          <p className="tabular text-sm font-semibold text-muted">
             {c.gp} {c.gp === 1 ? "game" : "games"} · {c.wins}-{c.losses}
             {c.gp > 0 && <> · {fmtMinutes(c.sec / c.gp)} min/g</>}
           </p>
@@ -63,41 +63,41 @@ export default async function PlayerPage({ params }: { params: Promise<{ id: str
       {ranked && (
         <Link
           href="/rankings"
-          className="flex items-center justify-between rounded-2xl bg-ink p-4 text-white active:opacity-90"
+          className="glass-2 flex items-center justify-between rounded-2xl p-4 active:scale-[0.99]"
         >
           <div>
-            <div className="text-[11px] font-bold uppercase tracking-widest text-stone-400">League rank</div>
-            <div className="text-3xl font-black">{ranked.rank ? `#${ranked.rank}` : "Qualifying"}</div>
+            <div className="label text-muted">League rank</div>
+            <div className="text-3xl font-extrabold tracking-tight">{ranked.rank ? `#${ranked.rank}` : "Qualifying"}</div>
           </div>
           <div className="text-right">
-            <div className="text-[11px] font-bold uppercase tracking-widest text-stone-400">Rating</div>
-            <div className="tabular text-3xl font-black text-amber-400">{ranked.rating.toFixed(1)}</div>
+            <div className="label text-muted">Rating</div>
+            <div className="tabular text-3xl font-extrabold tracking-tight text-court-ink">{ranked.rating.toFixed(1)}</div>
           </div>
         </Link>
       )}
 
       <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
         {cards.map(([label, value]) => (
-          <div key={label} className="rounded-2xl bg-white p-3 text-center shadow-sm ring-1 ring-stone-200">
-            <div className="tabular text-2xl font-black">{value}</div>
-            <div className="text-[11px] font-bold uppercase tracking-widest text-stone-400">{label}</div>
+          <div key={label} className="glass-1 rounded-2xl p-3 text-center">
+            <div className="tabular text-2xl font-extrabold tracking-tight">{value}</div>
+            <div className="label text-muted">{label}</div>
           </div>
         ))}
       </div>
 
       <section>
-        <h2 className="mb-2 text-xs font-bold uppercase tracking-widest text-stone-500">Game log</h2>
+        <h2 className="label mb-2 px-1">Game log</h2>
         {log.length === 0 ? (
-          <p className="rounded-2xl bg-white p-6 text-center text-stone-500 ring-1 ring-stone-200">
+          <p className="glass-1 rounded-2xl p-6 text-center text-sm text-muted">
             No finished games yet.
           </p>
         ) : (
-          <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-stone-200">
+          <div className="glass-2 overflow-hidden rounded-2xl">
             <div className="overflow-x-auto">
               <table className="tabular w-full whitespace-nowrap text-sm">
                 <thead>
-                  <tr className="text-[11px] uppercase tracking-wider text-stone-400">
-                    <th className="sticky left-0 z-[1] bg-white px-3 py-2 text-left font-semibold">Game</th>
+                  <tr className="label text-muted">
+                    <th className="sticky-cell px-3 py-2.5 text-left font-semibold">Game</th>
                     {["PTS", "FG", "3P", "FT", "REB", "AST", "STL", "BLK", "TO", "+/-", "MIN"].map((h) => (
                       <th key={h} className={th}>
                         {h}
@@ -105,22 +105,22 @@ export default async function PlayerPage({ params }: { params: Promise<{ id: str
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-stone-100">
+                <tbody className="divide-y divide-black/[0.06]">
                   {log.map(({ game, line }) => {
                     const mine = game.score[line.team];
                     const theirs = game.score[line.team === "A" ? "B" : "A"];
                     return (
                       <tr key={game.id}>
-                        <td className="sticky left-0 z-[1] bg-white px-3 py-2">
+                        <td className="sticky-cell px-3 py-2">
                           <Link href={`/games/${game.id}`} className="hover:underline">
-                            <span className={`font-black ${mine > theirs ? "text-emerald-700" : "text-rose-700"}`}>
+                            <span className={`font-extrabold ${mine > theirs ? "text-win" : "text-loss"}`}>
                               {mine > theirs ? "W" : "L"}
                             </span>{" "}
                             {mine}-{theirs}
-                            <span className="ml-1.5 text-xs text-stone-400">{formatDate(game.playedAt)}</span>
+                            <span className="ml-1.5 text-xs text-muted">{formatDate(game.playedAt)}</span>
                           </Link>
                         </td>
-                        <td className={`${td} font-black`}>{line.pts}</td>
+                        <td className={`${td} font-extrabold`}>{line.pts}</td>
                         <td className={td}>
                           {line.fgm}-{line.fga}
                         </td>
@@ -136,7 +136,7 @@ export default async function PlayerPage({ params }: { params: Promise<{ id: str
                         <td className={td}>{line.blk}</td>
                         <td className={td}>{line.tov}</td>
                         <td className={td}>{fmtSigned(line.plusMinus)}</td>
-                        <td className={`${td} text-stone-500`}>{fmtMinutes(line.sec)}</td>
+                        <td className={`${td} text-muted`}>{fmtMinutes(line.sec)}</td>
                       </tr>
                     );
                   })}
