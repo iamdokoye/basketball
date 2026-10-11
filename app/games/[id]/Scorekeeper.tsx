@@ -1,10 +1,16 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { finishGame } from "@/lib/actions";
 import { useGameSync } from "./useGameSync";
+import {
+  buildClock,
+  elapsedNow,
+  formatClock,
+  timeoutRemaining,
+} from "@/lib/clock";
 import {
   boxScore,
   describeGroup,
@@ -19,7 +25,7 @@ import {
 import { Avatar, shortName } from "@/app/components/Avatar";
 import { Countdown } from "@/app/components/Countdown";
 
-type Ev = { playerId: number; type: EventType };
+type Ev = { playerId: number; type: EventType; team?: Team };
 
 type Option = {
   label: string;
@@ -105,6 +111,20 @@ export default function Scorekeeper({
     [roster, events, startMs],
   );
   const court = useMemo(() => onCourt(roster, events), [roster, events]);
+  const clock = useMemo(
+    () => buildClock(events, startMs, roster),
+    [events, startMs, roster],
+  );
+  // Redraw a few times a second while the clock or a timeout is counting.
+  const [, redraw] = useState(0);
+  useEffect(() => {
+    if (!clock.running && !clock.activeTimeout) return;
+    const id = setInterval(() => redraw((n) => n + 1), 250);
+    return () => clearInterval(id);
+  }, [clock.running, clock.activeTimeout]);
+  const nowMs = sync.now();
+  const timeoutsBy = (t: Team) =>
+    clock.timeouts.filter((x) => x.team === t).length;
   const score = teamScores(lines);
   const result = gameResult(score, { target, winBy });
   const nameOf = (id: number) => roster.find((p) => p.id === id)?.name ?? "?";
@@ -314,6 +334,33 @@ export default function Scorekeeper({
     });
   }
 
+  function timeoutStep() {
+    const side = (t: Team) => ({
+      heading: TEAM_STYLE[t].label,
+      cols: 2 as const,
+      options: [
+        {
+          label: `${TEAM_STYLE[t].label} called it`,
+          tone: "sub" as const,
+          onPick: () => commit([{ playerId: 0, type: "TIMEOUT", team: t }]),
+        },
+        ...active(t).map((p) => ({
+          label: shortName(p.name),
+          onPick: () =>
+            commit([{ playerId: p.id, type: "TIMEOUT" as const, team: t }]),
+        })),
+      ],
+    });
+    setSheet({
+      title: "Timeout",
+      subtitle: "Who called it?",
+      sections: [side("A"), side("B")],
+    });
+  }
+
+  const clockPlay = (type: "PAUSE" | "RESUME") =>
+    commit([{ playerId: 0, type }]);
+
   function playerSheet(p: RosterEntry) {
     const solo =
       (type: EventType): (() => void) =>
@@ -438,6 +485,100 @@ export default function Scorekeeper({
             <div className="order-2 flex flex-col items-center justify-center px-1 text-[11px] font-semibold text-muted">
               <span>{winBy > 1 ? `to ${target}` : `first to ${target}`}</span>
               {winBy > 1 && <span>win by {winBy}</span>}
+            </div>
+          </div>
+
+          {/* Game clock and timeouts */}
+          <div className="hairline flex items-center justify-between gap-3 border-t px-4 py-2.5">
+            {clock.activeTimeout ? (
+              <div className="min-w-0">
+                <div className="label text-sub">
+                  Timeout
+                  {clock.activeTimeout.team
+                    ? ` · Team ${clock.activeTimeout.team}`
+                    : ""}
+                </div>
+                <div className="flex items-baseline gap-2">
+                  {(() => {
+                    const left = timeoutRemaining(clock.activeTimeout, nowMs);
+                    return (
+                      <span
+                        className={`tabular text-2xl font-extrabold leading-7 ${left < 0 ? "text-loss" : "text-sub"}`}
+                      >
+                        {left >= 0
+                          ? formatClock(left * 1000)
+                          : `+${formatClock(-left * 1000)}`}
+                      </span>
+                    );
+                  })()}
+                  {clock.activeTimeout.playerId > 0 && (
+                    <span className="truncate text-xs font-semibold text-muted">
+                      called by{" "}
+                      {shortName(nameOf(clock.activeTimeout.playerId))}
+                    </span>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="min-w-0">
+                <div className="label flex items-center gap-1.5 whitespace-nowrap text-muted">
+                  <span
+                    className={`h-1.5 w-1.5 rounded-full ${
+                      clock.running
+                        ? "animate-pulse bg-win"
+                        : clock.started
+                          ? "bg-court-soft"
+                          : "bg-stone-400"
+                    }`}
+                  />
+                  {clock.running
+                    ? "Game clock"
+                    : clock.started
+                      ? "Clock paused"
+                      : "Clock not started"}
+                </div>
+                <div className="tabular text-2xl font-extrabold leading-7">
+                  {formatClock(elapsedNow(clock, nowMs))}
+                </div>
+              </div>
+            )}
+
+            <div className="flex items-center gap-1.5">
+              {(timeoutsBy("A") > 0 || timeoutsBy("B") > 0) && (
+                <span className="tabular mr-0.5 whitespace-nowrap text-[10px] font-bold uppercase tracking-wide text-muted">
+                  TO {timeoutsBy("A")}–{timeoutsBy("B")}
+                </span>
+              )}
+              {!readOnly &&
+                (clock.activeTimeout ? (
+                  <button
+                    onClick={() => clockPlay("RESUME")}
+                    className="h-10 whitespace-nowrap rounded-full bg-ink px-3.5 text-sm font-semibold text-paper active:scale-95"
+                  >
+                    Resume play
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      onClick={() =>
+                        clockPlay(clock.running ? "PAUSE" : "RESUME")
+                      }
+                      className="h-10 whitespace-nowrap rounded-full bg-ink px-3.5 text-sm font-semibold text-paper active:scale-95"
+                    >
+                      {clock.running
+                        ? "Pause"
+                        : clock.started
+                          ? "Resume"
+                          : "Start"}
+                    </button>
+                    <button
+                      onClick={timeoutStep}
+                      className="h-10 whitespace-nowrap rounded-full bg-sub/10 px-3 text-sm font-semibold text-sub ring-1 ring-sub/25 active:scale-95"
+                    >
+                      Timeout
+                    </button>
+                  </>
+                ))}
             </div>
           </div>
         </div>

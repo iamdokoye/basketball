@@ -56,6 +56,18 @@ A game that is still running when the window closes can't be saved to by the pub
 - **Faster saves (one-time SQL):** run `supabase/migrations/20261012000000_record_group.sql` in the Supabase SQL Editor. It lets a save use one database round trip instead of four. The app works without it (it falls back to the slower path), so this is optional but recommended.
 - **Add to Home Screen:** on Android, Chrome shows an **Install** button on Home; on iPhone, Safari → Share → **Add to Home Screen**. The app then opens full-screen with its own icon.
 
+## Game clock and timeouts
+
+- **Game clock:** a stopwatch at the top of the scoreboard. It starts with the first play (or tap **Start**), **Pause** and **Resume** handle breaks, and everyone watching sees the same time. Paused time and timeouts are left out of every player's minutes and out of the idle decay in the rating, so a water break doesn't count as playing time.
+- **Timeouts:** tap **Timeout**, then pick **who called it**: a team, or a specific player on the court. The clock pauses and a 60-second countdown runs (it turns red and counts up if the timeout runs over). Tap **Resume play** to end it, so the real length is recorded. The scoreboard shows each team's timeouts so far (`TO 1–0`), the play log names who called each one, and the finished game lists them with their lengths and the total game time.
+- Pause, resume and timeouts are plays like any other: they can be undone, show up on other phones, and wait in the queue if the signal drops.
+- **One-time SQL:** run `supabase/migrations/20261013000000_game_clock_and_timeouts.sql` in the Supabase SQL Editor. Until then the clock and timeout buttons show a message instead of saving, and everything else works as before. It also updates `record_group`, so run it even if you already ran the earlier file.
+- `TIMEOUT_SECONDS` in `lib/clock.ts` sets the countdown length.
+
+## Planned
+
+- **Timed games:** an optional time cap, so a game can end at, say, 15 minutes by score when nobody has reached the target. The game clock above is the groundwork for it.
+
 ## Share, balance, records
 
 - **Game recap:** on a finished game, **Share** opens the phone's share sheet (e.g. WhatsApp) with a text summary: score, teams, player of the game and standouts, plus a link to the box score. **Copy recap** does the same to the clipboard.
@@ -90,7 +102,7 @@ Every tap is stored as an event. Box scores, averages, shooting percentages, plu
 
 Per player per game: 2PT, 3PT and FT makes/attempts, points, offensive/defensive rebounds, assists, steals, blocks, deflections, turnovers, fouls, plus/minus and minutes on court.
 
-Minutes are wall-clock time from the first recorded play until the last, minus time on the bench (the game has no clock), so a long water break counts. Plus/minus is team points minus opponent points while the player is on the court.
+Minutes are playing time on the game clock, from the first recorded play to the last, minus time on the bench. Pausing the clock (or a timeout) stops the count; if nobody uses the clock, it is simply wall-clock time. Plus/minus is team points minus opponent points while the player is on the court.
 
 **Rating** is a score out of 10 (`lib/rating.ts`), used for rankings, MVPs, awards, player of the game and team balancing.
 

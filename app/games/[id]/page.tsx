@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getAccess } from "@/lib/access";
+import { buildClock, formatClock } from "@/lib/clock";
 import { leagueTimeZone } from "@/lib/format";
 import { playerOfTheGame, statSummary } from "@/lib/pog";
 import { getGame } from "@/lib/queries";
@@ -42,6 +43,13 @@ export default async function GamePage({
 
   const pog = playerOfTheGame(game);
   const recap = buildRecap(game, leagueTimeZone());
+  // Total playing time (pauses and timeouts excluded) and the timeouts, with who called each.
+  const clock = buildClock(game.events, game.startMs, game.roster);
+  const lastAt = game.events.length
+    ? Math.max(...game.events.map((e) => e.at))
+    : game.startMs;
+  const nameOf = (id: number) =>
+    game.roster.find((p) => p.id === id)?.name ?? "";
   const names = (t: "A" | "B") =>
     game.roster
       .filter((p) => p.team === t)
@@ -78,6 +86,42 @@ export default async function GamePage({
           ))}
         </div>
       </div>
+
+      {clock.started && (
+        <div className="glass-1 space-y-2.5 rounded-3xl p-4">
+          <div className="flex items-baseline justify-between gap-3">
+            <h2 className="label">Game time</h2>
+            <span className="tabular text-2xl font-extrabold leading-7">
+              {formatClock(clock.gameMs(lastAt))}
+            </span>
+          </div>
+          {clock.timeouts.length > 0 && (
+            <ul className="hairline divide-y divide-black/[0.06] border-t">
+              {clock.timeouts.map((t) => (
+                <li
+                  key={t.grp}
+                  className="flex items-center justify-between gap-3 py-2 text-sm"
+                >
+                  <span className="font-semibold">
+                    Timeout · {t.team ? `Team ${t.team}` : "?"}
+                    {t.playerId > 0 && (
+                      <span className="font-medium text-muted">
+                        {" "}
+                        · called by {nameOf(t.playerId)}
+                      </span>
+                    )}
+                  </span>
+                  {t.endedAt !== null && (
+                    <span className="tabular text-xs font-semibold text-muted">
+                      {formatClock(t.endedAt - t.at)}
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       {pog && (
         <Link

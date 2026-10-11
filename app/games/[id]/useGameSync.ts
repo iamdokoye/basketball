@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { recordGroup, undoGroup } from "@/lib/actions";
-import type { EventType, GameEvent } from "@/lib/stats";
+import type { EventType, GameEvent, Team } from "@/lib/stats";
 
-type Ev = { playerId: number; type: EventType };
+type Ev = { playerId: number; type: EventType; team?: Team };
 type Op =
   | { kind: "add"; gameId: number; grp: string; at: number; events: Ev[] }
   | { kind: "remove"; gameId: number; grp: string };
@@ -71,6 +71,8 @@ export function useGameSync({
     undefined,
   );
   const backoff = useRef(2000);
+  /** Server time minus this phone's time, so plays and the game clock agree across phones. */
+  const offset = useRef(0);
   const finishedRef = useRef(onFinished);
   useEffect(() => {
     finishedRef.current = onFinished;
@@ -187,15 +189,21 @@ export function useGameSync({
     const tick = async () => {
       if (stop || document.visibilityState !== "visible") return;
       try {
+        const sentAt = Date.now();
         const res = await fetch(`/api/games/${gameId}/events`, {
           cache: "no-store",
         });
         if (!res.ok || stop) return;
         const data = (await res.json()) as {
           status: "live" | "final";
+          serverNow?: number;
           events: GameEvent[];
         };
         if (stop) return;
+        // The server stamped its time somewhere between send and receive: use the midpoint.
+        if (typeof data.serverNow === "number") {
+          offset.current = data.serverNow - (sentAt + Date.now()) / 2;
+        }
         if (data.status === "final") return finishedRef.current();
         setBase(data.events);
         const seen = new Set(data.events.map((e) => e.grp));
@@ -241,7 +249,7 @@ export function useGameSync({
   const add = useCallback(
     (evs: Ev[]) => {
       const grp = crypto.randomUUID();
-      const at = Date.now();
+      const at = Date.now() + offset.current;
       setError(null);
       setAdds((m) =>
         new Map(m).set(
@@ -303,5 +311,7 @@ export function useGameSync({
     clearError: () => setError(null),
     add,
     remove,
+    /** Current time on the server's clock. */
+    now: () => Date.now() + offset.current,
   };
 }

@@ -20,7 +20,7 @@ export async function GET(
     db().from("games").select("status").eq("id", gameId).maybeSingle(),
     db()
       .from("events")
-      .select("id, player_id, type, grp, at")
+      .select("*") // "*" so it works before the clock migration adds the team column
       .eq("game_id", gameId)
       .order("id")
       .limit(5000),
@@ -33,9 +33,12 @@ export async function GET(
   return NextResponse.json(
     {
       status: game.data.status as "live" | "final",
+      /** The server's clock, so every phone can show the same game clock even if its own is off. */
+      serverNow: Date.now(),
       events: (events.data ?? []).map((e) => ({
         id: Number(e.id),
-        playerId: Number(e.player_id),
+        playerId: Number(e.player_id ?? 0),
+        team: e.team === "A" || e.team === "B" ? e.team : undefined,
         type: e.type,
         grp: e.grp,
         at: new Date(e.at).getTime(),

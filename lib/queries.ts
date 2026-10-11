@@ -29,25 +29,51 @@ export type Game = {
 };
 
 export async function listPlayers(): Promise<Player[]> {
-  const { data, error } = await db().from("players").select("id, name, archived").order("name");
+  const { data, error } = await db()
+    .from("players")
+    .select("id, name, archived")
+    .order("name");
   if (error) throw new Error(error.message);
   return (data ?? [])
-    .map((p) => ({ id: Number(p.id), name: String(p.name), archived: Boolean(p.archived) }))
-    .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
+    .map((p) => ({
+      id: Number(p.id),
+      name: String(p.name),
+      archived: Boolean(p.archived),
+    }))
+    .sort((a, b) =>
+      a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
+    );
 }
 
-type GameRow = { id: number; played_at: string; status: string; target: number; win_by: number };
+type GameRow = {
+  id: number;
+  played_at: string;
+  status: string;
+  target: number;
+  win_by: number;
+};
 type RosterRow = {
   game_id: number;
   team: Team;
   starter: boolean;
   players: { id: number; name: string } | null;
 };
-type EventRow = { id: number; game_id: number; player_id: number; type: string; grp: string; at: string };
+type EventRow = {
+  id: number;
+  game_id: number;
+  player_id: number | null;
+  type: string;
+  grp: string;
+  at: string;
+  team?: string | null;
+};
 
 /** Loads games (all, or one) with roster, events and derived box score. */
 async function loadGames(gameId?: number): Promise<Game[]> {
-  const gamesQ = db().from("games").select("id, played_at, status, target, win_by").order("id", { ascending: false });
+  const gamesQ = db()
+    .from("games")
+    .select("id, played_at, status, target, win_by")
+    .order("id", { ascending: false });
   const rosterQ = (from: number, to: number) => {
     let q = db()
       .from("game_players")
@@ -56,7 +82,8 @@ async function loadGames(gameId?: number): Promise<Game[]> {
     return q.order("game_id").order("player_id").range(from, to);
   };
   const eventsQ = (from: number, to: number) => {
-    let q = db().from("events").select("id, game_id, player_id, type, grp, at", { count: "exact" });
+    // "*" so this keeps working before the clock migration adds the team column
+    let q = db().from("events").select("*", { count: "exact" });
     if (gameId) q = q.eq("game_id", gameId);
     return q.order("id").range(from, to);
   };
@@ -72,11 +99,19 @@ async function loadGames(gameId?: number): Promise<Game[]> {
   for (const r of roster) {
     if (!r.players) continue;
     const list = rosterByGame.get(Number(r.game_id)) ?? [];
-    list.push({ id: Number(r.players.id), name: r.players.name, team: r.team, starter: r.starter });
+    list.push({
+      id: Number(r.players.id),
+      name: r.players.name,
+      team: r.team,
+      starter: r.starter,
+    });
     rosterByGame.set(Number(r.game_id), list);
   }
   for (const list of rosterByGame.values()) {
-    list.sort((a, b) => Number(b.starter) - Number(a.starter) || a.name.localeCompare(b.name));
+    list.sort(
+      (a, b) =>
+        Number(b.starter) - Number(a.starter) || a.name.localeCompare(b.name),
+    );
   }
 
   const eventsByGame = new Map<number, GameEvent[]>();
@@ -84,7 +119,8 @@ async function loadGames(gameId?: number): Promise<Game[]> {
     const list = eventsByGame.get(Number(r.game_id)) ?? [];
     list.push({
       id: Number(r.id),
-      playerId: Number(r.player_id),
+      playerId: Number(r.player_id ?? 0),
+      team: r.team === "A" || r.team === "B" ? r.team : undefined,
       type: r.type as EventType,
       grp: r.grp,
       at: new Date(r.at).getTime(),
@@ -111,7 +147,8 @@ async function loadGames(gameId?: number): Promise<Game[]> {
       events: evs,
       lines,
       score,
-      winner: final && score.A !== score.B ? (score.A > score.B ? "A" : "B") : null,
+      winner:
+        final && score.A !== score.B ? (score.A > score.B ? "A" : "B") : null,
     } satisfies Game;
   });
 }
@@ -134,8 +171,26 @@ export type CareerLine = StatLine & {
 };
 
 const SUMMED: (keyof StatLine)[] = [
-  "pts", "fgm", "fga", "fg2m", "fg2a", "fg3m", "fg3a", "ftm", "fta", "oreb", "dreb",
-  "reb", "ast", "stl", "blk", "tov", "pf", "defl", "sec", "plusMinus",
+  "pts",
+  "fgm",
+  "fga",
+  "fg2m",
+  "fg2a",
+  "fg3m",
+  "fg3a",
+  "ftm",
+  "fta",
+  "oreb",
+  "dreb",
+  "reb",
+  "ast",
+  "stl",
+  "blk",
+  "tov",
+  "pf",
+  "defl",
+  "sec",
+  "plusMinus",
 ];
 
 /** Season/career totals per player across finished games. */
@@ -144,7 +199,14 @@ export function careerTotals(games: Game[], players: Player[]): CareerLine[] {
   const get = (id: number, name: string): CareerLine => {
     let l = byId.get(id);
     if (!l) {
-      l = { ...emptyLine({ id, name, team: "A" }), gp: 0, wins: 0, losses: 0, ratingSum: 0, ratingW: 0 };
+      l = {
+        ...emptyLine({ id, name, team: "A" }),
+        gp: 0,
+        wins: 0,
+        losses: 0,
+        ratingSum: 0,
+        ratingW: 0,
+      };
       byId.set(id, l);
     }
     return l;

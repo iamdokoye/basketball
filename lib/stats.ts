@@ -1,3 +1,5 @@
+import { buildClock } from "./clock";
+
 // Pure stat logic, safe to import from both server and client components.
 // Events are the source of truth; everything else is derived from them.
 
@@ -18,15 +20,24 @@ export const EVENT_TYPES = [
   "DEFL",
   "SUB_IN",
   "SUB_OUT",
+  "PAUSE",
+  "RESUME",
+  "TIMEOUT",
 ] as const;
+
+/** Plays that are about the clock, not a player stat. They can carry no player (playerId 0). */
+export const CLOCK_TYPES = ["PAUSE", "RESUME", "TIMEOUT"] as const;
 
 export type EventType = (typeof EVENT_TYPES)[number];
 export type Team = "A" | "B";
 
 export type GameEvent = {
   id?: number;
+  /** 0 for clock plays that have no player (a pause, a resume, or a timeout called by a team). */
   playerId: number;
   type: EventType;
+  /** The team a timeout was called for. */
+  team?: Team;
   /** Events recorded by one scorekeeper action (e.g. make + assist) share a group. */
   grp: string;
   /** Epoch milliseconds when the event happened. */
@@ -177,14 +188,15 @@ export function onCourt(roster: RosterEntry[], events: GameEvent[]): Set<number>
 export function boxScore(roster: RosterEntry[], events: GameEvent[], startMs: number): StatLine[] {
   const lines = new Map(roster.map((p) => [p.id, emptyLine(p)]));
   const on = new Set(roster.filter((p) => p.starter).map((p) => p.id));
-  const tipOff = events.length ? Math.max(startMs, Math.min(...events.map((e) => e.at))) : startMs;
-  const since = new Map<number, number>([...on].map((id) => [id, tipOff]));
-  const endMs = Math.max(tipOff, ...events.map((e) => e.at));
+  // Minutes are playing time on the game clock: paused time and timeouts don't count.
+  const clock = buildClock(events, startMs, roster);
+  const since = new Map<number, number>([...on].map((id) => [id, 0]));
+  const endAt = events.length ? Math.max(...events.map((e) => e.at)) : startMs;
 
   const leave = (id: number, at: number) => {
     const line = lines.get(id);
     const from = since.get(id);
-    if (line && from !== undefined) line.sec += Math.max(0, (at - from) / 1000);
+    if (line && from !== undefined) line.sec += Math.max(0, (clock.gameMs(at) - from) / 1000);
     on.delete(id);
     since.delete(id);
   };
@@ -198,7 +210,7 @@ export function boxScore(roster: RosterEntry[], events: GameEvent[], startMs: nu
     } else if (e.type === "SUB_IN") {
       if (!on.has(e.playerId)) {
         on.add(e.playerId);
-        since.set(e.playerId, e.at);
+        since.set(e.playerId, clock.gameMs(e.at));
       }
     } else {
       applyEvent(line, e.type);
@@ -211,7 +223,7 @@ export function boxScore(roster: RosterEntry[], events: GameEvent[], startMs: nu
       }
     }
   }
-  for (const id of [...on]) leave(id, endMs);
+  for (const id of [...on]) leave(id, endAt);
   return [...lines.values()];
 }
 
@@ -269,6 +281,15 @@ export function describeGroup(events: GameEvent[], nameOf: (id: number) => strin
   const find = (...types: EventType[]) => events.find((e) => types.includes(e.type));
   const main = events[0];
   if (!main) return "";
+
+  const clockPlay = events.find((e) => (CLOCK_TYPES as readonly string[]).includes(e.type));
+  if (clockPlay) {
+    if (clockPlay.type === "PAUSE") return "Clock paused";
+    if (clockPlay.type === "RESUME") return "Play resumed";
+    const who = clockPlay.playerId ? `called by ${nameOf(clockPlay.playerId)}` : "";
+    const team = clockPlay.team ? `Team ${clockPlay.team}` : "";
+    return ["Timeout", [team, who].filter(Boolean).join(", ")].filter(Boolean).join(": ");
+  }
 
   const subIn = find("SUB_IN");
   const subOut = find("SUB_OUT");
