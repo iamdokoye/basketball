@@ -60,6 +60,7 @@ export default function Scorekeeper({
   const [error, setError] = useState<string | null>(null);
   const [showLog, setShowLog] = useState(false);
   const [, startTransition] = useTransition();
+  const [finishing, startFinish] = useTransition();
 
   const lines = useMemo(() => boxScore(roster, events, startMs), [roster, events, startMs]);
   const court = useMemo(() => onCourt(roster, events), [roster, events]);
@@ -324,7 +325,7 @@ export default function Scorekeeper({
   }
 
   function finish() {
-    startTransition(async () => {
+    startFinish(async () => {
       await finishGame(gameId);
       router.refresh();
     });
@@ -368,9 +369,10 @@ export default function Scorekeeper({
           </div>
           <button
             onClick={finish}
-            className="rounded-full bg-ink px-4 py-2 text-sm font-semibold text-paper active:scale-95"
+            disabled={finishing}
+            className="rounded-full bg-ink px-4 py-2 text-sm font-semibold text-paper active:scale-95 disabled:opacity-60"
           >
-            Finish game
+            {finishing ? "Finishing…" : "Finish game"}
           </button>
         </div>
       )}

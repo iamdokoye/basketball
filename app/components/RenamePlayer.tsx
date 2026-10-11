@@ -4,15 +4,24 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import { renamePlayer } from "@/lib/actions";
 
-/** "Rename" button that opens a small glass dialog. */
+type Submit = (next: string) => string | null | Promise<string | null>;
+
+/**
+ * "Rename" button that opens a small glass dialog. `onSubmit` returns an error
+ * message to keep the dialog open, or null to accept. It may be async (the
+ * dialog shows "Saving…") or sync (the dialog closes instantly, which is what
+ * lets callers apply the change optimistically).
+ */
 export function RenamePlayer({
-  playerId,
   name,
+  onSubmit,
   className = "",
+  disabled = false,
 }: {
-  playerId: number;
   name: string;
+  onSubmit: Submit;
   className?: string;
+  disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState(name);
@@ -39,15 +48,15 @@ export function RenamePlayer({
     if (next === name) return setOpen(false);
     setError(null);
     startTransition(async () => {
-      const res = await renamePlayer(playerId, next);
-      if (res.ok) setOpen(false);
-      else setError(res.error);
+      const err = await onSubmit(next);
+      if (err) setError(err);
+      else setOpen(false);
     });
   }
 
   return (
     <>
-      <button type="button" onClick={show} className={className}>
+      <button type="button" onClick={show} disabled={disabled} className={`${className} disabled:opacity-40`}>
         Rename
       </button>
       {/* Portal: an ancestor with backdrop-filter would otherwise become the containing block for this fixed overlay. */}
@@ -68,12 +77,8 @@ export function RenamePlayer({
               className="glass-3 sheet-up w-full max-w-sm space-y-4 rounded-3xl p-5"
             >
               <div>
-                <h2 className="text-lg font-extrabold tracking-tight">
-                  Rename player
-                </h2>
-                <p className="text-sm text-muted">
-                  Updates every game and stat for {name}.
-                </p>
+                <h2 className="text-lg font-extrabold tracking-tight">Rename player</h2>
+                <p className="text-sm text-muted">Updates every game and stat for {name}.</p>
               </div>
               <input
                 ref={input}
@@ -86,10 +91,7 @@ export function RenamePlayer({
                 className="h-12 w-full rounded-xl border border-white/80 bg-white/60 px-4 text-base font-semibold text-ink shadow-inner outline-none focus:ring-2 focus:ring-court"
               />
               {error && (
-                <p
-                  role="alert"
-                  className="rounded-xl bg-loss/10 p-3 text-sm font-semibold text-loss"
-                >
+                <p role="alert" className="rounded-xl bg-loss/10 p-3 text-sm font-semibold text-loss">
                   {error}
                 </p>
               )}
@@ -113,5 +115,27 @@ export function RenamePlayer({
           document.body,
         )}
     </>
+  );
+}
+
+/** Rename button that saves straight to the server (used where there is no local list to update). */
+export function RenamePlayerButton({
+  playerId,
+  name,
+  className,
+}: {
+  playerId: number;
+  name: string;
+  className?: string;
+}) {
+  return (
+    <RenamePlayer
+      name={name}
+      className={className}
+      onSubmit={async (next) => {
+        const res = await renamePlayer(playerId, next);
+        return res.ok ? null : res.error;
+      }}
+    />
   );
 }

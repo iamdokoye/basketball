@@ -9,26 +9,26 @@ function check(error: { message: string } | null) {
   if (error) throw new Error(error.message);
 }
 
-export async function addPlayer(formData: FormData) {
-  const name = String(formData.get("name") ?? "").trim().slice(0, 40);
-  if (!name) return;
+export type ActionResult = { ok: true } | { ok: false; error: string };
+
+/** Adds a player (or restores an archived one with the same name). */
+export async function addPlayer(rawName: string): Promise<ActionResult> {
+  const name = rawName.trim().slice(0, 40);
+  if (!name) return { ok: false, error: "Name can't be empty." };
+
   const { error } = await db().from("players").insert({ name });
   if (error) {
     // Unique violation: the player exists (possibly archived), so bring them back.
-    if (error.code === "23505") {
-      const { error: e2 } = await db().from("players").update({ archived: false }).ilike("name", name);
-      check(e2);
-    } else {
-      check(error);
-    }
+    if (error.code !== "23505") return { ok: false, error: "Couldn't add the player. Try again." };
+    const { error: e2 } = await db().from("players").update({ archived: false }).ilike("name", name);
+    if (e2) return { ok: false, error: "Couldn't add the player. Try again." };
   }
   revalidatePath("/", "layout");
+  return { ok: true };
 }
 
-export type RenameResult = { ok: true } | { ok: false; error: string };
-
 /** Renames a player everywhere (games read names from the player record). */
-export async function renamePlayer(playerId: number, rawName: string): Promise<RenameResult> {
+export async function renamePlayer(playerId: number, rawName: string): Promise<ActionResult> {
   const name = rawName.trim().slice(0, 40);
   if (!name) return { ok: false, error: "Name can't be empty." };
 
