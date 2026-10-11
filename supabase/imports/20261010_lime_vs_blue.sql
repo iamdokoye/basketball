@@ -11,9 +11,10 @@
 -- The ratings shown in the screenshots came from that other app. Ours are recalculated from the plays.
 --
 -- Teams: Team Lime = A, Team Blue = B. Game to 20, win by 1.
--- Player names: the screenshot's "Chibikes" is Daniel Okoye and "Joshua" is Kenoye Joshua. The other
--- five are matched by the first names shown. If your Players page spells any differently, change the
--- second column of the roster below before running.
+-- Player names: the screenshot's first names are matched to the full names on the Players page:
+-- Chibikes = Daniel Okoye, Joshua = Kenoye Joshua, Billy = Billy Uko, Whyte = Whyte Dibaal,
+-- William = William Mark, Joe = Joseph Eshiett, Ephraim = Ephraim Benjamin. If any is wrong, change
+-- the second column of the roster below before running.
 --
 -- Run once in the Supabase SQL Editor. It stops with a clear message if a player can't be found
 -- (nothing is saved), and does nothing if this game was already imported.
@@ -31,13 +32,13 @@ begin
 
   create temp table _roster (label text, db_name text, team text, pid bigint) on commit drop;
   insert into _roster (label, db_name, team) values
-    ('Billy', 'Billy', 'A'),
-    ('Whyte', 'Whyte', 'A'),
-    ('William', 'William', 'A'),
+    ('Billy', 'Billy Uko', 'A'),
+    ('Whyte', 'Whyte Dibaal', 'A'),
+    ('William', 'William Mark', 'A'),
     ('Joshua', 'Kenoye Joshua', 'B'),
-    ('Joe', 'Joe', 'B'),
+    ('Joe', 'Joseph Eshiett', 'B'),
     ('Chibikes', 'Daniel Okoye', 'B'),
-    ('Ephraim', 'Ephraim', 'B');
+    ('Ephraim', 'Ephraim Benjamin', 'B');
 
   update _roster r set pid = p.id
   from public.players p
