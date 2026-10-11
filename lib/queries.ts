@@ -1,4 +1,5 @@
-import { getDb } from "./db";
+import "server-only";
+import { db, fetchAll } from "./supabase";
 import {
   boxScore,
   emptyLine,
@@ -15,6 +16,7 @@ export type Player = { id: number; name: string; archived: boolean };
 export type Game = {
   id: number;
   playedAt: string;
+  startMs: number;
   status: "live" | "final";
   target: number;
   winBy: number;
@@ -26,56 +28,81 @@ export type Game = {
 };
 
 export async function listPlayers(): Promise<Player[]> {
-  const db = await getDb();
-  const rs = await db.execute("SELECT id, name, archived FROM players ORDER BY name COLLATE NOCASE");
-  return rs.rows.map((r) => ({
-    id: Number(r.id),
-    name: String(r.name),
-    archived: Number(r.archived) === 1,
-  }));
+  const { data, error } = await db().from("players").select("id, name, archived").order("name");
+  if (error) throw new Error(error.message);
+  return (data ?? [])
+    .map((p) => ({ id: Number(p.id), name: String(p.name), archived: Boolean(p.archived) }))
+    .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
 }
 
-/** Loads every game with its roster, events and derived box score. Fine at friend-league scale. */
-export async function listGames(): Promise<Game[]> {
-  const db = await getDb();
+type GameRow = { id: number; played_at: string; status: string; target: number; win_by: number };
+type RosterRow = {
+  game_id: number;
+  team: Team;
+  starter: boolean;
+  players: { id: number; name: string } | null;
+};
+type EventRow = { id: number; game_id: number; player_id: number; type: string; grp: string; at: string };
+
+/** Loads games (all, or one) with roster, events and derived box score. */
+async function loadGames(gameId?: number): Promise<Game[]> {
+  const gamesQ = db().from("games").select("id, played_at, status, target, win_by").order("id", { ascending: false });
+  const rosterQ = (from: number, to: number) => {
+    let q = db()
+      .from("game_players")
+      .select("game_id, team, starter, players(id, name)", { count: "exact" });
+    if (gameId) q = q.eq("game_id", gameId);
+    return q.order("game_id").order("player_id").range(from, to);
+  };
+  const eventsQ = (from: number, to: number) => {
+    let q = db().from("events").select("id, game_id, player_id, type, grp, at", { count: "exact" });
+    if (gameId) q = q.eq("game_id", gameId);
+    return q.order("id").range(from, to);
+  };
+
   const [games, roster, events] = await Promise.all([
-    db.execute("SELECT id, played_at, status, target, win_by FROM games ORDER BY id DESC"),
-    db.execute(
-      "SELECT gp.game_id, gp.team, p.id AS player_id, p.name FROM game_players gp JOIN players p ON p.id = gp.player_id ORDER BY gp.team, p.name COLLATE NOCASE",
-    ),
-    db.execute("SELECT id, game_id, player_id, type, grp FROM events ORDER BY id"),
+    gameId ? gamesQ.eq("id", gameId) : gamesQ,
+    fetchAll<RosterRow>(rosterQ),
+    fetchAll<EventRow>(eventsQ),
   ]);
+  if (games.error) throw new Error(games.error.message);
 
   const rosterByGame = new Map<number, RosterEntry[]>();
-  for (const r of roster.rows) {
-    const gid = Number(r.game_id);
-    const list = rosterByGame.get(gid) ?? [];
-    list.push({ id: Number(r.player_id), name: String(r.name), team: r.team as Team });
-    rosterByGame.set(gid, list);
+  for (const r of roster) {
+    if (!r.players) continue;
+    const list = rosterByGame.get(Number(r.game_id)) ?? [];
+    list.push({ id: Number(r.players.id), name: r.players.name, team: r.team, starter: r.starter });
+    rosterByGame.set(Number(r.game_id), list);
   }
+  for (const list of rosterByGame.values()) {
+    list.sort((a, b) => Number(b.starter) - Number(a.starter) || a.name.localeCompare(b.name));
+  }
+
   const eventsByGame = new Map<number, GameEvent[]>();
-  for (const r of events.rows) {
-    const gid = Number(r.game_id);
-    const list = eventsByGame.get(gid) ?? [];
+  for (const r of events) {
+    const list = eventsByGame.get(Number(r.game_id)) ?? [];
     list.push({
       id: Number(r.id),
       playerId: Number(r.player_id),
-      type: String(r.type) as EventType,
-      grp: String(r.grp),
+      type: r.type as EventType,
+      grp: r.grp,
+      at: new Date(r.at).getTime(),
     });
-    eventsByGame.set(gid, list);
+    eventsByGame.set(Number(r.game_id), list);
   }
 
-  return games.rows.map((g) => {
+  return (games.data as GameRow[]).map((g) => {
     const id = Number(g.id);
     const rosterEntries = rosterByGame.get(id) ?? [];
     const evs = eventsByGame.get(id) ?? [];
-    const lines = boxScore(rosterEntries, evs);
+    const startMs = new Date(g.played_at).getTime();
+    const lines = boxScore(rosterEntries, evs, startMs);
     const score = teamScores(lines);
-    const final = String(g.status) === "final";
+    const final = g.status === "final";
     return {
       id,
-      playedAt: String(g.played_at),
+      playedAt: g.played_at,
+      startMs,
       status: final ? "final" : "live",
       target: Number(g.target),
       winBy: Number(g.win_by),
@@ -88,16 +115,23 @@ export async function listGames(): Promise<Game[]> {
   });
 }
 
+export const listGames = () => loadGames();
+
 export async function getGame(id: number): Promise<Game | null> {
-  return (await listGames()).find((g) => g.id === id) ?? null;
+  if (!Number.isSafeInteger(id)) return null;
+  return (await loadGames(id))[0] ?? null;
 }
 
 export type CareerLine = StatLine & {
   gp: number;
   wins: number;
   losses: number;
-  plusMinus: number;
 };
+
+const SUMMED: (keyof StatLine)[] = [
+  "pts", "fgm", "fga", "fg2m", "fg2a", "fg3m", "fg3a", "ftm", "fta", "oreb", "dreb",
+  "reb", "ast", "stl", "blk", "tov", "pf", "defl", "sec", "plusMinus",
+];
 
 /** Season/career totals per player across finished games. */
 export function careerTotals(games: Game[], players: Player[]): CareerLine[] {
@@ -105,7 +139,7 @@ export function careerTotals(games: Game[], players: Player[]): CareerLine[] {
   const get = (id: number, name: string): CareerLine => {
     let l = byId.get(id);
     if (!l) {
-      l = { ...emptyLine({ id, name, team: "A" }), gp: 0, wins: 0, losses: 0, plusMinus: 0 };
+      l = { ...emptyLine({ id, name, team: "A" }), gp: 0, wins: 0, losses: 0 };
       byId.set(id, l);
     }
     return l;
@@ -117,14 +151,9 @@ export function careerTotals(games: Game[], players: Player[]): CareerLine[] {
     for (const line of g.lines) {
       const c = get(line.playerId, line.name);
       c.gp++;
-      for (const k of Object.keys(line) as (keyof StatLine)[]) {
-        if (typeof line[k] === "number" && k !== "playerId") {
-          (c[k] as number) += line[k] as number;
-        }
-      }
+      for (const k of SUMMED) (c[k] as number) += line[k] as number;
       const mine = g.score[line.team];
       const theirs = g.score[line.team === "A" ? "B" : "A"];
-      c.plusMinus += mine - theirs;
       if (mine > theirs) c.wins++;
       else if (mine < theirs) c.losses++;
     }

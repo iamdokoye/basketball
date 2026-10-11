@@ -1,69 +1,137 @@
-import Image from "next/image";
+import Link from "next/link";
+import { careerTotals, listGames, listPlayers } from "@/lib/queries";
+import { rankPlayers, SORTS, type Ranked, type SortKey } from "@/lib/rankings";
+import { GameRow } from "@/app/components/GameRow";
+import { Avatar } from "@/app/components/Avatar";
 
-export default function Home() {
+export const dynamic = "force-dynamic";
+
+const LEADER_CATEGORIES: { key: SortKey; label: string }[] = [
+  { key: "ppg", label: "Scoring" },
+  { key: "rpg", label: "Rebounds" },
+  { key: "apg", label: "Assists" },
+  { key: "spg", label: "Steals" },
+  { key: "bpg", label: "Blocks" },
+];
+
+const PODIUM = [
+  { place: 2, bar: "h-16 bg-stone-300", order: "order-1" },
+  { place: 1, bar: "h-24 bg-amber-400", order: "order-2" },
+  { place: 3, bar: "h-12 bg-orange-300", order: "order-3" },
+];
+
+export default async function Home() {
+  const [games, players] = await Promise.all([listGames(), listPlayers()]);
+  const live = games.filter((g) => g.status === "live");
+  const final = games.filter((g) => g.status === "final");
+  const career = careerTotals(games, players);
+  const { rows: ranked } = rankPlayers(career);
+  const top3 = ranked.filter((r) => r.rank !== null).slice(0, 3);
+
+  const leaders = LEADER_CATEGORIES.flatMap(({ key, label }) => {
+    const { rows } = rankPlayers(career, key);
+    const best = rows[0];
+    return best ? [{ label, key, player: best }] : [];
+  });
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+    <div className="space-y-7">
+      <Link
+        href="/games/new"
+        className="flex items-center justify-between rounded-3xl bg-gradient-to-br from-court to-orange-500 p-5 text-white shadow-lg active:scale-[0.99]"
+      >
+        <div>
+          <div className="text-sm font-bold uppercase tracking-widest text-orange-100">Ready?</div>
+          <div className="text-3xl font-black leading-tight">Start a game</div>
+        </div>
+        <span className="grid h-14 w-14 place-items-center rounded-full bg-white/20 text-3xl">🏀</span>
+      </Link>
+
+      {live.length > 0 && (
+        <section>
+          <h2 className="mb-2 text-xs font-bold uppercase tracking-widest text-stone-500">In progress</h2>
+          <ul className="space-y-2">
+            {live.map((g) => (
+              <GameRow key={g.id} game={g} />
+            ))}
+          </ul>
+        </section>
+      )}
+
+      <section>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-xs font-bold uppercase tracking-widest text-stone-500">Top players</h2>
+          <Link href="/rankings" className="text-xs font-bold text-court hover:underline">
+            Full rankings →
+          </Link>
+        </div>
+        {top3.length === 0 ? (
+          <p className="rounded-2xl bg-white p-6 text-center text-sm text-stone-500 ring-1 ring-stone-200">
+            Finish a game to crown a champion.
           </p>
+        ) : (
+          <div className="grid grid-cols-3 items-end gap-2 rounded-3xl bg-white p-4 shadow-sm ring-1 ring-stone-200">
+            {PODIUM.map(({ place, bar, order }) => {
+              const r: Ranked | undefined = top3[place - 1];
+              if (!r) return <div key={place} className={order} />;
+              return (
+                <Link key={place} href={`/players/${r.playerId}`} className={`${order} flex flex-col items-center text-center`}>
+                  <Avatar id={r.playerId} name={r.name} size={place === 1 ? "lg" : "md"} />
+                  <div className="mt-1.5 w-full truncate text-sm font-black">{r.name}</div>
+                  <div className="tabular text-xs font-semibold text-stone-500">{r.rating.toFixed(1)} rtg</div>
+                  <div className={`mt-2 grid w-full place-items-center rounded-t-xl text-2xl font-black ${bar}`}>
+                    {place}
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      {leaders.length > 0 && (
+        <section>
+          <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-stone-500">Category leaders</h2>
+          <div className="-mx-4 flex gap-2.5 overflow-x-auto px-4 pb-1">
+            {leaders.map(({ label, key, player }) => (
+              <Link
+                key={key}
+                href={`/rankings?sort=${key}`}
+                className="w-36 shrink-0 rounded-2xl bg-white p-3 shadow-sm ring-1 ring-stone-200"
+              >
+                <div className="text-[11px] font-bold uppercase tracking-widest text-stone-400">{label}</div>
+                <div className="tabular mt-1 text-3xl font-black">
+                  {SORTS[key].value(player).toFixed(1)}
+                </div>
+                <div className="mt-1 flex items-center gap-1.5">
+                  <Avatar id={player.playerId} name={player.name} size="sm" />
+                  <span className="truncate text-sm font-bold">{player.name}</span>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+
+      <section>
+        <div className="mb-2 flex items-center justify-between">
+          <h2 className="text-xs font-bold uppercase tracking-widest text-stone-500">Recent games</h2>
+          <Link href="/games" className="text-xs font-bold text-court hover:underline">
+            See all →
+          </Link>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+        {final.length === 0 ? (
+          <p className="rounded-2xl bg-white p-6 text-center text-sm text-stone-500 ring-1 ring-stone-200">
+            No finished games yet.
+          </p>
+        ) : (
+          <ul className="space-y-2">
+            {final.slice(0, 5).map((g) => (
+              <GameRow key={g.id} game={g} />
+            ))}
+          </ul>
+        )}
+      </section>
     </div>
   );
 }
