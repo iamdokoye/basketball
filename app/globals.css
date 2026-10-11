@@ -24,6 +24,11 @@
     Helvetica, Arial, sans-serif;
 }
 
+/* Header height including the phone's notch/status-bar inset when installed full-screen. */
+:root {
+  --header-h: calc(64px + env(safe-area-inset-top));
+}
+
 body {
   background: var(--color-paper);
   color: var(--color-ink);

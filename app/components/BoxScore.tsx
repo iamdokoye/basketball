@@ -1,19 +1,60 @@
 import Link from "next/link";
 import { formatGameDateTime } from "@/lib/format";
-import { fmtEfg, fmtMinutes, fmtPct, fmtSigned, fmtTs, type StatLine, type Team } from "@/lib/stats";
+import {
+  fmtEfg,
+  fmtMinutes,
+  fmtPct,
+  fmtSigned,
+  fmtTs,
+  type StatLine,
+  type Team,
+} from "@/lib/stats";
 
-const HEAD = ["PTS", "FG", "3P", "FT", "REB", "AST", "STL", "BLK", "TO", "PF", "+/-", "MIN"];
+const HEAD = [
+  "PTS",
+  "FG",
+  "3P",
+  "FT",
+  "REB",
+  "AST",
+  "STL",
+  "BLK",
+  "TO",
+  "PF",
+  "+/-",
+  "MIN",
+];
 
 const SUM_KEYS = [
-  "pts", "fgm", "fga", "fg3m", "fg3a", "ftm", "fta", "reb", "ast", "stl", "blk", "tov", "pf",
+  "pts",
+  "fgm",
+  "fga",
+  "fg3m",
+  "fg3a",
+  "ftm",
+  "fta",
+  "reb",
+  "ast",
+  "stl",
+  "blk",
+  "tov",
+  "pf",
 ] as const;
 
-export function BoxScoreTable({ lines, team }: { lines: StatLine[]; team: Team }) {
+export function BoxScoreTable({
+  lines,
+  team,
+  pogId,
+}: {
+  lines: StatLine[];
+  team: Team;
+  /** Player of the game, marked with a star. */
+  pogId?: number;
+}) {
   const rows = lines.filter((l) => l.team === team);
-  const total = Object.fromEntries(SUM_KEYS.map((k) => [k, rows.reduce((t, l) => t + l[k], 0)])) as Record<
-    (typeof SUM_KEYS)[number],
-    number
-  >;
+  const total = Object.fromEntries(
+    SUM_KEYS.map((k) => [k, rows.reduce((t, l) => t + l[k], 0)]),
+  ) as Record<(typeof SUM_KEYS)[number], number>;
   const accent = team === "A" ? "bg-court-soft" : "bg-away-soft";
 
   const cell = "px-2 py-2 text-right";
@@ -41,9 +82,21 @@ export function BoxScoreTable({ lines, team }: { lines: StatLine[]; team: Team }
             {rows.map((l) => (
               <tr key={l.playerId}>
                 <td className={`${stickyName} font-semibold`}>
-                  <Link href={`/players/${l.playerId}`} className="hover:underline">
+                  <Link
+                    href={`/players/${l.playerId}`}
+                    className="hover:underline"
+                  >
                     {l.name}
                   </Link>
+                  {l.playerId === pogId && (
+                    <span
+                      title="Player of the game"
+                      aria-label="Player of the game"
+                      className="ml-1 text-court-soft"
+                    >
+                      ★
+                    </span>
+                  )}
                 </td>
                 <td className={`${cell} font-extrabold`}>{l.pts}</td>
                 <td className={cell}>
@@ -63,7 +116,11 @@ export function BoxScoreTable({ lines, team }: { lines: StatLine[]; team: Team }
                 <td className={cell}>{l.pf}</td>
                 <td
                   className={`${cell} font-semibold ${
-                    l.plusMinus > 0 ? "text-win" : l.plusMinus < 0 ? "text-loss" : ""
+                    l.plusMinus > 0
+                      ? "text-win"
+                      : l.plusMinus < 0
+                        ? "text-loss"
+                        : ""
                   }`}
                 >
                   {fmtSigned(l.plusMinus)}
@@ -98,8 +155,8 @@ export function BoxScoreTable({ lines, team }: { lines: StatLine[]; team: Team }
         </table>
       </div>
       <div className="hairline border-t px-3 py-2 text-xs text-muted">
-        FG {fmtPct(total.fgm, total.fga)} · 3P {fmtPct(total.fg3m, total.fg3a)} · FT{" "}
-        {fmtPct(total.ftm, total.fta)} · eFG{" "}
+        FG {fmtPct(total.fgm, total.fga)} · 3P {fmtPct(total.fg3m, total.fg3a)}{" "}
+        · FT {fmtPct(total.ftm, total.fta)} · eFG{" "}
         {fmtEfg({ fgm: total.fgm, fg3m: total.fg3m, fga: total.fga })} · TS{" "}
         {fmtTs({ pts: total.pts, fga: total.fga, fta: total.fta })}
       </div>

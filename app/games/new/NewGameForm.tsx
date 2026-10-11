@@ -3,6 +3,7 @@
 import { useRef, useState, useTransition } from "react";
 import { createGame } from "@/lib/actions";
 import { Avatar, shortName } from "@/app/components/Avatar";
+import { balanceTeams, fairness } from "@/lib/balance";
 
 type Assign = { team: "A" | "B"; seq: number };
 
@@ -34,8 +35,11 @@ const MODES: {
 
 export default function NewGameForm({
   players,
+  strengths,
 }: {
   players: { id: number; name: string }[];
+  /** Player id -> strength (rating and win rate, from past games), for balancing. */
+  strengths: Record<number, number>;
 }) {
   const [assign, setAssign] = useState<Record<number, Assign | undefined>>({});
   const seq = useRef(0);
@@ -44,6 +48,7 @@ export default function NewGameForm({
   const winBy = MODES.find((m) => m.id === mode)!.winBy;
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const [balanced, setBalanced] = useState<{ gap: number } | null>(null);
 
   const teamOf = (t: "A" | "B") =>
     players
@@ -52,7 +57,21 @@ export default function NewGameForm({
   const a = teamOf("A");
   const b = teamOf("B");
 
+  /** Everyone currently picked (on either team) is "playing"; split them into fair teams. */
+  function balance() {
+    const playing = players.filter((p) => assign[p.id]).map((p) => p.id);
+    const split = balanceTeams(playing, (id) => strengths[id] ?? 0);
+    if (!split) return;
+    const next: Record<number, Assign | undefined> = {};
+    // Strongest first, so the best players on each side are the starters.
+    for (const id of split.A) next[id] = { team: "A", seq: ++seq.current };
+    for (const id of split.B) next[id] = { team: "B", seq: ++seq.current };
+    setAssign(next);
+    setBalanced({ gap: split.gap });
+  }
+
   function cycle(id: number) {
+    setBalanced(null);
     setAssign((cur) => {
       const now = cur[id]?.team;
       const next = now === undefined ? "A" : now === "A" ? "B" : undefined;
@@ -98,8 +117,36 @@ export default function NewGameForm({
       <p className="px-1 text-sm text-muted">
         Tap a player to cycle <b className="text-court-ink">Team A</b> →{" "}
         <b className="text-away-dark">Team B</b> → out. The first {STARTERS} on
-        each team start; anyone after that begins on the bench.
+        each team start; anyone after that begins on the bench. Or tap everyone
+        who&apos;s playing and let us balance the teams.
       </p>
+
+      <div className="glass-1 flex items-center gap-3 rounded-2xl p-3">
+        <button
+          type="button"
+          onClick={balance}
+          disabled={a.length + b.length < 2}
+          className="h-11 shrink-0 rounded-full bg-sub/10 px-4 text-sm font-semibold text-sub ring-1 ring-sub/25 active:scale-95 disabled:opacity-40"
+        >
+          ⚖ {balanced ? "Shuffle" : "Balance teams"}
+        </button>
+        <p
+          className="min-w-0 flex-1 text-xs font-semibold text-muted"
+          role="status"
+        >
+          {balanced ? (
+            <>
+              <span className="text-ink">{fairness(balanced.gap)}</span> ·
+              strength gap {balanced.gap.toFixed(1)}. Shuffle for another fair
+              split.
+            </>
+          ) : a.length + b.length < 2 ? (
+            "Pick at least two players first."
+          ) : (
+            `Splits the ${a.length + b.length} picked players using ratings and win rates.`
+          )}
+        </p>
+      </div>
       <div className="grid grid-cols-2 gap-2">
         {players.map((p) => {
           const t = assign[p.id]?.team;

@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { finishGame, recordGroup, undoGroup } from "@/lib/actions";
+import { finishGame } from "@/lib/actions";
+import { useGameSync } from "./useGameSync";
 import {
   boxScore,
   describeGroup,
@@ -40,9 +41,6 @@ const TONES = {
   neutral: "bg-white/60 text-ink ring-1 ring-black/5 active:bg-white",
   sub: "bg-sub/10 text-sub ring-1 ring-sub/25 active:bg-sub/20",
 };
-
-/** Timestamp for a new event; only ever called from tap handlers. */
-const eventTime = () => Date.now();
 
 const COLS = { 1: "grid-cols-1", 2: "grid-cols-2", 3: "grid-cols-3" };
 
@@ -87,14 +85,20 @@ export default function Scorekeeper({
   serverNow?: number;
 }) {
   const router = useRouter();
-  const [localEvents, setEvents] = useState<GameEvent[]>(initialEvents);
-  // Spectators always render the server's copy, which router.refresh() keeps current.
-  const events = readOnly ? initialEvents : localEvents;
   const [sheet, setSheet] = useState<Sheet | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [localError, setLocalError] = useState<string | null>(null);
   const [showLog, setShowLog] = useState(false);
-  const [, startTransition] = useTransition();
   const [finishing, startFinish] = useTransition();
+  // Plays are saved in the background (queued if the phone loses signal), and the server's copy
+  // is polled so plays recorded on another phone show up here too. Paused while a menu is open.
+  const sync = useGameSync({
+    gameId,
+    initialEvents,
+    paused: sheet !== null,
+    onFinished: () => router.refresh(),
+  });
+  const events = sync.events;
+  const error = localError ?? sync.error;
 
   const lines = useMemo(
     () => boxScore(roster, events, startMs),
@@ -103,12 +107,6 @@ export default function Scorekeeper({
   const court = useMemo(() => onCourt(roster, events), [roster, events]);
   const score = teamScores(lines);
   const result = gameResult(score, { target, winBy });
-  useEffect(() => {
-    if (!readOnly) return;
-    const id = setInterval(() => router.refresh(), 8000);
-    return () => clearInterval(id);
-  }, [readOnly, router]);
-
   const nameOf = (id: number) => roster.find((p) => p.id === id)?.name ?? "?";
 
   const active = (t: Team) =>
@@ -132,43 +130,15 @@ export default function Scorekeeper({
   }, [events]);
 
   function commit(evs: Ev[]) {
-    const grp = crypto.randomUUID();
-    const at = eventTime();
     navigator.vibrate?.(12);
     setSheet(null);
-    setError(null);
-    setEvents((cur) => [...cur, ...evs.map((e) => ({ ...e, grp, at }))]);
-    startTransition(async () => {
-      try {
-        const res = await recordGroup(gameId, grp, at, evs);
-        if (!res.ok) {
-          setEvents((cur) => cur.filter((e) => e.grp !== grp));
-          setError(res.error);
-        }
-      } catch {
-        setEvents((cur) => cur.filter((e) => e.grp !== grp));
-        setError(
-          "Couldn't save that play. Check your connection and try again.",
-        );
-      }
-    });
+    setLocalError(null);
+    sync.add(evs);
   }
 
   function removeGroup(grp: string) {
-    const removed = events.filter((e) => e.grp === grp);
-    setEvents((cur) => cur.filter((e) => e.grp !== grp));
-    startTransition(async () => {
-      const restore = (msg: string) => {
-        setEvents((cur) => [...cur, ...removed].sort((a, b) => a.at - b.at));
-        setError(msg);
-      };
-      try {
-        const res = await undoGroup(gameId, grp);
-        if (!res.ok) restore(res.error);
-      } catch {
-        restore("Couldn't undo. Check your connection and try again.");
-      }
-    });
+    setLocalError(null);
+    sync.remove(grp);
   }
 
   // ---- Flows ---------------------------------------------------------------
@@ -428,9 +398,14 @@ export default function Scorekeeper({
   }
 
   function finish() {
+    // Plays still waiting to be sent would be refused once the game is finished, so wait for them.
+    if (sync.pending > 0) {
+      setLocalError("Still saving plays. Try again in a moment.");
+      return;
+    }
     startFinish(async () => {
       const res = await finishGame(gameId);
-      if (!res.ok) setError(res.error);
+      if (!res.ok) setLocalError(res.error);
       else router.refresh();
     });
   }
@@ -440,7 +415,7 @@ export default function Scorekeeper({
   return (
     <div className="space-y-4">
       {/* Scoreboard */}
-      <div className="sticky top-[72px] z-10 -mx-4 px-4 pb-2 pt-1">
+      <div className="sticky top-[calc(var(--header-h)+8px)] z-10 -mx-4 px-4 pb-2 pt-1">
         <div className="glass-3 overflow-hidden rounded-3xl">
           <div className="grid grid-cols-[1fr_auto_1fr] items-stretch">
             {(["A", "B"] as const).map((t) => (
@@ -507,10 +482,14 @@ export default function Scorekeeper({
           {!readOnly && (
             <button
               onClick={finish}
-              disabled={finishing}
+              disabled={finishing || sync.pending > 0}
               className="rounded-full bg-ink px-4 py-2 text-sm font-semibold text-paper active:scale-95 disabled:opacity-60"
             >
-              {finishing ? "Finishing…" : "Finish game"}
+              {finishing
+                ? "Finishing…"
+                : sync.pending > 0
+                  ? "Saving plays…"
+                  : "Finish game"}
             </button>
           )}
         </div>
@@ -519,9 +498,51 @@ export default function Scorekeeper({
       {error && (
         <div
           role="alert"
-          className="rounded-xl bg-loss/10 p-3 text-sm font-semibold text-loss"
+          className="flex items-start justify-between gap-3 rounded-xl bg-loss/10 p-3 text-sm font-semibold text-loss"
         >
-          {error}
+          <span>{error}</span>
+          <button
+            onClick={() => {
+              setLocalError(null);
+              sync.clearError();
+            }}
+            aria-label="Dismiss"
+            className="-m-1 shrink-0 rounded-full px-2 py-1 active:bg-loss/10"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {/* Save status: plays are sent in the background and wait here if the signal drops. */}
+      {(!readOnly || sync.state === "offline") && (
+        <div role="status" className="-mt-1 flex justify-end px-1">
+          <span
+            className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+              sync.state === "offline"
+                ? "bg-loss/10 text-loss"
+                : "bg-black/[0.05] text-muted"
+            }`}
+          >
+            <span
+              className={`h-1.5 w-1.5 rounded-full ${
+                sync.state === "offline"
+                  ? "bg-loss"
+                  : sync.state === "saving"
+                    ? "animate-pulse bg-court-soft"
+                    : "bg-win"
+              }`}
+            />
+            {sync.state === "offline"
+              ? sync.pending > 0
+                ? `Offline · ${sync.pending} ${sync.pending === 1 ? "play" : "plays"} waiting to send`
+                : "Offline · reconnecting"
+              : sync.state === "saving"
+                ? `Saving ${sync.pending}…`
+                : readOnly
+                  ? "Live"
+                  : "All saved"}
+          </span>
         </div>
       )}
 

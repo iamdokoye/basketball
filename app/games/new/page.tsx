@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { getAccess } from "@/lib/access";
 import { Countdown } from "@/app/components/Countdown";
-import { listPlayers } from "@/lib/queries";
+import { playerStrengths } from "@/lib/balance";
+import { careerTotals, listGames, listPlayers } from "@/lib/queries";
 import NewGameForm from "./NewGameForm";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +18,9 @@ export default async function NewGamePage() {
             <Countdown target={access.opensAt} serverNow={access.now} />
           </p>
         )}
-        <p className="text-sm text-muted">New games can be started {access.windowLabel}, or by the admin.</p>
+        <p className="text-sm text-muted">
+          New games can be started {access.windowLabel}, or by the admin.
+        </p>
         <Link
           href="/admin"
           className="inline-block rounded-full bg-ink px-5 py-2 text-sm font-semibold text-paper"
@@ -28,7 +31,11 @@ export default async function NewGamePage() {
     );
   }
 
-  const players = (await listPlayers()).filter((p) => !p.archived);
+  const [allPlayers, games] = await Promise.all([listPlayers(), listGames()]);
+  const players = allPlayers.filter((p) => !p.archived);
+  const strengths = Object.fromEntries(
+    playerStrengths(careerTotals(games, allPlayers)),
+  );
 
   if (players.length < 2) {
     return (
@@ -46,8 +53,13 @@ export default async function NewGamePage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="px-1 text-[32px] font-extrabold leading-[38px] tracking-tight">New game</h1>
-      <NewGameForm players={players.map((p) => ({ id: p.id, name: p.name }))} />
+      <h1 className="px-1 text-[32px] font-extrabold leading-[38px] tracking-tight">
+        New game
+      </h1>
+      <NewGameForm
+        players={players.map((p) => ({ id: p.id, name: p.name }))}
+        strengths={strengths}
+      />
     </div>
   );
 }

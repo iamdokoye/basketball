@@ -137,6 +137,15 @@ const SPECS: Spec[] = [
   },
 ];
 
+/** Display name for each award id. */
+export const AWARD_TITLES: Record<AwardId, string> = {
+  mvp: "MVP",
+  ...(Object.fromEntries(SPECS.map((s) => [s.id, s.title])) as Record<
+    Exclude<AwardId, "mvp">,
+    string
+  >),
+};
+
 /** Awards for the finished games given (normally one calendar month). Empty if there are none. */
 export function monthAwards(games: Game[]): Award[] {
   const players = aggregatePlayers(games);

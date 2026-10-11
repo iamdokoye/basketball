@@ -149,6 +149,32 @@ export async function recordGroup(
     return fail(GENERIC);
   }
 
+  const when = new Date(Number.isFinite(at) ? at : Date.now()).toISOString();
+  for (const e of events) {
+    if (!isId(e.playerId) || !EVENT_TYPES.includes(e.type)) return fail(GENERIC);
+  }
+
+  // Fast path: one database function does every check and the insert in a single round trip.
+  const rpc = await db().rpc("record_group", {
+    p_game_id: gameId,
+    p_grp: grp,
+    p_at: when,
+    p_events: events.map((e) => ({ player_id: e.playerId, type: e.type })),
+  });
+  if (!rpc.error) {
+    switch (rpc.data) {
+      case "ok":
+        return { ok: true };
+      case "not_live":
+        return fail("This game is finished.");
+      default:
+        return fail(GENERIC);
+    }
+  }
+  // PGRST202 / 42883: the function isn't installed yet (migration not run), so use the
+  // slower path below and keep working.
+  if (rpc.error.code !== "PGRST202" && rpc.error.code !== "42883") return fail(GENERIC);
+
   const game = await db().from("games").select("status").eq("id", gameId).maybeSingle();
   if (game.error) return fail(GENERIC);
   if (game.data?.status !== "live") return fail("This game is finished.");
@@ -156,11 +182,13 @@ export async function recordGroup(
   const roster = await db().from("game_players").select("player_id").eq("game_id", gameId);
   if (roster.error) return fail(GENERIC);
   const inGame = new Set((roster.data ?? []).map((r) => Number(r.player_id)));
-  for (const e of events) {
-    if (!inGame.has(e.playerId) || !EVENT_TYPES.includes(e.type)) return fail(GENERIC);
-  }
+  if (!events.every((e) => inGame.has(e.playerId))) return fail(GENERIC);
 
-  const when = new Date(Number.isFinite(at) ? at : Date.now()).toISOString();
+  // Idempotent like the function: a re-sent group is not recorded twice.
+  const dup = await db().from("events").select("id").eq("game_id", gameId).eq("grp", grp).limit(1);
+  if (dup.error) return fail(GENERIC);
+  if ((dup.data ?? []).length > 0) return { ok: true };
+
   const { error } = await db()
     .from("events")
     .insert(events.map((e) => ({ game_id: gameId, player_id: e.playerId, type: e.type, grp, at: when })));

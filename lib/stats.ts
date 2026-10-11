@@ -170,13 +170,16 @@ export function onCourt(roster: RosterEntry[], events: GameEvent[]): Set<number>
 
 /**
  * One stat line per rostered player for a single game. Events must be in
- * chronological order. `startMs` is tip-off; the game ends at the last event.
+ * chronological order. Minutes run from tip-off to the last recorded play, where tip-off is
+ * the later of the game's creation time (`startMs`) and its first recorded play, so time
+ * spent setting up before the first possession isn't counted as playing time.
  */
 export function boxScore(roster: RosterEntry[], events: GameEvent[], startMs: number): StatLine[] {
   const lines = new Map(roster.map((p) => [p.id, emptyLine(p)]));
   const on = new Set(roster.filter((p) => p.starter).map((p) => p.id));
-  const since = new Map<number, number>([...on].map((id) => [id, startMs]));
-  const endMs = Math.max(startMs, ...events.map((e) => e.at));
+  const tipOff = events.length ? Math.max(startMs, Math.min(...events.map((e) => e.at))) : startMs;
+  const since = new Map<number, number>([...on].map((id) => [id, tipOff]));
+  const endMs = Math.max(tipOff, ...events.map((e) => e.at));
 
   const leave = (id: number, at: number) => {
     const line = lines.get(id);

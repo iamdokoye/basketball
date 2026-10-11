@@ -41,3 +41,14 @@ export function leagueGameDay(): number {
     return parseWindow(DEFAULT_WINDOW).day;
   }
 }
+
+/** "Sat, Oct 10, 2026" (date only), in the league timezone. */
+export function formatGameDay(iso: string, timeZone: string = leagueTimeZone()): string {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(new Date(iso));
+}

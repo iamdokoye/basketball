@@ -49,6 +49,22 @@ Sign in at `/admin` (the pill in the header). The session lasts 30 days on that 
 
 A game that is still running when the window closes can't be saved to by the public, so set `LEAGUE_WINDOW_GRACE_MIN` if games tend to run over.
 
+## Game day: live sync, offline, install
+
+- **Live sync:** every phone that has a game open checks the server every few seconds, so plays recorded on another phone appear on yours (and a play someone undoes disappears). Your own taps show instantly. A phone that isn't on screen pauses checking to save battery and catches up the moment you switch back.
+- **Offline queue:** if a phone loses signal, plays still show instantly and wait in a queue saved on the phone (the badge says "Offline · 2 plays waiting to send"). They're sent in order when the signal returns, even after a reload. Sending is safe to repeat: the server ignores a play it already has. **Finish game** waits until the queue is empty so no play is lost.
+- **Faster saves (one-time SQL):** run `supabase/migrations/20261012000000_record_group.sql` in the Supabase SQL Editor. It lets a save use one database round trip instead of four. The app works without it (it falls back to the slower path), so this is optional but recommended.
+- **Add to Home Screen:** on Android, Chrome shows an **Install** button on Home; on iPhone, Safari → Share → **Add to Home Screen**. The app then opens full-screen with its own icon.
+
+## Share, balance, records
+
+- **Game recap:** on a finished game, **Share** opens the phone's share sheet (e.g. WhatsApp) with a text summary: score, teams, player of the game and standouts, plus a link to the box score. **Copy recap** does the same to the clipboard.
+- **Player of the game:** the best rating in the game (ties go to the winning team), shown on the game page and starred in the box score.
+- **Balance teams:** on New game, tap everyone who's playing and press **Balance teams**. It splits them into the two most even teams from ratings and win rates (people with few games count as average), and **Shuffle** gives another fair split.
+- **Records and streaks** (`/records`): single-game highs, biggest win, win streaks, best month.
+- **Duos and rivals** (`/chemistry`): win rate for teammates, and head-to-head records. Each profile also lists its record with and against every other player.
+- **Trophy shelf:** each profile shows weekly and monthly MVPs, month awards and player-of-the-game counts. Weekly and monthly honours only count once the week or month is over.
+
 ## MVPs and awards
 
 - **MVP of the week:** the best average rating across that week's finished games. A week runs Saturday to Friday (it starts on your game day), so midweek this is last Saturday's games. If this week has no finished game yet, the most recent week with games is shown.
@@ -74,7 +90,7 @@ Every tap is stored as an event. Box scores, averages, shooting percentages, plu
 
 Per player per game: 2PT, 3PT and FT makes/attempts, points, offensive/defensive rebounds, assists, steals, blocks, deflections, turnovers, fouls, plus/minus and minutes on court.
 
-Minutes are wall-clock time between sub in and sub out (the game has no clock), so a long water break counts. Plus/minus is team points minus opponent points while the player is on the court.
+Minutes are wall-clock time from the first recorded play until the last, minus time on the bench (the game has no clock), so a long water break counts. Plus/minus is team points minus opponent points while the player is on the court.
 
 **Rating** (used for rankings) is Hollinger's Game Score averaged per game:
 `PTS + 0.4·FGM − 0.7·FGA − 0.4·(FTA − FTM) + 0.7·OREB + 0.3·DREB + STL + 0.7·AST + 0.7·BLK − 0.4·PF − TOV`.

@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getAccess } from "@/lib/access";
+import { pairStats, relationsFor, type Mate } from "@/lib/chemistry";
+import { leagueGameDay, leagueTimeZone } from "@/lib/format";
+import { shelfEntries, trophyShelf } from "@/lib/trophies";
 import { careerTotals, listGames, listPlayers } from "@/lib/queries";
 import { rankPlayers } from "@/lib/rankings";
 import {
@@ -57,6 +60,13 @@ export default async function PlayerPage({
     ["+/-", c.gp ? fmtSigned(c.plusMinus / c.gp, 1) : "–"],
   ];
 
+  const shelf = shelfEntries(
+    trophyShelf(games, leagueTimeZone(), leagueGameDay(), access.now).get(
+      playerId,
+    ),
+  );
+  const relations = relationsFor(playerId, pairStats(games));
+
   const th = "px-2 py-2 text-right font-semibold";
   const td = "px-2 py-2 text-right";
 
@@ -107,6 +117,28 @@ export default async function PlayerPage({
             </div>
           </div>
         </Link>
+      )}
+
+      {shelf.length > 0 && (
+        <section className="space-y-2">
+          <h2 className="label px-1">Trophy shelf</h2>
+          <div className="flex flex-wrap gap-2">
+            {shelf.map((t) => (
+              <span
+                key={t.label}
+                className="tabular flex items-center gap-1.5 rounded-full bg-court-soft/10 px-3 py-1.5 text-xs font-semibold ring-1 ring-court-soft/25"
+              >
+                <span aria-hidden>🏆</span>
+                {t.label}
+                {t.count > 1 && (
+                  <span className="font-extrabold text-court-ink">
+                    ×{t.count}
+                  </span>
+                )}
+              </span>
+            ))}
+          </div>
+        </section>
       )}
 
       <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
@@ -204,6 +236,61 @@ export default async function PlayerPage({
           </div>
         )}
       </section>
+
+      {(relations.teammates.length > 0 || relations.opponents.length > 0) && (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <MateList
+            title="With (teammates)"
+            empty="No games with teammates yet."
+            rows={relations.teammates}
+          />
+          <MateList
+            title="Against (opponents)"
+            empty="No games against anyone yet."
+            rows={relations.opponents}
+          />
+        </div>
+      )}
     </div>
+  );
+}
+
+/** Record with or against each other player: games, W-L and win rate. Most games first. */
+function MateList({
+  title,
+  rows,
+  empty,
+}: {
+  title: string;
+  rows: Mate[];
+  empty: string;
+}) {
+  return (
+    <section className="space-y-2">
+      <h2 className="label px-1">{title}</h2>
+      {rows.length === 0 ? (
+        <p className="glass-1 rounded-2xl p-4 text-sm text-muted">{empty}</p>
+      ) : (
+        <ul className="glass-1 divide-y divide-black/[0.06] rounded-2xl">
+          {rows.slice(0, 8).map((m) => (
+            <li key={m.playerId}>
+              <Link
+                href={`/players/${m.playerId}`}
+                className="flex items-center justify-between gap-3 px-3.5 py-2.5 text-sm"
+              >
+                <span className="truncate font-semibold">{m.name}</span>
+                <span className="tabular shrink-0 text-xs font-semibold text-muted">
+                  <span className="font-extrabold text-ink">
+                    {m.wins}-{m.losses}
+                  </span>{" "}
+                  · {Math.round((m.wins / m.gp) * 100)}% · {m.gp}{" "}
+                  {m.gp === 1 ? "game" : "games"}
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }

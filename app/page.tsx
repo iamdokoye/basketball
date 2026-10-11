@@ -12,6 +12,7 @@ import { careerTotals, listGames, listPlayers } from "@/lib/queries";
 import { rankPlayers, SORTS, type Ranked, type SortKey } from "@/lib/rankings";
 import { GameRow, LiveGameCard } from "@/app/components/GameRow";
 import { Avatar, shortName } from "@/app/components/Avatar";
+import { InstallHint } from "@/app/components/InstallHint";
 import { MvpCard } from "@/app/components/MvpCard";
 import { AwardsCard } from "@/app/components/AwardsCard";
 import { monthAwards } from "@/lib/awards";
@@ -149,6 +150,8 @@ export default async function Home() {
           </div>
         </Link>
       )}
+
+      <InstallHint />
 
       {live.length > 0 && (
         <section className="space-y-2.5">
@@ -312,6 +315,35 @@ export default async function Home() {
           </div>
         </section>
       )}
+
+      {/* Explore */}
+      <section className="space-y-2.5">
+        <h2 className="label px-1">Explore</h2>
+        <div className="grid grid-cols-3 gap-2.5">
+          {[
+            { href: "/records", title: "Records", sub: "Highs & streaks" },
+            {
+              href: "/chemistry",
+              title: "Duos & rivals",
+              sub: "Who wins together",
+            },
+            { href: "/mvp", title: "MVPs & awards", sub: "Week & month" },
+          ].map((t) => (
+            <Link
+              key={t.href}
+              href={t.href}
+              className="glass-1 rounded-2xl p-3 active:scale-[0.98]"
+            >
+              <div className="text-sm font-extrabold leading-tight">
+                {t.title}
+              </div>
+              <div className="mt-0.5 text-[11px] font-medium text-muted">
+                {t.sub}
+              </div>
+            </Link>
+          ))}
+        </div>
+      </section>
 
       {/* Recent games */}
       <section className="space-y-3">
