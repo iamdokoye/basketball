@@ -149,6 +149,7 @@ export function VoiceEntry({
   const rec = useRef<Recognition | null>(null);
   const heard = useRef("");
   const failed = useRef(false);
+  const retryEnglish = useRef(false);
 
   function open(d: Draftset | null) {
     setDraft(d);
@@ -170,11 +171,11 @@ export function VoiceEntry({
     open({ heard: t, plays: parsed.plays, unparsed: parsed.unparsed });
   }
 
-  function startListening() {
+  function startListening(lang: string = navigator.language || "en-US") {
     const Ctor = recognitionCtor();
     if (!Ctor || rec.current) return;
     const r = new Ctor();
-    r.lang = navigator.language || "en-US";
+    r.lang = lang;
     r.continuous = false;
     r.interimResults = true;
     r.maxAlternatives = 1;
@@ -189,13 +190,30 @@ export function VoiceEntry({
     };
     r.onerror = (e) => {
       failed.current = true;
+      if (e.error === "aborted") return;
+      // An unsupported phone language: try plain English once instead of failing.
+      if (e.error === "language-not-supported" && lang !== "en-US") {
+        retryEnglish.current = true;
+        return;
+      }
+      const iphoneApp =
+        /iPhone|iPad|iPod/.test(navigator.userAgent) &&
+        (window.matchMedia("(display-mode: standalone)").matches ||
+          (navigator as { standalone?: boolean }).standalone === true);
       setNote(
-        SPEECH_ERRORS[e.error] ??
-          "Speech recognition failed. You can type the play instead.",
+        `${SPEECH_ERRORS[e.error] ?? "Speech recognition failed."} (${e.error})` +
+          (iphoneApp
+            ? " Voice often doesn't work in the iPhone Home Screen app. Open the site in Safari instead, or tap the mic on your keyboard in the box below."
+            : " You can type the play instead."),
       );
     };
     r.onend = () => {
       rec.current = null;
+      if (retryEnglish.current) {
+        retryEnglish.current = false;
+        startListening("en-US");
+        return;
+      }
       setListening(false);
       setLive("");
       if (heard.current) handleText(heard.current);
