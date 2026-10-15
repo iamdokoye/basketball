@@ -49,6 +49,7 @@ create index events_grp_idx on public.events (game_id, grp);
 create function public.create_game(p_target int, p_win_by int, p_players jsonb)
 returns bigint
 language plpgsql
+set search_path = ''
 as $$
 declare
   gid bigint;
