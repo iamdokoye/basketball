@@ -64,6 +64,10 @@ A game that is still running when the window closes can't be saved to by the pub
 - **One-time SQL:** run `supabase/migrations/20261013000000_game_clock_and_timeouts.sql` in the Supabase SQL Editor. Until then the clock and timeout buttons show a message instead of saving, and everything else works as before. It also updates `record_group`, so run it even if you already ran the earlier file.
 - `TIMEOUT_SECONDS` in `lib/clock.ts` sets the countdown length.
 
+## Database security (one-time SQL)
+
+Run `supabase/migrations/20261014000000_function_hardening.sql` in the Supabase SQL Editor. It clears the security advisor warnings: it pins the search path of `create_game` and `record_group`, and stops the public API from calling Supabase's `rls_auto_enable()` helper. The app talks to the database only from the server with the service key, so nothing changes in how it works.
+
 ## Voice and quick entry
 
 - On the scorekeeper, **hold Hold to talk** and say a play, e.g. "Daniel scores 2, assisted by Joe", "Billy misses a three, rebound William", "Whyte steals from Daniel", "Joshua comes in for Ephraim", "timeout team B", "pause the clock", "undo that". Or type the same sentence in the box under it. Several plays in one sentence work ("…, then …").

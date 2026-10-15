@@ -11,6 +11,7 @@ create or replace function public.record_group(
 )
 returns text
 language plpgsql
+set search_path = ''
 as $$
 declare
   v_status text;
