@@ -24,6 +24,7 @@ import {
 } from "@/lib/stats";
 import { Avatar, shortName } from "@/app/components/Avatar";
 import { Countdown } from "@/app/components/Countdown";
+import { VoiceEntry } from "./VoiceEntry";
 
 type Ev = { playerId: number; type: EventType; team?: Team };
 
@@ -94,13 +95,14 @@ export default function Scorekeeper({
   const [sheet, setSheet] = useState<Sheet | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
   const [showLog, setShowLog] = useState(false);
+  const [voiceOpen, setVoiceOpen] = useState(false);
   const [finishing, startFinish] = useTransition();
   // Plays are saved in the background (queued if the phone loses signal), and the server's copy
   // is polled so plays recorded on another phone show up here too. Paused while a menu is open.
   const sync = useGameSync({
     gameId,
     initialEvents,
-    paused: sheet !== null,
+    paused: sheet !== null || voiceOpen,
     onFinished: () => router.refresh(),
   });
   const events = sync.events;
@@ -148,6 +150,15 @@ export default function Scorekeeper({
     }
     return order.map((grp) => ({ grp, events: map.get(grp)! }));
   }, [events]);
+
+  // A miss with no rebound yet: lets a spoken "Joe rebounds" be read as offensive or defensive.
+  const lastMissTeam = useMemo(() => {
+    const g = groups[groups.length - 1];
+    const miss = g?.events.find((e) => e.type === "MISS2" || e.type === "MISS3");
+    if (!g || !miss || g.events.some((e) => e.type === "OREB" || e.type === "DREB"))
+      return null;
+    return roster.find((p) => p.id === miss.playerId)?.team ?? null;
+  }, [groups, roster]);
 
   function commit(evs: Ev[]) {
     navigator.vibrate?.(12);
@@ -685,6 +696,18 @@ export default function Scorekeeper({
                   : "All saved"}
           </span>
         </div>
+      )}
+
+      {!readOnly && (
+        <VoiceEntry
+          roster={roster}
+          court={court}
+          lastMissTeam={lastMissTeam}
+          lastPlay={last ? describeGroup(last.events, nameOf) : null}
+          onCommit={commit}
+          onUndo={() => last && removeGroup(last.grp)}
+          onOpenChange={setVoiceOpen}
+        />
       )}
 
       {/* On-court cards + bench */}

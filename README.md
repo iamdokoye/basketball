@@ -64,6 +64,14 @@ A game that is still running when the window closes can't be saved to by the pub
 - **One-time SQL:** run `supabase/migrations/20261013000000_game_clock_and_timeouts.sql` in the Supabase SQL Editor. Until then the clock and timeout buttons show a message instead of saving, and everything else works as before. It also updates `record_group`, so run it even if you already ran the earlier file.
 - `TIMEOUT_SECONDS` in `lib/clock.ts` sets the countdown length.
 
+## Voice and quick entry
+
+- On the scorekeeper, **hold Hold to talk** and say a play, e.g. "Daniel scores 2, assisted by Joe", "Billy misses a three, rebound William", "Whyte steals from Daniel", "Joshua comes in for Ephraim", "timeout team B", "pause the clock", "undo that". Or type the same sentence in the box under it. Several plays in one sentence work ("…, then …").
+- **Nothing is recorded until you confirm.** A sheet shows what was understood, one line per play. If a name could be two people, or the points weren't said, it asks you to pick. You can edit the heard text and tap **Re-read**, drop a line with ✕, or Cancel.
+- Names are matched loosely (first name, surname, near spellings like "Danial"), preferring players on the court. **Nicknames** (e.g. Chibikes = Daniel Okoye) are saved on that phone only.
+- It uses the browser's built-in speech recognition, so it's free, but it only exists in some browsers: **Chrome on Android works best** (Chrome sends the audio to Google to turn it into text). iPhone Safari is unreliable, and often missing once the app is added to the Home Screen; typing always works. Noisy courts hurt accuracy, which is what the confirm step is for.
+- The sentence-to-plays logic is in `lib/voice.ts` (plain text in, plays out), so it can be tested without a microphone.
+
 ## Planned
 
 - **Timed games:** an optional time cap, so a game can end at, say, 15 minutes by score when nobody has reached the target. The game clock above is the groundwork for it.
