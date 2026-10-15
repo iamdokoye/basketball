@@ -3,7 +3,9 @@ import { notFound } from "next/navigation";
 import { getAccess } from "@/lib/access";
 import { gameContext, rateLine } from "@/lib/rating";
 import { pairStats, relationsFor, type Mate } from "@/lib/chemistry";
-import { leagueGameDay, leagueTimeZone } from "@/lib/format";
+import { formatShortDay, leagueGameDay, leagueTimeZone } from "@/lib/format";
+import { clutchTotals } from "@/lib/clutch";
+import { singleGameRecords, winStreaks } from "@/lib/records";
 import { shelfEntries, trophyShelf } from "@/lib/trophies";
 import { careerTotals, listGames, listPlayers } from "@/lib/queries";
 import { rankPlayers } from "@/lib/rankings";
@@ -18,6 +20,7 @@ import {
 import { formatDate } from "@/app/components/BoxScore";
 import { Avatar } from "@/app/components/Avatar";
 import { RenamePlayerButton } from "@/app/components/RenamePlayer";
+import { RatingTrend, type TrendPoint } from "@/app/components/RatingTrend";
 
 export const dynamic = "force-dynamic";
 
@@ -67,6 +70,41 @@ export default async function PlayerPage({
     ),
   );
   const relations = relationsFor(playerId, pairStats(games));
+
+  // Rating trend: the latest 15 rated games, oldest to newest.
+  const TREND_GAMES = 15;
+  const trend: TrendPoint[] = [...log]
+    .sort((a, b) => a.game.startMs - b.game.startMs || a.game.id - b.game.id)
+    .flatMap(({ game, line }) => {
+      const r = rateLine(line, gameContext(game.lines));
+      if (!r) return [];
+      const mine = game.score[line.team];
+      const theirs = game.score[line.team === "A" ? "B" : "A"];
+      return [
+        {
+          gameId: game.id,
+          date: formatShortDay(game.playedAt),
+          rating: r.rating,
+          result: mine > theirs ? "W" : mine < theirs ? "L" : "T",
+          score: `${mine}–${theirs}`,
+        } satisfies TrendPoint,
+      ];
+    })
+    .slice(-TREND_GAMES);
+
+  // Personal bests, game-winners and clutch points.
+  const BEST_LABELS: Record<string, string> = {
+    pts: "Points",
+    reb: "Rebounds",
+    ast: "Assists",
+    stl: "Steals",
+    blk: "Blocks",
+    fg3m: "Threes",
+    rating: "Rating",
+  };
+  const bests = singleGameRecords(games, playerId);
+  const streak = winStreaks(games).find((x) => x.playerId === playerId);
+  const clutch = clutchTotals(games).find((x) => x.playerId === playerId);
 
   const th = "px-2 py-2 text-right font-semibold";
   const td = "px-2 py-2 text-right";
@@ -153,6 +191,74 @@ export default async function PlayerPage({
           </div>
         ))}
       </div>
+
+      <section className="space-y-2">
+        <div className="flex items-baseline justify-between px-1">
+          <h2 className="label">Rating trend</h2>
+          {trend.length >= 2 && (
+            <span className="text-xs font-semibold text-muted">
+              Last {trend.length} games
+            </span>
+          )}
+        </div>
+        {trend.length >= 2 ? (
+          <RatingTrend points={trend} />
+        ) : (
+          <p className="glass-1 rounded-2xl p-5 text-center text-sm text-muted">
+            The trend appears after two rated games.
+          </p>
+        )}
+      </section>
+
+      {(bests.length > 0 || clutch || (streak && streak.longest >= 2)) && (
+        <section className="space-y-2">
+          <h2 className="label px-1">Personal bests</h2>
+          <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+            {bests.map((b) => (
+              <Link
+                key={b.id}
+                href={`/games/${b.gameId}`}
+                className="glass-1 rounded-2xl p-3 text-center active:scale-[0.98]"
+              >
+                <div className="tabular text-2xl font-extrabold tracking-tight">
+                  {b.value}
+                </div>
+                <div className="label text-muted">{BEST_LABELS[b.id] ?? b.label}</div>
+              </Link>
+            ))}
+            {streak && streak.longest >= 2 && (
+              <div className="glass-1 rounded-2xl p-3 text-center">
+                <div className="tabular text-2xl font-extrabold tracking-tight">
+                  {streak.longest}
+                </div>
+                <div className="label text-muted">Win streak</div>
+              </div>
+            )}
+            {clutch && clutch.gameWinners > 0 && (
+              <Link
+                href="/records#clutch"
+                className="glass-1 rounded-2xl p-3 text-center active:scale-[0.98]"
+              >
+                <div className="tabular text-2xl font-extrabold tracking-tight">
+                  {clutch.gameWinners} 🎯
+                </div>
+                <div className="label text-muted">Game-winners</div>
+              </Link>
+            )}
+            {clutch && clutch.clutchPts > 0 && (
+              <Link
+                href="/records#clutch"
+                className="glass-1 rounded-2xl p-3 text-center active:scale-[0.98]"
+              >
+                <div className="tabular text-2xl font-extrabold tracking-tight">
+                  {clutch.clutchPts}
+                </div>
+                <div className="label text-muted">Clutch pts</div>
+              </Link>
+            )}
+          </div>
+        </section>
+      )}
 
       <section>
         <h2 className="label mb-2 px-1">Game log</h2>

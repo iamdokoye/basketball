@@ -49,6 +49,14 @@ const EXPLAIN: Record<
   },
 };
 
+function rankingsHref(sort: string, season?: string): string {
+  const q = new URLSearchParams();
+  if (sort !== "rating") q.set("sort", sort);
+  if (season) q.set("season", season);
+  const s = q.toString();
+  return s ? `/rankings?${s}` : "/rankings";
+}
+
 /**
  * Sort pills. Tapping a different pill re-sorts the table; tapping the selected
  * pill again opens a short explanation of that stat. Give this component a `key`
@@ -57,9 +65,12 @@ const EXPLAIN: Record<
 export function SortPills({
   items,
   active,
+  season,
 }: {
   items: Item[];
   active: string;
+  /** The season being viewed, kept in the link when the sort changes. */
+  season?: string;
 }) {
   const [open, setOpen] = useState(false);
   const info = EXPLAIN[active];
@@ -93,9 +104,7 @@ export function SortPills({
           ) : (
             <Link
               key={it.key}
-              href={
-                it.key === "rating" ? "/rankings" : `/rankings?sort=${it.key}`
-              }
+              href={rankingsHref(it.key, season)}
               className="glass-1 shrink-0 rounded-full px-4 py-2 text-xs font-semibold text-muted"
             >
               {it.label}

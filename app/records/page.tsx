@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { leagueGameDay, leagueTimeZone, formatGameDay } from "@/lib/format";
+import { clutchTotals } from "@/lib/clutch";
 import { listGames } from "@/lib/queries";
 import {
   bestMonthEver,
@@ -75,6 +76,15 @@ export default async function RecordsPage() {
   const team = teamRecords(games);
   const month = bestMonthEver(games, tz, leagueGameDay());
   const streaks = winStreaks(games);
+  const clutch = clutchTotals(games);
+  const topWinners = clutch
+    .filter((c) => c.gameWinners > 0)
+    .sort((a, b) => b.gameWinners - a.gameWinners || b.clutchPts - a.clutchPts)
+    .slice(0, 5);
+  const topClutch = clutch
+    .filter((c) => c.clutchPts > 0)
+    .sort((a, b) => b.clutchPts - a.clutchPts || b.gameWinners - a.gameWinners)
+    .slice(0, 5);
   const longest = streaks
     .filter((s) => s.longest >= 2)
     .sort((a, b) => b.longest - a.longest || b.current - a.current)
@@ -174,6 +184,62 @@ export default async function RecordsPage() {
           </div>
         )}
       </Section>
+
+      <section id="clutch" className="scroll-mt-4 space-y-2.5">
+        <h2 className="label px-1">Clutch</h2>
+        {topWinners.length === 0 && topClutch.length === 0 ? (
+          <p className="glass-1 rounded-2xl p-5 text-center text-sm text-muted">
+            No game-winners yet. A game-winner is the last basket of a game
+            decided by 3 or fewer.
+          </p>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="glass-1 space-y-2 rounded-2xl p-3.5">
+              <div className="label text-[10px] text-muted">Game-winners</div>
+              {topWinners.length === 0 ? (
+                <p className="text-sm text-muted">None yet.</p>
+              ) : (
+                topWinners.map((c) => (
+                  <Link
+                    key={c.playerId}
+                    href={`/players/${c.playerId}`}
+                    className="flex items-center justify-between gap-2 text-sm font-semibold"
+                  >
+                    <span className="truncate">{c.name}</span>
+                    <span className="tabular font-extrabold text-court-ink">
+                      {c.gameWinners} 🎯
+                    </span>
+                  </Link>
+                ))
+              )}
+            </div>
+            <div className="glass-1 space-y-2 rounded-2xl p-3.5">
+              <div className="label text-[10px] text-muted">Clutch points</div>
+              {topClutch.length === 0 ? (
+                <p className="text-sm text-muted">None yet.</p>
+              ) : (
+                topClutch.map((c) => (
+                  <Link
+                    key={c.playerId}
+                    href={`/players/${c.playerId}`}
+                    className="flex items-center justify-between gap-2 text-sm font-semibold"
+                  >
+                    <span className="truncate">{c.name}</span>
+                    <span className="tabular font-extrabold text-court-ink">
+                      {c.clutchPts} pts
+                    </span>
+                  </Link>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+        <p className="px-1 text-xs text-muted">
+          Clutch points are scored when a team is within 5 of the target and the
+          game is within 3. Games added with Import, or whose scoring was edited
+          later, are left out because their order of plays isn&apos;t real.
+        </p>
+      </section>
 
       {month && (
         <Section title="Best month ever">

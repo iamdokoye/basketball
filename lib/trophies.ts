@@ -2,11 +2,17 @@ import type { Game } from "./queries";
 import { AWARD_TITLES, monthAwards, type AwardId } from "./awards";
 import { computeMvp, groupByPeriod, monthKey, weekKey } from "./mvp";
 import { playerOfTheGame } from "./pog";
+import { careerTotals } from "./queries";
+import { rankPlayers } from "./rankings";
+import { groupBySeason, seasonKey, seasonMode } from "./seasons";
 
 export type Trophies = {
   weeklyMvp: number;
   monthlyMvp: number;
   playerOfTheGame: number;
+  /** Season honours, only for seasons that are over. */
+  seasonMvp: number;
+  seasonChampion: number;
   /** Month-award wins by award id (MVP is counted in monthlyMvp instead). */
   awards: Partial<Record<Exclude<AwardId, "mvp">, number>>;
 };
@@ -15,6 +21,8 @@ const empty = (): Trophies => ({
   weeklyMvp: 0,
   monthlyMvp: 0,
   playerOfTheGame: 0,
+  seasonMvp: 0,
+  seasonChampion: 0,
   awards: {},
 });
 
@@ -58,6 +66,17 @@ export function trophyShelf(
       else t.awards[award.id] = (t.awards[award.id] ?? 0) + 1;
     }
   }
+
+  // Season honours: best rating (MVP) and best win rate (champion) among ranked players.
+  const thisSeason = seasonKey(nowMs, timeZone);
+  for (const season of groupBySeason(games, timeZone, seasonMode())) {
+    if (season.key >= thisSeason) continue;
+    const career = careerTotals(season.games, []);
+    const mvp = rankPlayers(career, "rating").rows[0];
+    if (mvp?.rank === 1) get(mvp.playerId).seasonMvp++;
+    const champ = rankPlayers(career, "win").rows[0];
+    if (champ?.rank === 1) get(champ.playerId).seasonChampion++;
+  }
   return shelf;
 }
 
@@ -67,6 +86,8 @@ export function shelfEntries(
 ): { label: string; count: number }[] {
   if (!t) return [];
   const entries = [
+    { label: "Season champion", count: t.seasonChampion },
+    { label: "Season MVP", count: t.seasonMvp },
     { label: "Monthly MVP", count: t.monthlyMvp },
     { label: "Weekly MVP", count: t.weeklyMvp },
     ...(Object.entries(t.awards) as [Exclude<AwardId, "mvp">, number][]).map(

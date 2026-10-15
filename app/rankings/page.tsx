@@ -1,5 +1,9 @@
 import Link from "next/link";
+import { getAccess } from "@/lib/access";
+import { leagueTimeZone } from "@/lib/format";
 import { careerTotals, listGames, listPlayers } from "@/lib/queries";
+import { groupBySeason, pickSeason, seasonKey, seasonMode } from "@/lib/seasons";
+import { SeasonPills } from "@/app/components/SeasonPills";
 import { rankPlayers, SORTS, type Ranked, type SortKey } from "@/lib/rankings";
 import { fmtAvg, fmtPct, fmtSigned } from "@/lib/stats";
 import { Avatar } from "@/app/components/Avatar";
@@ -29,14 +33,22 @@ const COLUMNS: {
 export default async function RankingsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ sort?: string }>;
+  searchParams: Promise<{ sort?: string; season?: string }>;
 }) {
-  const { sort } = await searchParams;
+  const { sort, season: requested } = await searchParams;
   const sortKey: SortKey = sort && sort in SORTS ? (sort as SortKey) : "rating";
 
-  const [games, players] = await Promise.all([listGames(), listPlayers()]);
+  const [games, players, access] = await Promise.all([
+    listGames(),
+    listPlayers(),
+    getAccess(),
+  ]);
+  const tz = leagueTimeZone();
+  const mode = seasonMode();
+  const seasons = groupBySeason(games, tz, mode);
+  const view = pickSeason(seasons, games, requested, seasonKey(access.now, tz, mode));
   const { rows, qualifyAt } = rankPlayers(
-    careerTotals(games, players),
+    careerTotals(view.games, players),
     sortKey,
   );
   const hasProvisional = rows.some((r) => r.rank === null);
@@ -48,14 +60,25 @@ export default async function RankingsPage({
           Rankings
         </h1>
         <p className="text-sm text-muted">
-          Sorted by {SORTS[sortKey].label}. Tap the selected stat to see what it
-          means.
+          {view.key === "all" ? "All time" : `${view.label} season`}, sorted by{" "}
+          {SORTS[sortKey].label}. Tap the selected stat to see what it means.{" "}
+          <Link href="/standings" className="font-semibold text-court-ink hover:underline">
+            Standings
+          </Link>
         </p>
       </div>
+
+      <SeasonPills
+        basePath="/rankings"
+        seasons={seasons}
+        active={view.key}
+        extra={sortKey === "rating" ? {} : { sort: sortKey }}
+      />
 
       <SortPills
         key={sortKey}
         active={sortKey}
+        season={view.key}
         items={(Object.keys(SORTS) as SortKey[]).map((k) => ({
           key: k,
           label: SORTS[k].label,

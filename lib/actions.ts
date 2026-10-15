@@ -422,16 +422,21 @@ export async function importGame(input: {
   for (const e of planned)
     if (!grpOf.has(e.play)) grpOf.set(e.play, randomUUID());
 
-  const created = await db()
+  const gameRow = {
+    played_at: new Date(startMs).toISOString(),
+    status: "final",
+    target,
+    win_by: winBy,
+  };
+  // Flag the game as having a made-up play order (clutch stats skip it). The column only exists once
+  // the estimated_order migration is run, so fall back to a plain insert until then.
+  let created = await db()
     .from("games")
-    .insert({
-      played_at: new Date(startMs).toISOString(),
-      status: "final",
-      target,
-      win_by: winBy,
-    })
+    .insert({ ...gameRow, estimated_order: true })
     .select("id")
     .single();
+  if (created.error && ["42703", "PGRST204"].includes(created.error.code ?? ""))
+    created = await db().from("games").insert(gameRow).select("id").single();
   if (created.error || !created.data)
     return fail("Couldn't save the game. Try again.");
   const gameId = Number(created.data.id);
@@ -557,6 +562,15 @@ export async function adjustBoxScore(
   }
   if (add.length === 0 && remove.length === 0) return { ok: true };
 
+  // Changing who scored (or how often) means the game no longer has a true last basket, so clutch
+  // stats stop counting it. Quietly skipped before the estimated_order migration is run.
+  const SCORING = ["MAKE2", "MAKE3", "MAKE_FT"];
+  const scoringChanged =
+    add.some((e) => SCORING.includes(e.type)) ||
+    remove.some((id) =>
+      SCORING.includes(String(existing.find((e) => Number(e.id) === id)?.type)),
+    );
+
   // Add before removing, so a failure part-way never loses plays.
   if (add.length) {
     const { error } = await db().from("events").insert(add);
@@ -570,6 +584,8 @@ export async function adjustBoxScore(
       .in("id", remove);
     if (error) return fail("Couldn't save the changes. Try again.");
   }
+  if (scoringChanged)
+    await db().from("games").update({ estimated_order: true }).eq("id", gameId);
   revalidatePath("/", "layout");
   return { ok: true };
 }
