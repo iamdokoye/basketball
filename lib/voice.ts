@@ -198,6 +198,13 @@ const WORD_FIXES: [RegExp, string][] = [
   [/\bfoul shots?\b/g, "freethrow"],
   [/\btime[- ]?outs?\b/g, "timeout"],
   [/\bun ?do\b/g, "undo"],
+  // Commands that speech engines commonly mishear.
+  [
+    /\b(?:cause|pass|pose|paws|fause|laws|pas) the (?:clock|club|glock)\b/g,
+    "pause the clock",
+  ],
+  [/\b(?:fowl|follow|foal|file|fall|full|fell)\s+on\b/g, "foul on"],
+  [/\btime (?:of|off|up) (?=team\b)/g, "timeout "],
   [/\bre[- ]?bounds?\b/g, "rebound"],
   [/\bturn[- ]?overs?\b/g, "turnover"],
 ];
