@@ -83,6 +83,10 @@ Run `supabase/migrations/20261014000000_function_hardening.sql` in the Supabase 
 - It uses the browser's built-in speech recognition, so it's free, but it only exists in some browsers: **Chrome on Android works best** (Chrome sends the audio to Google to turn it into text). iPhone Safari is unreliable, and often missing once the app is added to the Home Screen; typing always works. Noisy courts hurt accuracy, which is what the confirm step is for.
 - The sentence-to-plays logic is in `lib/voice.ts` (plain text in, plays out), so it can be tested without a microphone.
 
+## Voice server (better speech recognition, self-hosted)
+
+`voice-server/` is a small Docker service that runs Whisper on your own server, for far better name recognition than the phone's built-in speech engine (and it works on iPhone). See `voice-server/README.md` for the Coolify setup. It is not connected to the app yet.
+
 ## Planned
 
 - **Timed games:** an optional time cap, so a game can end at, say, 15 minutes by score when nobody has reached the target. The game clock above is the groundwork for it.

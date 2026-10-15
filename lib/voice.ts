@@ -391,6 +391,8 @@ export function parseVoice(text: string, ctx: VoiceContext): Parsed {
     .replace(/[^a-z0-9\s,.;!?-]/g, " ")
     .replace(/-/g, " ");
   for (const [re, to] of WORD_FIXES) s = s.replace(re, to);
+  // Speech engines often put a comma after a linking word ("assisted by, Joe"); it isn't a break.
+  s = s.replace(/\b(by|from|for|to|of|with)\s*[,;]/g, "$1");
 
   const tokens = s.match(/[a-z0-9]+|[,.;!?]/g) ?? [];
   const wordIdx: number[] = [];
