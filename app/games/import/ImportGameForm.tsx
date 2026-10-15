@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { importGame } from "@/lib/actions";
+import { PlayerPicker } from "@/app/components/PlayerPicker";
 import { PlayerStatCard, ScoreBar } from "@/app/components/StatEditor";
 import { emptyTotals, pointsOf, type Totals } from "@/lib/import";
 
@@ -114,17 +115,32 @@ export default function ImportGameForm({
             className={inputCls}
           />
         </label>
-        <label className="label col-span-2 block text-muted">
-          Win by
-          <select
-            value={winBy}
-            onChange={(e) => setWinBy(Number(e.target.value))}
-            className={inputCls}
+        <fieldset className="col-span-2">
+          <legend className="label text-muted">Win by</legend>
+          <div
+            role="radiogroup"
+            className="mt-1 grid grid-cols-2 gap-1 rounded-2xl bg-black/[0.05] p-1"
           >
-            <option value={1}>1 (first to {target})</option>
-            <option value={2}>2</option>
-          </select>
-        </label>
+            {[
+              { v: 1, title: `First to ${target}`, hint: "Ends as soon as a team gets there" },
+              { v: 2, title: "Win by 2", hint: `Reach ${target} and lead by 2` },
+            ].map((m) => (
+              <button
+                key={m.v}
+                type="button"
+                role="radio"
+                aria-checked={winBy === m.v}
+                onClick={() => setWinBy(m.v)}
+                className={`rounded-xl px-3 py-2.5 text-left transition ${
+                  winBy === m.v ? "bg-white shadow-sm ring-1 ring-black/5" : "text-muted"
+                }`}
+              >
+                <div className="text-sm font-bold">{m.title}</div>
+                <div className="text-[11px] font-semibold leading-snug text-muted">{m.hint}</div>
+              </button>
+            ))}
+          </div>
+        </fieldset>
       </div>
 
       <ScoreBar a={score.A} b={score.B} />
@@ -154,27 +170,15 @@ export default function ImportGameForm({
                 ))}
               </ul>
             )}
-            <select
-              aria-label={`Add a player to Team ${team}`}
-              value=""
-              disabled={free.length === 0 || rows.length >= 12}
-              onChange={(e) => {
-                const id = Number(e.target.value);
-                if (id)
-                  setRows((cur) => [
-                    ...cur,
-                    { id, team, totals: emptyTotals() },
-                  ]);
-              }}
-              className="glass-1 h-12 w-full rounded-2xl px-3 text-sm font-semibold text-muted disabled:opacity-40"
-            >
-              <option value="">+ Add a player to Team {team}</option>
-              {free.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
+            <PlayerPicker
+              label={`Team ${team}`}
+              accent={team === "A" ? "court" : "away"}
+              options={free}
+              disabledReason={rows.length >= 12 ? "12 players is the most" : undefined}
+              onPick={(id) =>
+                setRows((cur) => [...cur, { id, team, totals: emptyTotals() }])
+              }
+            />
           </section>
         );
       })}
