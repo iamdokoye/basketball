@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { deleteGame, reopenGame } from "@/lib/actions";
 
@@ -36,7 +37,13 @@ export default function GameAdminActions({ gameId }: { gameId: number }) {
 
   return (
     <div className="space-y-2">
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
+        <Link
+          href={`/games/${gameId}/edit`}
+          className="glass-1 rounded-full px-4 py-2 text-sm font-semibold active:scale-95"
+        >
+          Edit box score
+        </Link>
         <button
           onClick={reopen}
           disabled={pending}

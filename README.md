@@ -100,6 +100,21 @@ Run `supabase/migrations/20261014000000_function_hardening.sql` in the Supabase 
 - **Duos and rivals** (`/chemistry`): win rate for teammates, and head-to-head records. Each profile also lists its record with and against every other player.
 - **Trophy shelf:** each profile shows weekly and monthly MVPs, month awards and player-of-the-game counts. Weekly and monthly honours only count once the week or month is over.
 
+## Importing and fixing past games (admin)
+
+- **Import a game** (`Games` → **Import**): for a game that was tracked somewhere else. Pick the date, start time and length, add the players to Team A or B, and type each player's totals (2s, 3s and free throws made and missed, rebounds, assists, steals, blocks, turnovers, fouls, deflections). The score updates as you type and a tied game can't be saved. The plays are rebuilt from the totals: every number comes out exactly, assists and rebounds are attached to a teammate's basket or an opponent's miss where one exists, and the game ends on the winning basket. The order and timing of plays are made up, and everyone counts as on court the whole game (so minutes and plus/minus are the same for all). Times use `LEAGUE_TIMEZONE`.
+- **Edit box score** (on a finished game): the same number boxes, pre-filled from the game. A higher number adds plays at the end of the game, a lower one removes that player's latest plays of that kind. Added points count toward plus/minus for whoever is on court at the end. No SQL needed for either.
+
+## Seasons, standings, clutch and the weekly digest
+
+- **Seasons** are worked out from each game's date, so nothing is stored and nothing needs resetting: the first game of a new season opens it, and the old one keeps its table. `LEAGUE_SEASON` sets the length: `year` (default), `half` (Jan-Jun, Jul-Dec) or `quarter`. Changing it re-sorts every past game into the new seasons.
+- **Standings** (`/standings`, linked from Home and Rankings): wins, losses, win rate, rating, plus/minus, last five results and the current streak, for one season or all time. Ranked by win rate, then wins, then rating; players need 3 games in the season to be ranked. **Rankings** has the same season picker and shows the current season by default.
+- **Season honours:** when a season is over, its best win rate earns **Season champion** and its best rating **Season MVP** on the trophy shelf (same 3-game rule).
+- **Clutch** (`/records#clutch`): a *game-winner* is the last basket of a game decided by 3 or fewer, scored by the winning team. *Clutch points* are scored when a team is within 5 of the target and the game is within 3. Each profile shows a player's game-winners and clutch points. Games added with Import, or whose scoring was edited with Edit box score, are skipped, because their order of plays isn't real.
+- **Profile:** a rating trend over the last 15 games (hover, tap or use the arrow keys to read each game) and personal bests: points, rebounds, assists, steals, blocks, threes, rating and longest win streak.
+- **Weekly digest** (`/digest`, linked from Home): results, MVP of the week, the next best performers, the best single game, game-winners, records set that week (once there are earlier games to beat) and the season standings as they stood after that week, as text for the group chat. **Share** opens the phone's share sheet; **Copy digest** copies it. Pick any past week.
+- **One-time SQL:** run `supabase/migrations/20261015000000_estimated_order.sql` in the Supabase SQL Editor. It adds a flag so imported games stay out of the clutch stats, and flags games already imported with the SQL scripts. Until you run it, every game counts for clutch and Import still works.
+
 ## MVPs and awards
 
 - **MVP of the week:** the best average rating across that week's finished games. A week runs Saturday to Friday (it starts on your game day), so midweek this is last Saturday's games. If this week has no finished game yet, the most recent week with games is shown.

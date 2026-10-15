@@ -148,7 +148,7 @@ export default async function GamePage({
         </Link>
       )}
 
-      {recap && <ShareRecap text={recap} gameId={game.id} />}
+      {recap && <ShareRecap text={recap} path={`/games/${game.id}`} />}
 
       <BoxScoreTable lines={game.lines} team="A" pogId={pog?.line.playerId} />
       <BoxScoreTable lines={game.lines} team="B" pogId={pog?.line.playerId} />

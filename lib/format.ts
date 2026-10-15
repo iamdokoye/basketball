@@ -52,3 +52,16 @@ export function formatGameDay(iso: string, timeZone: string = leagueTimeZone()):
     year: "numeric",
   }).format(new Date(iso));
 }
+
+/** "Oct 10" (or "Oct 10, 2025" when it isn't this year), in the league timezone. For tight spaces such as chart axes. */
+export function formatShortDay(iso: string, timeZone: string = leagueTimeZone()): string {
+  const d = new Date(iso);
+  const year = (t: Date) => new Intl.DateTimeFormat("en-US", { timeZone, year: "numeric" }).format(t);
+  const sameYear = year(d) === year(new Date());
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    month: "short",
+    day: "numeric",
+    ...(sameYear ? {} : { year: "numeric" }),
+  }).format(d);
+}

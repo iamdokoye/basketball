@@ -34,6 +34,8 @@ export type Game = {
   lines: StatLine[];
   score: Record<Team, number>;
   winner: Team | null;
+  /** True when the order of plays was made up (imported from totals, or scoring edited later). */
+  estimatedOrder: boolean;
 };
 
 export async function listPlayers(): Promise<Player[]> {
@@ -61,6 +63,8 @@ type GameRow = {
   status: string;
   target: number;
   win_by: number;
+  /** Only present once the estimated_order migration has been run. */
+  estimated_order?: boolean | null;
 };
 type RosterRow = {
   game_id: number;
@@ -82,7 +86,8 @@ type EventRow = {
 async function loadGames(gameId?: number): Promise<Game[]> {
   const gamesQ = db()
     .from("games")
-    .select("id, played_at, status, target, win_by")
+    // "*" so this keeps working before the estimated_order migration adds that column
+    .select("*")
     .order("id", { ascending: false });
   const rosterQ = (from: number, to: number) => {
     let q = db()
@@ -160,6 +165,7 @@ async function loadGames(gameId?: number): Promise<Game[]> {
       score,
       winner:
         final && score.A !== score.B ? (score.A > score.B ? "A" : "B") : null,
+      estimatedOrder: g.estimated_order === true,
     } satisfies Game;
   });
 }

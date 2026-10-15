@@ -2,8 +2,21 @@
 
 import { useState, useSyncExternalStore } from "react";
 
-/** Recap preview with Share (the phone's share sheet, e.g. WhatsApp) and Copy. */
-export function ShareRecap({ text, gameId }: { text: string; gameId: number }) {
+/**
+ * Text preview with Share (the phone's share sheet, e.g. WhatsApp) and Copy. `path` is the page the
+ * link points to (e.g. "/games/12"); the site address is added in the browser.
+ */
+export function ShareRecap({
+  text,
+  path,
+  title = "Game recap",
+  copyLabel = "Copy recap",
+}: {
+  text: string;
+  path: string;
+  title?: string;
+  copyLabel?: string;
+}) {
   // navigator.share only exists in some browsers. The server render says "no", then the browser corrects it.
   const canShare = useSyncExternalStore(
     () => () => {},
@@ -12,7 +25,7 @@ export function ShareRecap({ text, gameId }: { text: string; gameId: number }) {
   );
   const [status, setStatus] = useState<"idle" | "copied" | "failed">("idle");
 
-  const full = () => `${text}\n\n${window.location.origin}/games/${gameId}`;
+  const full = () => `${text}\n\n${window.location.origin}${path}`;
 
   async function copy() {
     try {
@@ -36,7 +49,7 @@ export function ShareRecap({ text, gameId }: { text: string; gameId: number }) {
   return (
     <section className="glass-1 space-y-3 rounded-3xl p-4">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="label">Game recap</h2>
+        <h2 className="label">{title}</h2>
         <span role="status" className="text-xs font-semibold text-muted">
           {status === "copied" && "Copied to clipboard"}
           {status === "failed" && "Couldn't copy. Select the text instead."}
@@ -60,11 +73,11 @@ export function ShareRecap({ text, gameId }: { text: string; gameId: number }) {
             canShare ? "glass-1" : "bg-ink text-paper"
           }`}
         >
-          Copy recap
+          {copyLabel}
         </button>
       </div>
       <p className="text-[11px] font-medium text-muted">
-        The link to the full box score is added when you share or copy.
+        The link is added when you share or copy.
       </p>
     </section>
   );
