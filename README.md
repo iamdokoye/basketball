@@ -102,7 +102,7 @@ Run `supabase/migrations/20261014000000_function_hardening.sql` in the Supabase 
 - **Clutch** (`/records#clutch`): a *game-winner* is the last basket of a game decided by 3 or fewer, scored by the winning team. *Clutch points* are scored when a team is within 5 of the target and the game is within 3. Each profile shows a player's game-winners and clutch points. Games added with Import, or whose scoring was edited with Edit box score, are skipped, because their order of plays isn't real.
 - **Profile:** a rating trend over the last 15 games (hover, tap or use the arrow keys to read each game) and personal bests: points, rebounds, assists, steals, blocks, threes, rating and longest win streak.
 - **Weekly digest** (`/digest`, linked from Home): results, MVP of the week, the next best performers, the best single game, game-winners, records set that week (once there are earlier games to beat) and the season standings as they stood after that week, as text for the group chat. **Share** opens the phone's share sheet; **Copy digest** copies it. Pick any past week.
-- **One-time SQL:** run `supabase/migrations/20261014000000_estimated_order.sql` in the Supabase SQL Editor. It adds a flag so imported games stay out of the clutch stats, and flags games already imported with the SQL scripts. Until you run it, every game counts for clutch and Import still works.
+- **One-time SQL:** run `supabase/migrations/20261015000000_estimated_order.sql` in the Supabase SQL Editor. It adds a flag so imported games stay out of the clutch stats, and flags games already imported with the SQL scripts. Until you run it, every game counts for clutch and Import still works.
 
 ## MVPs and awards
 
