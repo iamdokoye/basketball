@@ -77,6 +77,11 @@ A game that is still running when the window closes can't be saved to by the pub
 - **Duos and rivals** (`/chemistry`): win rate for teammates, and head-to-head records. Each profile also lists its record with and against every other player.
 - **Trophy shelf:** each profile shows weekly and monthly MVPs, month awards and player-of-the-game counts. Weekly and monthly honours only count once the week or month is over.
 
+## Importing and fixing past games (admin)
+
+- **Import a game** (`Games` → **Import**): for a game that was tracked somewhere else. Pick the date, start time and length, add the players to Team A or B, and type each player's totals (2s, 3s and free throws made and missed, rebounds, assists, steals, blocks, turnovers, fouls, deflections). The score updates as you type and a tied game can't be saved. The plays are rebuilt from the totals: every number comes out exactly, assists and rebounds are attached to a teammate's basket or an opponent's miss where one exists, and the game ends on the winning basket. The order and timing of plays are made up, and everyone counts as on court the whole game (so minutes and plus/minus are the same for all). Times use `LEAGUE_TIMEZONE`.
+- **Edit box score** (on a finished game): the same number boxes, pre-filled from the game. A higher number adds plays at the end of the game, a lower one removes that player's latest plays of that kind. Added points count toward plus/minus for whoever is on court at the end. No SQL needed for either.
+
 ## MVPs and awards
 
 - **MVP of the week:** the best average rating across that week's finished games. A week runs Saturday to Friday (it starts on your game day), so midweek this is last Saturday's games. If this week has no finished game yet, the most recent week with games is shown.
