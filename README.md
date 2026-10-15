@@ -68,11 +68,18 @@ A game that is still running when the window closes can't be saved to by the pub
 
 Run `supabase/migrations/20261014000000_function_hardening.sql` in the Supabase SQL Editor. It clears the security advisor warnings: it pins the search path of `create_game` and `record_group`, and stops the public API from calling Supabase's `rls_auto_enable()` helper. The app talks to the database only from the server with the service key, so nothing changes in how it works.
 
+## Nicknames
+
+- On the **Players** page, tap **Nicknames** on a player (or open their profile) to add what people call them, e.g. "Chibikes" for Daniel Okoye. Up to 5 per player. They show as "aka …" on the Players page and profile.
+- Voice entry listens for them, so "Chibikes scores a three" is recorded for Daniel Okoye. Words the voice parser already uses for plays ("block", "three", "assist"…) can't be nicknames, and the editor says so.
+- Anyone can edit nicknames while scoring is open (Saturday window), and the admin can any time.
+- **One-time SQL:** run `supabase/migrations/20261015000000_player_nicknames.sql` in the Supabase SQL Editor. Until then the Nicknames button shows a message instead of saving, and everything else works as before.
+
 ## Voice and quick entry
 
 - On the scorekeeper, **hold Hold to talk** and say a play, e.g. "Daniel scores 2, assisted by Joe", "Billy misses a three, rebound William", "Whyte steals from Daniel", "Joshua comes in for Ephraim", "timeout team B", "pause the clock", "undo that". Or type the same sentence in the box under it. Several plays in one sentence work ("…, then …").
 - **Nothing is recorded until you confirm.** A sheet shows what was understood, one line per play. If a name could be two people, or the points weren't said, it asks you to pick. You can edit the heard text and tap **Re-read**, drop a line with ✕, or Cancel.
-- Names are matched loosely (first name, surname, near spellings like "Danial"), preferring players on the court. **Nicknames** (e.g. Chibikes = Daniel Okoye) are saved on that phone only.
+- Names are matched loosely (first name, surname, near spellings like "Danial"), preferring players on the court. Nicknames come from the Players page (shared by everyone); the scorekeeper's own **Nicknames** panel adds extras saved on that phone only.
 - It uses the browser's built-in speech recognition, so it's free, but it only exists in some browsers: **Chrome on Android works best** (Chrome sends the audio to Google to turn it into text). iPhone Safari is unreliable, and often missing once the app is added to the Home Screen; typing always works. Noisy courts hurt accuracy, which is what the confirm step is for.
 - The sentence-to-plays logic is in `lib/voice.ts` (plain text in, plays out), so it can be tested without a microphone.
 

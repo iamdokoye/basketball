@@ -138,7 +138,12 @@ export function VoiceEntry({
         team: p.team,
         onCourt: court.has(p.id),
       })),
-      aliases,
+      aliases: [
+        ...roster.flatMap((p) =>
+          (p.nicknames ?? []).map((alias) => ({ alias, id: p.id })),
+        ),
+        ...aliases,
+      ],
       lastMissTeam,
     }),
     [roster, court, aliases, lastMissTeam],
@@ -473,7 +478,8 @@ export function VoiceEntry({
         {showNicks && (
           <div className="mt-2 space-y-2">
             <p className="text-xs text-muted">
-              What people call each other out loud. Saved on this phone only.
+              Extra nicknames, saved on this phone only. Shared ones are set on
+              the Players page.
             </p>
             <form
               onSubmit={addNick}

@@ -17,6 +17,7 @@ import {
 } from "@/lib/stats";
 import { formatDate } from "@/app/components/BoxScore";
 import { Avatar } from "@/app/components/Avatar";
+import { NicknamesButton } from "@/app/components/NicknamesEditor";
 import { RenamePlayerButton } from "@/app/components/RenamePlayer";
 
 export const dynamic = "force-dynamic";
@@ -90,12 +91,27 @@ export default async function PlayerPage({
             {c.gp} {c.gp === 1 ? "game" : "games"} · {c.wins}-{c.losses}
             {c.gp > 0 && <> · {fmtMinutes(c.sec / c.gp)} min/g</>}
           </p>
-          {access.isAdmin && (
-            <RenamePlayerButton
-              playerId={player.id}
-              name={player.name}
-              className="mt-1.5 rounded-full bg-sub/10 px-3 py-1.5 text-xs font-semibold text-sub ring-1 ring-sub/25 transition hover:bg-sub/15 active:scale-95"
-            />
+          {player.nicknames.length > 0 && (
+            <p className="truncate text-sm font-semibold text-court-ink">
+              aka {player.nicknames.join(", ")}
+            </p>
+          )}
+          {(access.canPlay || access.isAdmin) && (
+            <div className="mt-1.5 flex flex-wrap gap-2">
+              <NicknamesButton
+                playerId={player.id}
+                name={player.name}
+                nicknames={player.nicknames}
+                className="rounded-full bg-court-soft/40 px-3 py-1.5 text-xs font-semibold text-court-ink ring-1 ring-court/30 transition hover:bg-court-soft/60 active:scale-95"
+              />
+              {access.isAdmin && (
+                <RenamePlayerButton
+                  playerId={player.id}
+                  name={player.name}
+                  className="rounded-full bg-sub/10 px-3 py-1.5 text-xs font-semibold text-sub ring-1 ring-sub/25 transition hover:bg-sub/15 active:scale-95"
+                />
+              )}
+            </div>
           )}
         </div>
       </div>

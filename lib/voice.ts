@@ -62,6 +62,9 @@ const STOP = new Set(
   ).split(/\s+/),
 );
 
+/** Words the sentence parser treats as basketball vocabulary, so they can't be someone's nickname. */
+export const isReservedWord = (word: string) => STOP.has(word.toLowerCase());
+
 function lev(a: string, b: string): number {
   const dp = Array.from({ length: a.length + 1 }, (_, i) => [
     i,

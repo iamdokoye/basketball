@@ -2,14 +2,21 @@
 
 import Link from "next/link";
 import { useOptimistic, useRef, useState, useTransition } from "react";
-import { addPlayer, renamePlayer, setPlayerArchived } from "@/lib/actions";
+import {
+  addPlayer,
+  renamePlayer,
+  setNicknames,
+  setPlayerArchived,
+} from "@/lib/actions";
 import { Avatar } from "@/app/components/Avatar";
+import { NicknamesEditor } from "@/app/components/NicknamesEditor";
 import { RenamePlayer } from "@/app/components/RenamePlayer";
 
 export type RosterPlayer = {
   id: number;
   name: string;
   archived: boolean;
+  nicknames: string[];
   /** Pre-formatted career line, computed on the server. */
   stats: string;
   /** True while an optimistic change hasn't been confirmed by the server. */
@@ -41,6 +48,7 @@ function reduce(state: RosterPlayer[], op: Op): RosterPlayer[] {
           id: -(state.length + 1),
           name: op.name,
           archived: false,
+          nicknames: [],
           stats: "No games yet",
           pending: true,
         },
@@ -162,38 +170,57 @@ export function PlayerRoster({
         {active.map((p) => (
           <li
             key={p.id}
-            className="glass-1 flex items-center gap-3 rounded-2xl p-3"
+            className="glass-1 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-2xl p-3"
           >
             <Link
               href={p.id > 0 ? `/players/${p.id}` : "#"}
               aria-disabled={p.id < 0}
-              className="flex min-w-0 flex-1 items-center gap-3"
+              className="flex min-w-0 flex-1 basis-40 items-center gap-3"
             >
               <Avatar name={p.name} />
               <div className="min-w-0">
                 <div className="truncate font-bold">{p.name}</div>
+                {p.nicknames.length > 0 && (
+                  <div className="truncate text-xs font-semibold text-court-ink">
+                    aka {p.nicknames.join(", ")}
+                  </div>
+                )}
                 <div className="tabular text-xs font-semibold text-muted">
                   {p.pending ? "Saving…" : p.stats}
                 </div>
               </div>
             </Link>
-            {isAdmin && (
-              <>
-                <RenamePlayer
+            <div className="ml-auto flex shrink-0 items-center gap-2">
+              {canAdd && (
+                <NicknamesEditor
                   name={p.name}
-                  onSubmit={rename(p)}
+                  nicknames={p.nicknames}
                   disabled={p.id < 0}
-                  className={`${PILL} bg-sub/10 text-sub ring-1 ring-sub/25 hover:bg-sub/15`}
+                  onSubmit={async (next) => {
+                    const res = await setNicknames(p.id, next);
+                    return res.ok ? null : res.error;
+                  }}
+                  className={`${PILL} bg-court-soft/40 text-court-ink ring-1 ring-court/30 hover:bg-court-soft/60`}
                 />
-                <button
-                  disabled={p.id < 0}
-                  onClick={() => archive(p, true)}
-                  className={`${PILL} bg-loss/10 text-loss ring-1 ring-loss/25 hover:bg-loss/15`}
-                >
-                  Archive
-                </button>
-              </>
-            )}
+              )}
+              {isAdmin && (
+                <>
+                  <RenamePlayer
+                    name={p.name}
+                    onSubmit={rename(p)}
+                    disabled={p.id < 0}
+                    className={`${PILL} bg-sub/10 text-sub ring-1 ring-sub/25 hover:bg-sub/15`}
+                  />
+                  <button
+                    disabled={p.id < 0}
+                    onClick={() => archive(p, true)}
+                    className={`${PILL} bg-loss/10 text-loss ring-1 ring-loss/25 hover:bg-loss/15`}
+                  >
+                    Archive
+                  </button>
+                </>
+              )}
+            </div>
           </li>
         ))}
         {active.length === 0 && (

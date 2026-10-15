@@ -44,7 +44,14 @@ export type GameEvent = {
   at: number;
 };
 
-export type RosterEntry = { id: number; name: string; team: Team; starter: boolean };
+export type RosterEntry = {
+  id: number;
+  name: string;
+  team: Team;
+  starter: boolean;
+  /** What people call them out loud; voice entry listens for these. */
+  nicknames?: string[];
+};
 
 export type StatLine = {
   playerId: number;

@@ -12,7 +12,15 @@ import {
   type Team,
 } from "./stats";
 
-export type Player = { id: number; name: string; archived: boolean };
+export type Player = {
+  id: number;
+  name: string;
+  archived: boolean;
+  nicknames: string[];
+};
+
+const toNicknames = (v: unknown): string[] =>
+  Array.isArray(v) ? v.map(String).filter(Boolean) : [];
 
 export type Game = {
   id: number;
@@ -31,7 +39,8 @@ export type Game = {
 export async function listPlayers(): Promise<Player[]> {
   const { data, error } = await db()
     .from("players")
-    .select("id, name, archived")
+    // "*" so this keeps working before the nicknames column exists
+    .select("*")
     .order("name");
   if (error) throw new Error(error.message);
   return (data ?? [])
@@ -39,6 +48,7 @@ export async function listPlayers(): Promise<Player[]> {
       id: Number(p.id),
       name: String(p.name),
       archived: Boolean(p.archived),
+      nicknames: toNicknames(p.nicknames),
     }))
     .sort((a, b) =>
       a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
@@ -56,7 +66,7 @@ type RosterRow = {
   game_id: number;
   team: Team;
   starter: boolean;
-  players: { id: number; name: string } | null;
+  players: { id: number; name: string; nicknames?: string[] | null } | null;
 };
 type EventRow = {
   id: number;
@@ -77,7 +87,7 @@ async function loadGames(gameId?: number): Promise<Game[]> {
   const rosterQ = (from: number, to: number) => {
     let q = db()
       .from("game_players")
-      .select("game_id, team, starter, players(id, name)", { count: "exact" });
+      .select("game_id, team, starter, players(*)", { count: "exact" });
     if (gameId) q = q.eq("game_id", gameId);
     return q.order("game_id").order("player_id").range(from, to);
   };
@@ -104,6 +114,7 @@ async function loadGames(gameId?: number): Promise<Game[]> {
       name: r.players.name,
       team: r.team,
       starter: r.starter,
+      nicknames: toNicknames(r.players.nicknames),
     });
     rosterByGame.set(Number(r.game_id), list);
   }

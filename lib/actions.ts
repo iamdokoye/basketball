@@ -9,12 +9,15 @@ import {
   startAdminSession,
 } from "./access";
 import { db } from "./supabase";
+import { cleanNicknames } from "./nicknames";
 import { CLOCK_TYPES, EVENT_TYPES, type EventType } from "./stats";
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
 
 const fail = (error: string): ActionResult => ({ ok: false, error });
 const GENERIC = "Something went wrong. Try again.";
+const NEEDS_NICKNAMES_UPDATE =
+  "Nicknames need a one-time database update. Run the newest SQL file in supabase/migrations (see the README).";
 const NEEDS_CLOCK_UPDATE =
   "The game clock and timeouts need a one-time database update. Run the newest SQL file in supabase/migrations (see the README).";
 
@@ -117,6 +120,34 @@ export async function renamePlayer(
       error.code === "23505"
         ? "Another player already has that name."
         : "Couldn't save the name. Try again.",
+    );
+  }
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+/** Replaces a player's nicknames. Open during the scoring window (like adding a player), or for the admin. */
+export async function setNicknames(
+  playerId: number,
+  nicknames: string[],
+): Promise<ActionResult> {
+  const denied = await needPlay();
+  if (denied) return denied;
+  if (!isId(playerId)) return fail(GENERIC);
+
+  const cleaned = cleanNicknames(nicknames);
+  if (!cleaned.ok) return fail(cleaned.error);
+
+  const { error } = await db()
+    .from("players")
+    .update({ nicknames: cleaned.list })
+    .eq("id", playerId);
+  if (error) {
+    // 42703 / PGRST204: the nicknames column isn't there yet (migration not run).
+    return fail(
+      ["42703", "PGRST204"].includes(error.code ?? "")
+        ? NEEDS_NICKNAMES_UPDATE
+        : GENERIC,
     );
   }
   revalidatePath("/", "layout");
