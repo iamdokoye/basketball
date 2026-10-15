@@ -109,6 +109,13 @@ export function VoiceEntry({
     () => recognitionCtor() !== null,
     () => false,
   );
+  const iphone = useSyncExternalStore(
+    () => () => {},
+    () =>
+      /iPhone|iPad|iPod/.test(navigator.userAgent) ||
+      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1),
+    () => false,
+  );
   const nickRaw = useSyncExternalStore(subscribeNicks, readNicks, () => "[]");
   const aliases = useMemo(() => {
     try {
@@ -440,11 +447,18 @@ export function VoiceEntry({
           {note}
         </p>
       )}
-      {!supported && (
+      {iphone ? (
         <p className="px-1 text-xs text-muted">
-          Voice isn&apos;t available in this browser (Chrome on Android works
-          best). You can still type plays.
+          iPhone tip: tap the microphone on your keyboard to dictate into the
+          box, then tap Add. It&apos;s more reliable than Hold to talk.
         </p>
+      ) : (
+        !supported && (
+          <p className="px-1 text-xs text-muted">
+            Voice isn&apos;t available in this browser (Chrome on Android works
+            best). You can still type plays.
+          </p>
+        )
       )}
 
       <div className="px-1">
