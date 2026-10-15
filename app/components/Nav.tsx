@@ -16,6 +16,12 @@ const ICONS = {
       <path d="M17 5h3v2a3 3 0 0 1-3 3M7 5H4v2a3 3 0 0 0 3 3" />
     </>
   ),
+  medal: (
+    <>
+      <circle cx="12" cy="9" r="5" />
+      <path d="M9 13.5 7 21l5-3 5 3-2-7.5" />
+    </>
+  ),
   ball: (
     <>
       <circle cx="12" cy="12" r="9" />
@@ -35,6 +41,7 @@ const ICONS = {
 const TABS: { href: string; label: string; icon: keyof typeof ICONS }[] = [
   { href: "/", label: "Home", icon: "home" },
   { href: "/rankings", label: "Rankings", icon: "trophy" },
+  { href: "/records", label: "Records", icon: "medal" },
   { href: "/games", label: "Games", icon: "ball" },
   { href: "/players", label: "Players", icon: "users" },
 ];
@@ -92,7 +99,7 @@ export function BottomNav() {
       className="glass-2 fixed inset-x-4 bottom-4 z-30 mx-auto max-w-sm rounded-full p-1.5 md:hidden"
       style={{ marginBottom: "env(safe-area-inset-bottom)" }}
     >
-      <ul className="grid grid-cols-4 gap-1">
+      <ul className="grid grid-cols-5 gap-1">
         {TABS.map((t) => (
           <li key={t.href}>
             <Link
