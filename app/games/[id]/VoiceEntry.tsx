@@ -29,6 +29,7 @@ type Recognition = {
   onresult: ((e: RecognitionEvent) => void) | null;
   onerror: ((e: { error: string }) => void) | null;
   onend: (() => void) | null;
+  onstart: (() => void) | null;
 };
 type RecognitionEvent = {
   results: ArrayLike<ArrayLike<{ transcript: string }>>;
@@ -150,6 +151,10 @@ export function VoiceEntry({
   const heard = useRef("");
   const failed = useRef(false);
   const retryEnglish = useRef(false);
+  const session = useRef(0);
+  const stopping = useRef(false);
+  const started = useRef(false);
+  const stopTimer = useRef<number | undefined>(undefined);
 
   function open(d: Draftset | null) {
     setDraft(d);
@@ -171,9 +176,52 @@ export function VoiceEntry({
     open({ heard: t, plays: parsed.plays, unparsed: parsed.unparsed });
   }
 
+  /** Wraps up a run exactly once, whether the browser reported the end or we gave up waiting. */
+  function finish(id: number) {
+    if (id !== session.current || !rec.current) return;
+    window.clearTimeout(stopTimer.current);
+    const r = rec.current;
+    rec.current = null;
+    stopping.current = false;
+    // Late events from this run must not touch the next one.
+    r.onresult = r.onerror = r.onend = r.onstart = null;
+    try {
+      r.abort();
+    } catch {
+      /* already stopped */
+    }
+    if (retryEnglish.current) {
+      retryEnglish.current = false;
+      startListening("en-US");
+      return;
+    }
+    setListening(false);
+    setLive("");
+    if (heard.current) handleText(heard.current);
+    else if (!failed.current)
+      setNote(
+        started.current
+          ? "Didn't catch that. Hold the mic and speak."
+          : "The microphone didn't start. Hold the mic again, or type the play.",
+      );
+  }
+
   function startListening(lang: string = navigator.language || "en-US") {
     const Ctor = recognitionCtor();
-    if (!Ctor || rec.current) return;
+    if (!Ctor) return;
+    // A run that never reported finishing must not block the next press (iPhone often does this).
+    if (rec.current) {
+      const old = rec.current;
+      session.current++;
+      rec.current = null;
+      old.onresult = old.onerror = old.onend = old.onstart = null;
+      try {
+        old.abort();
+      } catch {
+        /* already stopped */
+      }
+    }
+    const id = ++session.current;
     const r = new Ctor();
     r.lang = lang;
     r.continuous = false;
@@ -181,7 +229,15 @@ export function VoiceEntry({
     r.maxAlternatives = 1;
     heard.current = "";
     failed.current = false;
+    started.current = false;
+    stopping.current = false;
+    window.clearTimeout(stopTimer.current);
+    r.onstart = () => {
+      if (id === session.current) started.current = true;
+    };
     r.onresult = (e) => {
+      if (id !== session.current) return;
+      started.current = true;
       let t = "";
       for (let i = 0; i < e.results.length; i++)
         t += e.results[i][0].transcript + " ";
@@ -189,8 +245,10 @@ export function VoiceEntry({
       setLive(heard.current);
     };
     r.onerror = (e) => {
+      if (id !== session.current || e.error === "aborted") return;
       failed.current = true;
-      if (e.error === "aborted") return;
+      // Some phones never send "end" after an error, so wrap up ourselves.
+      window.setTimeout(() => finish(id), 400);
       // An unsupported phone language: try plain English once instead of failing.
       if (e.error === "language-not-supported" && lang !== "en-US") {
         retryEnglish.current = true;
@@ -207,19 +265,7 @@ export function VoiceEntry({
             : " You can type the play instead."),
       );
     };
-    r.onend = () => {
-      rec.current = null;
-      if (retryEnglish.current) {
-        retryEnglish.current = false;
-        startListening("en-US");
-        return;
-      }
-      setListening(false);
-      setLive("");
-      if (heard.current) handleText(heard.current);
-      else if (!failed.current)
-        setNote("Didn't catch that. Hold the mic and speak.");
-    };
+    r.onend = () => finish(id);
     rec.current = r;
     setNote(null);
     setListening(true);
@@ -229,10 +275,23 @@ export function VoiceEntry({
     } catch {
       rec.current = null;
       setListening(false);
+      setNote("Couldn't start the microphone. Try again, or type the play.");
     }
   }
 
-  const stopListening = () => rec.current?.stop();
+  function stopListening() {
+    const r = rec.current;
+    if (!r || stopping.current) return;
+    stopping.current = true;
+    const id = session.current;
+    try {
+      r.stop();
+    } catch {
+      /* already stopped */
+    }
+    // Don't wait forever for a browser that never says it finished.
+    stopTimer.current = window.setTimeout(() => finish(id), 2500);
+  }
 
   function submitTyped(e: React.FormEvent) {
     e.preventDefault();
@@ -319,6 +378,7 @@ export function VoiceEntry({
             }}
             onPointerUp={stopListening}
             onPointerCancel={stopListening}
+            onLostPointerCapture={stopListening}
             onContextMenu={(e) => e.preventDefault()}
             onKeyDown={(e) => {
               if (e.key === " " || e.key === "Enter") {
