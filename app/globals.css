@@ -185,3 +185,19 @@ body {
     animation: none;
   }
 }
+
+/* Countdown bar under the scorekeeper's follow-up chips. */
+@keyframes follow-up-drain {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  [style*="follow-up-drain"] {
+    animation: none !important;
+    transform: scaleX(0.5);
+  }
+}

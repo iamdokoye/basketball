@@ -20,7 +20,13 @@ export type VoiceContext = {
 };
 
 /** A player mentioned in the sentence. `id` is null when it couldn't be settled (pick from `options`). */
-export type Ref = { heard: string; id: number | null; options: number[] };
+export type Ref = {
+  heard: string;
+  id: number | null;
+  options: number[];
+  /** True when the spoken name matched exactly one player (a full name, first or last name, or nickname) with nothing left to guess. */
+  sure?: boolean;
+};
 /** 1 = free throw, 2 = two-pointer, 3 = three-pointer. */
 export type Shot = 1 | 2 | 3;
 
@@ -119,6 +125,8 @@ function similarity(heard: string, name: string): number {
 }
 
 const MATCH_MIN = 0.8;
+/** A name has to match this well to be taken on trust (exact is 1; near spellings and sounds-alike score lower). */
+const EXACT_MATCH = 0.97;
 const TIE_BAND = 0.06;
 
 type Candidate = { start: number; end: number; score: number; ref: Ref };
@@ -164,7 +172,12 @@ function findMentions(words: string[], ctx: VoiceContext): Candidate[] {
         start: i,
         end: i + len,
         score: scored[0].score,
-        ref: { heard: span.join(" "), id, options },
+        ref: {
+          heard: span.join(" "),
+          id,
+          options,
+          sure: near.length === 1 && scored[0].score >= EXACT_MATCH,
+        },
       });
       break; // longest span that matches wins for this start
     }
@@ -331,7 +344,8 @@ function parseClause(c: string, ments: Ref[]): Play | null {
     return {
       kind: "miss",
       shooter: others[0],
-      shot: detectShot(c) ?? 2,
+      // Left open when not said: recording treats it as a two, but saving without asking needs it spoken.
+      shot: detectShot(c),
       ...(rebRef ? { rebound: rebRef } : {}),
     };
 
@@ -776,4 +790,50 @@ export function buildPlay(p: Play, ctx: VoiceContext): Built | null {
     case "undo":
       return { events: [], summary: "Undo the last play", warnings, errors };
   }
+}
+
+// ---- saving without asking ----------------------------------------------------------------------
+
+/** The most plays from one sentence that are saved without asking. */
+const AUTO_MAX_PLAYS = 4;
+
+export type AutoPlan =
+  | { auto: true; plays: Built[] }
+  | { auto: false; reason: string };
+
+/**
+ * Decides whether a sentence is clear enough to save straight away. Everything must be settled:
+ * every name matched exactly one player, the shot size was said, nothing was left over or
+ * contradictory, and nobody is on the bench. A near-spelling like "Danial" is a good guess but
+ * still a guess, so it goes to the confirm sheet along with anything ambiguous. "Undo" is never
+ * automatic, because it removes something.
+ */
+export function autoPlan(parsed: Parsed, ctx: VoiceContext): AutoPlan {
+  const no = (reason: string): AutoPlan => ({ auto: false, reason });
+  if (parsed.plays.length === 0) return no("Nothing was understood.");
+  if (parsed.plays.length > AUTO_MAX_PLAYS)
+    return no(`That's ${parsed.plays.length} plays at once, so check them first.`);
+  if (parsed.unparsed.length > 0)
+    return no("Part of that wasn't understood, so check what was.");
+
+  const built: Built[] = [];
+  for (const p of parsed.plays) {
+    if (p.kind === "undo") return no("Undoing asks first.");
+    for (const f of REF_FIELDS) {
+      const r = refOf(p, f);
+      if (r && !r.sure) return no(`Not sure who "${r.heard}" is.`);
+    }
+    if (
+      (p.kind === "make" || p.kind === "miss" || p.kind === "block") &&
+      p.shot === null &&
+      !(p.kind === "block" && !p.shooter)
+    )
+      return no("Wasn't sure if it was a 2 or a 3.");
+    const b = buildPlay(p, ctx);
+    if (!b) return no("Something is missing.");
+    if (b.errors.length > 0) return no(b.errors[0]);
+    if (b.warnings.length > 0) return no(b.warnings[0]);
+    built.push(b);
+  }
+  return { auto: true, plays: built };
 }

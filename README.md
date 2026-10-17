@@ -78,7 +78,9 @@ Run `supabase/migrations/20261014000000_function_hardening.sql` in the Supabase 
 ## Voice and quick entry
 
 - On the scorekeeper, **hold Hold to talk** and say a play, e.g. "Daniel scores 2, assisted by Joe", "Billy misses a three, rebound William", "Whyte steals from Daniel", "Joshua comes in for Ephraim", "timeout team B", "pause the clock", "undo that". Or type the same sentence in the box under it. Several plays in one sentence work ("…, then …").
-- **Nothing is recorded until you confirm.** A sheet shows what was understood, one line per play. If a name could be two people, or the points weren't said, it asks you to pick. You can edit the heard text and tap **Re-read**, drop a line with ✕, or Cancel.
+- **Clear sentences save straight away.** If everything is settled, the play is saved at once and a "Saved … Undo" message shows for 5 seconds. Tap **Undo** to take it back (a sentence with several plays is undone together). "Clear" means: every name matched exactly one player (a full name, first or last name, or a nickname), the shot was said to be a 2, 3 or free throw, nothing in the sentence was left over, nobody is on the bench, and there are at most 4 plays.
+- **Anything else asks first.** A sheet shows what was understood, says why it is asking (for example "Not sure who "josef" is" or "Wasn't sure if it was a 2 or a 3"), and has one line per play. If a name could be two people or the points weren't said, it asks you to pick. You can edit the heard text and tap **Re-read**, drop a line with ✕, or Cancel. Near spellings like "Danial" are a good guess but still a guess, so they are asked about, and so is "undo that".
+- **Switch it off** with **Save clear plays without asking** under the box (per phone) if you want the confirm sheet every time.
 - Names are matched loosely (first name, surname, near spellings like "Danial"), preferring players on the court. Nicknames come from the Players page (shared by everyone); the scorekeeper's own **Nicknames** panel adds extras saved on that phone only.
 - It uses the browser's built-in speech recognition, so it's free, but it only exists in some browsers: **Chrome on Android works best** (Chrome sends the audio to Google to turn it into text). iPhone Safari is unreliable, and often missing once the app is added to the Home Screen; typing always works. Noisy courts hurt accuracy, which is what the confirm step is for.
 - The sentence-to-plays logic is in `lib/voice.ts` (plain text in, plays out), so it can be tested without a microphone.
@@ -125,14 +127,15 @@ Run `supabase/migrations/20261014000000_function_hardening.sql` in the Supabase 
 
 ## How scoring works
 
-One person keeps stats on their phone. Tap a player, then the action. Related stats are linked so you only tap once more:
+One person keeps stats on their phone. Pick the scoring style on the scorekeeper (it is remembered per phone, so two scorers can use different ones):
 
-- **Made shot** asks for the assist.
-- **Missed shot** asks who rebounded (teammate = offensive, opponent = defensive).
-- **Free throws** are one tap each (made +1, missed).
-- **Steal** asks whose ball it was and logs their turnover.
-- **Block** asks whose shot it was and logs the miss, then asks for the rebound.
-- **Subs:** tap "Sub out…" on a player, or tap a bench chip to sub in. Only players on the court appear in assist, rebound and steal prompts.
+- **Quick** (default): every player card has **+2 +3 Miss 2 Miss 3** buttons. One tap saves the shot straight away. A strip then offers the detail: **who assisted** after a make, **who rebounded** after a miss (offensive teammates and defensive opponents). Tap a name to add it to that play, tap **Skip**, or ignore it and it fades after 10 seconds, leaving the play as saved. Tap a player's name for the full menu (free throws, steals, blocks, fouls, subs…).
+- **Pad**: tap a player once to select them, then tap actions in the bar at the bottom of the screen (+2, +3, misses, free throws, rebounds, assist, steal, block, turnover, foul, deflection, sub, undo). The player stays selected, so a run of plays by the same person is one tap each, and nothing pops up over the screen. Steals ask whose ball it was and blocks ask whose shot it was in the same chip strip.
+- **Classic**: tap a player, then choose from the menu, with a question after each shot, as before.
+
+In every style the play is saved and shown at once, related stats are linked into one play (a make and its assist, a miss and its rebound, a steal and the turnover, a block and the missed shot), and **Undo last** removes the whole play. The screen stays awake while you are scoring. Voice and typed entry work in every style.
+
+Quick and Pad add the detail to the play that was just saved by replacing it with a copy that carries the extra event, so only the latest play can be annotated. If the phone is offline the swap waits in the same queue as everything else and arrives in order.
 
 Every tap is stored as an event. Box scores, averages, shooting percentages, plus/minus and minutes are computed from that log. **Undo last** removes a whole linked action, the play log lets you delete any earlier play, and a finished game can be reopened to fix stats.
 
