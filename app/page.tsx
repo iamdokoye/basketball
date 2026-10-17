@@ -59,7 +59,7 @@ export default async function Home() {
     return featured && result ? { kind, featured, result } : null;
   });
 
-  // Title cards for the latest game week. The current week's stay face-down until 3 PM on a game day.
+  // Title cards for the latest game week. The current week's stay face-down until 2 PM on a game day.
   const weekPeriods = groupByPeriod(games, "week", tz, day);
   const curWeekKey = weekKey(access.now, tz, day);
   const cardPeriod = weekPeriods.find((p) => p.key === curWeekKey) ?? weekPeriods[0];

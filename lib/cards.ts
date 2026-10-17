@@ -255,10 +255,10 @@ export const yearKey = (ms: number, timeZone: string) => String(localDate(ms, ti
 
 // ---- when the cards drop ----------------------------------------------------------------------------
 
-/** The hour (league time) the day's cards are revealed. Default 3 PM, after the Saturday window has closed. */
+/** The hour (league time) the day's cards are revealed. Default 2 PM, after the Saturday window has closed. */
 export function cardsHour(): number {
-  const n = Number(process.env.LEAGUE_CARDS_HOUR ?? 15);
-  return Number.isInteger(n) && n >= 0 && n <= 23 ? n : 15;
+  const n = Number(process.env.LEAGUE_CARDS_HOUR ?? 14);
+  return Number.isInteger(n) && n >= 0 && n <= 23 ? n : 14;
 }
 
 const dayKey = (ms: number, timeZone: string) =>
