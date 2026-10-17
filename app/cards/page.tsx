@@ -6,6 +6,7 @@ import {
   cardsLock,
   DECK,
   groupByYear,
+  periodEndsAt,
   TIER_LABEL,
   TIERS,
   yearKey,
@@ -21,8 +22,8 @@ export const dynamic = "force-dynamic";
 
 const INTRO: Record<Tier, string> = {
   week: "The stat leaders of each game day, revealed after the session. Every title has a bigger version for the month and the year.",
-  month: "Who led the whole month. Same stats, bigger names, and the standings keep moving until the month ends.",
-  year: "The legends of the year: the same stat leaders over a full calendar year.",
+  month: "Who led each finished month. Same stats, bigger names. A month's cards drop once it is over.",
+  year: "The legends of each finished year: the same stat leaders over a full calendar year, revealed when the year ends.",
 };
 
 function hourLabel(h: number) {
@@ -41,7 +42,7 @@ export default async function CardsPage({
   const tz = leagueTimeZone();
   const day = leagueGameDay();
 
-  const periods: { key: string; label: string; games: typeof games }[] =
+  const allPeriods: { key: string; label: string; games: typeof games }[] =
     tier === "week"
       ? groupByPeriod(games, "week", tz, day)
       : tier === "month"
@@ -53,6 +54,10 @@ export default async function CardsPage({
       : tier === "month"
         ? monthKey(access.now, tz)
         : yearKey(access.now, tz);
+  // A month or a year stays face-down until it is over: only the finished ones are open.
+  const periods = tier === "week" ? allPeriods : allPeriods.filter((p) => p.key < currentKey);
+  const pending = tier === "week" ? undefined : allPeriods.find((p) => p.key === currentKey);
+  const pendingEnds = pending && tier !== "week" ? periodEndsAt(tier, pending.key, tz) : null;
   const selected =
     periods.find((p) => p.key === period) ??
     periods.find((p) => p.key === currentKey) ??
@@ -125,7 +130,38 @@ export default async function CardsPage({
         </nav>
       )}
 
-      {!selected ? (
+      {pending && pendingEnds !== null && selected && (
+        <p className="glass-1 flex items-center justify-between gap-3 rounded-2xl px-4 py-3 text-sm">
+          <span className="font-semibold">
+            {tier === "year" ? pending.label : pending.label.split(" ")[0]} cards drop when the {tier} ends
+          </span>
+          <span className="shrink-0 font-bold text-court-ink">
+            <Countdown target={pendingEnds} serverNow={access.now} compact />
+          </span>
+        </p>
+      )}
+
+      {!selected && pending && pendingEnds !== null ? (
+        <section className="glass-2 space-y-4 rounded-3xl p-5 text-center">
+          <div className="grid grid-cols-4 gap-2" aria-hidden>
+            {[0, 1, 2, 3].map((i) => (
+              <CardBack key={i} tier={tier} />
+            ))}
+          </div>
+          <div className="space-y-1">
+            <div className="label text-muted">
+              The {pending.label} cards drop in
+            </div>
+            <div className="text-3xl font-extrabold tracking-tight">
+              <Countdown target={pendingEnds} serverNow={access.now} />
+            </div>
+            <p className="text-sm text-muted">
+              Month and year cards are revealed once the {tier} is over, so the race stays open until the
+              last game.
+            </p>
+          </div>
+        </section>
+      ) : !selected ? (
         <p className="glass-1 rounded-2xl p-8 text-center text-sm text-muted">
           Cards appear after the first finished game.
         </p>
@@ -166,6 +202,30 @@ export default async function CardsPage({
               {isCurrent ? "Leading so far" : "Final"}
             </span>
           </div>
+          {tier !== "week" && !isCurrent && (
+            <Link
+              href={`/cards/show?tier=${tier}&period=${selected.key}`}
+              className={`flex items-center justify-between gap-3 rounded-2xl px-4 py-3.5 text-white shadow-md active:scale-[0.99] ${
+                tier === "year"
+                  ? "bg-gradient-to-r from-[#3b2306] via-[#854d0e] to-[#b45309]"
+                  : "bg-gradient-to-r from-[#172554] to-[#1d4ed8]"
+              }`}
+            >
+              <span className="min-w-0">
+                <span className="block text-sm font-extrabold">
+                  {tier === "year" ? `Watch the ${selected.label} recap` : `Watch the ${selected.label.split(" ")[0]} recap`}
+                </span>
+                <span className="block text-xs font-medium text-white/75">
+                  {tier === "year" ? "The full show, with music" : "A short slideshow, with music"}
+                </span>
+              </span>
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white text-ink" aria-hidden>
+                <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor">
+                  <path d="M8 5v14l11-7z" />
+                </svg>
+              </span>
+            </Link>
+          )}
           <ul className="grid grid-cols-2 gap-3">
             {cards.map((c) => (
               <li key={c.key} className="min-w-0">

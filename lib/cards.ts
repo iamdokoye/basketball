@@ -253,6 +253,17 @@ export function groupByYear(all: Game[], timeZone: string): YearPeriod[] {
 
 export const yearKey = (ms: number, timeZone: string) => String(localDate(ms, timeZone).y);
 
+/**
+ * When a month ("2026-10") or a year ("2026") is over: midnight, league time, at the start of the next
+ * one. Month and year cards stay hidden until then, so nobody sees a leader who can still be overtaken.
+ */
+export function periodEndsAt(tier: "month" | "year", key: string, timeZone: string): number | null {
+  if (tier === "year") return zonedTimeToMs(`${Number(key) + 1}-01-01`, "00:00", timeZone);
+  const [y, m] = key.split("-").map(Number);
+  const next = m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, "0")}`;
+  return zonedTimeToMs(`${next}-01`, "00:00", timeZone);
+}
+
 // ---- when the cards drop ----------------------------------------------------------------------------
 
 /** The hour (league time) the day's cards are revealed. Default 2 PM, after the Saturday window has closed. */
