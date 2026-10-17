@@ -5,7 +5,7 @@ import { getAccess } from "@/lib/access";
 import { buildClock, formatClock } from "@/lib/clock";
 import { leagueTimeZone } from "@/lib/format";
 import { playerOfTheGame, statSummary } from "@/lib/pog";
-import { getGame } from "@/lib/queries";
+import { getGame, listPlayers } from "@/lib/queries";
 import { buildRecap } from "@/lib/recap";
 import { BoxScoreTable, formatDate } from "@/app/components/BoxScore";
 import { Avatar } from "@/app/components/Avatar";
@@ -26,11 +26,18 @@ export default async function GamePage({
   if (!game) notFound();
 
   if (game.status === "live") {
+    // Everyone who could turn up late: active league players (the scorekeeper hides those already in the game).
+    const league = access.canPlay
+      ? (await listPlayers())
+          .filter((p) => !p.archived)
+          .map((p) => ({ id: p.id, name: p.name }))
+      : [];
     return (
       <Scorekeeper
         key={access.canPlay ? "edit" : "view"}
         gameId={game.id}
         roster={game.roster}
+        players={league}
         initialEvents={game.events}
         startMs={game.startMs}
         target={game.target}

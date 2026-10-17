@@ -620,3 +620,93 @@ export async function adjustBoxScore(
   revalidatePath("/", "layout");
   return { ok: true };
 }
+
+// ---- Late arrivals -----------------------------------------------------------------------------
+
+/** The most players one game can have, counting people who join late. */
+const MAX_GAME_PLAYERS = 12;
+
+/**
+ * Adds someone to a live game after it started (they showed up late): an existing league player, or a
+ * brand-new name (a guest), who is created on the spot. They start on the bench of the chosen team;
+ * the scorekeeper then checks them in. Open to anyone during the scoring window, admin any time.
+ */
+export async function addLatePlayer(input: {
+  gameId: number;
+  team: "A" | "B";
+  /** An existing player... */
+  playerId?: number;
+  /** ...or a new name. */
+  name?: string;
+}): Promise<
+  | { ok: true; player: { id: number; name: string; nicknames: string[] } }
+  | { ok: false; error: string }
+> {
+  const bad = (error: string) => ({ ok: false as const, error });
+  const denied = await needPlay();
+  if (denied) return bad(denied.ok ? GENERIC : denied.error);
+  if (!isId(input?.gameId) || (input.team !== "A" && input.team !== "B"))
+    return bad(GENERIC);
+
+  const game = await db()
+    .from("games")
+    .select("status")
+    .eq("id", input.gameId)
+    .maybeSingle();
+  if (game.error || !game.data) return bad(GENERIC);
+  if (game.data.status !== "live") return bad("This game is finished.");
+
+  // Who is it?
+  type PlayerRow = { id: number; name: string; archived: boolean; nicknames?: unknown };
+  let player: PlayerRow | null = null;
+  if (input.playerId !== undefined) {
+    if (!isId(input.playerId)) return bad(GENERIC);
+    const r = await db().from("players").select("*").eq("id", input.playerId).maybeSingle();
+    if (r.error || !r.data) return bad("That player wasn't found.");
+    player = r.data as PlayerRow;
+  } else {
+    const name = String(input.name ?? "").trim().slice(0, 40);
+    if (!name) return bad("Name can't be empty.");
+    const made = await db().from("players").insert({ name }).select("*").single();
+    if (!made.error && made.data) player = made.data as PlayerRow;
+    else if (made.error?.code === "23505") {
+      // Already in the league (possibly archived): use them instead of making a duplicate.
+      const r = await db().from("players").select("*").ilike("name", name).maybeSingle();
+      if (r.error || !r.data) return bad("Couldn't add the player. Try again.");
+      player = r.data as PlayerRow;
+    } else return bad("Couldn't add the player. Try again.");
+  }
+  if (!player) return bad(GENERIC);
+  const pid = Number(player.id);
+
+  const roster = await db()
+    .from("game_players")
+    .select("player_id")
+    .eq("game_id", input.gameId);
+  if (roster.error) return bad(GENERIC);
+  if ((roster.data ?? []).some((r) => Number(r.player_id) === pid))
+    return bad(`${player.name} is already in this game.`);
+  if ((roster.data ?? []).length >= MAX_GAME_PLAYERS)
+    return bad(`A game can have at most ${MAX_GAME_PLAYERS} players.`);
+
+  if (player.archived)
+    await db().from("players").update({ archived: false }).eq("id", pid);
+  const { error } = await db().from("game_players").insert({
+    game_id: input.gameId,
+    player_id: pid,
+    team: input.team,
+    starter: false,
+  });
+  if (error) return bad("Couldn't add the player. Try again.");
+  revalidatePath("/", "layout");
+  return {
+    ok: true,
+    player: {
+      id: pid,
+      name: String(player.name),
+      nicknames: Array.isArray(player.nicknames)
+        ? (player.nicknames as unknown[]).filter((n): n is string => typeof n === "string")
+        : [],
+    },
+  };
+}

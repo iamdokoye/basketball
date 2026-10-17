@@ -137,6 +137,8 @@ In every style the play is saved and shown at once, related stats are linked int
 
 Quick and Pad add the detail to the play that was just saved by replacing it with a copy that carries the extra event, so only the latest play can be annotated. If the phone is offline the swap waits in the same queue as everything else and arrives in order.
 
+**Subs and late arrivals.** Tap a bench chip to sub someone in, or "Sub out…" on a player. For someone who wasn't picked when the game started, each team has a **Late arrival** button: search the league's players, or type a new name to add a guest (they become a normal player in the league). They join that team's bench and a "checks in" sheet asks who comes out. A short-handed team also gets **Join the court**, so nobody has to come out. Closing the sheet leaves them on the bench. Every phone watching the game picks the new player up within a few seconds, and their minutes count from when they check in. A game can have at most 12 players.
+
 Every tap is stored as an event. Box scores, averages, shooting percentages, plus/minus and minutes are computed from that log. **Undo last** removes a whole linked action, the play log lets you delete any earlier play, and a finished game can be reopened to fix stats.
 
 ## Stats
