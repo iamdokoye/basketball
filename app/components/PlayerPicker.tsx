@@ -17,6 +17,11 @@ export function PlayerPicker({
   options,
   onPick,
   disabledReason,
+  buttonLabel,
+  title,
+  onCreate,
+  compact = false,
+  busy = false,
 }: {
   /** Shown on the button and as the sheet's title, e.g. "Team A". */
   label: string;
@@ -25,6 +30,14 @@ export function PlayerPicker({
   onPick: (id: number) => void;
   /** When set, the button is disabled and shows this instead of the prompt. */
   disabledReason?: string;
+  /** Replaces the default button text ("Add a player to {label}"). */
+  buttonLabel?: string;
+  /** Replaces the default sheet title ("Add to {label}"). */
+  title?: string;
+  /** When given, typing a name that isn't in the list offers to add it as a new player. */
+  onCreate?: (name: string) => void;
+  compact?: boolean;
+  busy?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -34,11 +47,18 @@ export function PlayerPicker({
   const list = useRef<HTMLUListElement>(null);
   const id = useId();
 
-  const shown = useMemo(() => {
+  type Item = { kind: "player"; o: Option } | { kind: "create"; name: string };
+  const shown: Item[] = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return q ? options.filter((o) => o.name.toLowerCase().includes(q)) : options;
-  }, [options, query]);
+    const found = q ? options.filter((o) => o.name.toLowerCase().includes(q)) : options;
+    const items: Item[] = found.map((o) => ({ kind: "player", o }));
+    // A name that matches nobody exactly can be added as a new player (a guest who isn't in the league yet).
+    const exact = options.some((o) => o.name.toLowerCase() === q);
+    if (onCreate && q && !exact) items.push({ kind: "create", name: query.trim() });
+    return items;
+  }, [options, query, onCreate]);
   const active = Math.min(cursor, Math.max(0, shown.length - 1));
+  const itemKey = (it: Item) => (it.kind === "player" ? `p${it.o.id}` : "create");
 
   function show() {
     setQuery("");
@@ -49,9 +69,10 @@ export function PlayerPicker({
     setOpen(false);
     trigger.current?.focus();
   }
-  function pick(o: Option) {
+  function pick(it: Item) {
     setOpen(false);
-    onPick(o.id);
+    if (it.kind === "player") onPick(it.o.id);
+    else onCreate?.(it.name);
     trigger.current?.focus();
   }
 
@@ -88,7 +109,7 @@ export function PlayerPicker({
   }
 
   const dot = accent === "court" ? "bg-court" : "bg-away";
-  const disabled = Boolean(disabledReason) || options.length === 0;
+  const disabled = Boolean(disabledReason) || busy || (options.length === 0 && !onCreate);
 
   return (
     <>
@@ -98,13 +119,17 @@ export function PlayerPicker({
         onClick={show}
         disabled={disabled}
         aria-haspopup="dialog"
-        className="glass-1 flex h-12 w-full items-center gap-3 rounded-2xl px-3.5 text-left text-sm font-semibold transition active:scale-[0.99] disabled:opacity-50"
+        className={`glass-1 flex w-full items-center gap-3 rounded-2xl px-3.5 text-left font-semibold transition active:scale-[0.99] disabled:opacity-50 ${compact ? "h-10 text-xs" : "h-12 text-sm"}`}
       >
         <span aria-hidden className={`h-2 w-2 shrink-0 rounded-full ${dot}`} />
         <span className="min-w-0 flex-1 truncate">
-          {disabledReason ?? (options.length === 0 ? "Everyone is added" : `Add a player to ${label}`)}
+          {busy
+            ? "Adding…"
+            : (disabledReason ??
+              buttonLabel ??
+              (options.length === 0 ? "Everyone is added" : `Add a player to ${label}`))}
         </span>
-        {!disabled && (
+        {!disabled && !buttonLabel && (
           <span className="tabular rounded-full bg-black/[0.06] px-2 py-0.5 text-[11px] font-bold text-muted">
             {options.length}
           </span>
@@ -133,7 +158,7 @@ export function PlayerPicker({
             <div
               role="dialog"
               aria-modal="true"
-              aria-label={`Add a player to ${label}`}
+              aria-label={title ?? `Add a player to ${label}`}
               onClick={(e) => e.stopPropagation()}
               onKeyDown={onKey}
               className="glass-3 sheet-up flex max-h-[80dvh] w-full max-w-md flex-col gap-3 rounded-t-3xl p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:rounded-3xl"
@@ -141,7 +166,7 @@ export function PlayerPicker({
               <div className="flex items-center justify-between gap-3">
                 <h2 className="flex items-center gap-2 text-lg font-extrabold tracking-tight">
                   <span aria-hidden className={`h-2.5 w-2.5 rounded-full ${dot}`} />
-                  Add to {label}
+                  {title ?? `Add to ${label}`}
                 </h2>
                 <button
                   type="button"
@@ -164,11 +189,11 @@ export function PlayerPicker({
                 inputMode="search"
                 enterKeyHint="done"
                 autoComplete="off"
-                placeholder="Search players"
+                placeholder={onCreate ? "Search, or type a new name" : "Search players"}
                 role="combobox"
                 aria-expanded="true"
                 aria-controls={`${id}-list`}
-                aria-activedescendant={shown[active] ? `${id}-opt-${shown[active].id}` : undefined}
+                aria-activedescendant={shown[active] ? `${id}-opt-${itemKey(shown[active])}` : undefined}
                 aria-label="Search players"
                 className="h-12 w-full shrink-0 rounded-xl border border-white/80 bg-white/60 px-4 text-base font-semibold text-ink shadow-inner outline-none placeholder:font-medium placeholder:text-muted focus:ring-2 focus:ring-court"
               />
@@ -185,20 +210,36 @@ export function PlayerPicker({
                   aria-label="Players"
                   className="-mx-1 min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain px-1"
                 >
-                  {shown.map((o, i) => (
+                  {shown.map((it, i) => (
                     <li
-                      key={o.id}
-                      id={`${id}-opt-${o.id}`}
+                      key={itemKey(it)}
+                      id={`${id}-opt-${itemKey(it)}`}
                       role="option"
                       aria-selected={i === active}
                       onPointerMove={() => i !== active && setCursor(i)}
-                      onClick={() => pick(o)}
+                      onClick={() => pick(it)}
                       className={`flex min-h-12 cursor-pointer items-center gap-3 rounded-2xl px-3 py-2 font-semibold transition-colors ${
                         i === active ? "bg-white shadow-sm ring-1 ring-black/5" : ""
                       }`}
                     >
-                      <Avatar id={o.id} name={o.name} size="sm" />
-                      <span className="min-w-0 flex-1 truncate">{o.name}</span>
+                      {it.kind === "player" ? (
+                        <>
+                          <Avatar id={it.o.id} name={it.o.name} size="sm" />
+                          <span className="min-w-0 flex-1 truncate">{it.o.name}</span>
+                        </>
+                      ) : (
+                        <>
+                          <span
+                            aria-hidden
+                            className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-sub/15 text-sm font-extrabold text-sub"
+                          >
+                            +
+                          </span>
+                          <span className="min-w-0 flex-1 truncate">
+                            Add &ldquo;{it.name}&rdquo; as a new player
+                          </span>
+                        </>
+                      )}
                     </li>
                   ))}
                 </ul>

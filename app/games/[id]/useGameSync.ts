@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { recordGroup, undoGroup } from "@/lib/actions";
-import type { EventType, GameEvent, Team } from "@/lib/stats";
+import type { EventType, GameEvent, RosterEntry, Team } from "@/lib/stats";
 
 type Ev = { playerId: number; type: EventType; team?: Team };
 type Op =
@@ -44,16 +44,22 @@ export type SyncState = "saved" | "saving" | "offline";
 export function useGameSync({
   gameId,
   initialEvents,
+  initialRoster,
   paused,
   onFinished,
 }: {
   gameId: number;
   initialEvents: GameEvent[];
+  /** Everyone in the game at the start. Players added later arrive through the poll. */
+  initialRoster: RosterEntry[];
   /** Skip polling (e.g. while a menu is open so options don't shift under a tap). */
   paused: boolean;
   onFinished: () => void;
 }) {
   const [base, setBase] = useState<GameEvent[]>(initialEvents);
+  const [serverRoster, setServerRoster] = useState<RosterEntry[]>(initialRoster);
+  /** Players this phone just added: shown at once, and kept until the server's list includes them. */
+  const [pendingRoster, setPendingRoster] = useState<RosterEntry[]>([]);
   const [adds, setAdds] = useState<Map<string, GameEvent[]>>(new Map());
   const [removed, setRemoved] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
@@ -144,10 +150,14 @@ export function useGameSync({
     void Promise.resolve().then(() => {
       if (cancelled) return;
       setPending(mine.length);
+      const gone = new Set(mine.filter((o) => o.kind === "remove").map((o) => o.grp));
       setAdds(
         new Map(
           mine
-            .filter((o): o is Extract<Op, { kind: "add" }> => o.kind === "add")
+            .filter(
+              (o): o is Extract<Op, { kind: "add" }> =>
+                o.kind === "add" && !gone.has(o.grp),
+            )
             .map((o) => [
               o.grp,
               o.events.map((e) => ({ ...e, grp: o.grp, at: o.at })),
@@ -198,6 +208,7 @@ export function useGameSync({
           status: "live" | "final";
           serverNow?: number;
           events: GameEvent[];
+          roster?: RosterEntry[];
         };
         if (stop) return;
         // The server stamped its time somewhere between send and receive: use the midpoint.
@@ -206,6 +217,15 @@ export function useGameSync({
         }
         if (data.status === "final") return finishedRef.current();
         setBase(data.events);
+        if (data.roster) {
+          const incoming = data.roster;
+          setServerRoster(incoming);
+          setPendingRoster((p) => {
+            const have = new Set(incoming.map((r) => r.id));
+            const left = p.filter((r) => !have.has(r.id));
+            return left.length === p.length ? p : left;
+          });
+        }
         const seen = new Set(data.events.map((e) => e.grp));
         // Once the server shows a play we added, it no longer needs to be held locally. If it was
         // confirmed saved a while ago and is now gone, someone else undid it: drop it here too.
@@ -283,14 +303,33 @@ export function useGameSync({
         persist();
         return;
       }
-      // If the add is still queued it is sent first, then removed, in order.
+      // If the add is still queued it is sent first, then removed, in order. The play is hidden by
+      // `removed` until the server stops listing it, and forgotten from `adds` right away: left there,
+      // it came back on screen as a ghost once the server dropped it (so an amended play showed up
+      // twice and the "last play" was the old copy).
       setRemoved((s) => new Set(s).add(grp));
+      setAdds((m) => {
+        if (!m.has(grp)) return m;
+        const n = new Map(m);
+        n.delete(grp);
+        return n;
+      });
       queue.current.push({ kind: "remove", gameId, grp });
       persist();
       void flush();
     },
     [gameId, persist, flush],
   );
+
+  /** Shows someone who just joined, before the next poll lists them. */
+  const addToRoster = useCallback((entry: RosterEntry) => {
+    setPendingRoster((p) => (p.some((r) => r.id === entry.id) ? p : [...p, entry]));
+  }, []);
+
+  const roster = useMemo(() => {
+    const have = new Set(serverRoster.map((r) => r.id));
+    return [...serverRoster, ...pendingRoster.filter((r) => !have.has(r.id))];
+  }, [serverRoster, pendingRoster]);
 
   const events = useMemo(() => {
     const seen = new Set(base.map((e) => e.grp));
@@ -307,6 +346,8 @@ export function useGameSync({
       : "saved";
   return {
     events,
+    roster,
+    addToRoster,
     state,
     pending,
     error,

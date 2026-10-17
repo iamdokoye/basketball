@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getGameRoster } from "@/lib/queries";
 import { db } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
@@ -16,7 +17,7 @@ export async function GET(
     return NextResponse.json({ error: "bad id" }, { status: 400 });
   }
 
-  const [game, events] = await Promise.all([
+  const [game, events, roster] = await Promise.all([
     db().from("games").select("status").eq("id", gameId).maybeSingle(),
     db()
       .from("events")
@@ -24,6 +25,8 @@ export async function GET(
       .eq("game_id", gameId)
       .order("id")
       .limit(5000),
+    // Players can join mid-game, so the roster is part of what every phone polls.
+    getGameRoster(gameId).catch(() => null),
   ]);
   if (game.error || events.error)
     return NextResponse.json({ error: "unavailable" }, { status: 503 });
@@ -35,6 +38,7 @@ export async function GET(
       status: game.data.status as "live" | "final",
       /** The server's clock, so every phone can show the same game clock even if its own is off. */
       serverNow: Date.now(),
+      ...(roster ? { roster } : {}),
       events: (events.data ?? []).map((e) => ({
         id: Number(e.id),
         playerId: Number(e.player_id ?? 0),

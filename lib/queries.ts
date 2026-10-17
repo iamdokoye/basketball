@@ -57,6 +57,30 @@ export async function listPlayers(): Promise<Player[]> {
     );
 }
 
+/** The people in one game, for the live screens to refresh when someone joins late. */
+export async function getGameRoster(gameId: number): Promise<RosterEntry[]> {
+  const { data, error } = await db()
+    .from("game_players")
+    .select("team, starter, players(*)")
+    .eq("game_id", gameId);
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as unknown as Pick<RosterRow, "team" | "starter" | "players">[])
+    .flatMap((r) =>
+      r.players
+        ? [
+            {
+              id: Number(r.players.id),
+              name: r.players.name,
+              team: r.team,
+              starter: r.starter,
+              nicknames: toNicknames(r.players.nicknames),
+            } satisfies RosterEntry,
+          ]
+        : [],
+    )
+    .sort((a, b) => Number(b.starter) - Number(a.starter) || a.name.localeCompare(b.name));
+}
+
 type GameRow = {
   id: number;
   played_at: string;

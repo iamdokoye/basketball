@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { finishGame } from "@/lib/actions";
+import { addLatePlayer, finishGame } from "@/lib/actions";
 import { useGameSync } from "./useGameSync";
 import {
   buildClock,
@@ -23,6 +23,7 @@ import {
   type Team,
 } from "@/lib/stats";
 import { Avatar, shortName } from "@/app/components/Avatar";
+import { PlayerPicker } from "@/app/components/PlayerPicker";
 import { Countdown } from "@/app/components/Countdown";
 import { VoiceEntry } from "./VoiceEntry";
 import { ActionPad, type PadAction } from "./ActionPad";
@@ -61,6 +62,9 @@ const TONES = {
   sub: "bg-sub/10 text-sub ring-1 ring-sub/25 active:bg-sub/20",
 };
 
+/** Players per side on the court in this league's 3v3. A team with fewer can take a late arrival without anyone coming out. */
+const ON_COURT = 3;
+
 const COLS = { 1: "grid-cols-1", 2: "grid-cols-2", 3: "grid-cols-3" };
 
 const TEAM_STYLE = {
@@ -80,7 +84,8 @@ const TEAM_STYLE = {
 
 export default function Scorekeeper({
   gameId,
-  roster,
+  roster: initialRoster,
+  players: leaguePlayers = [],
   initialEvents,
   startMs,
   target,
@@ -92,7 +97,10 @@ export default function Scorekeeper({
   initialMode = "quick",
 }: {
   gameId: number;
+  /** Everyone in the game when the page loaded. Late arrivals are added on top (see useGameSync). */
   roster: RosterEntry[];
+  /** Every active player in the league, for adding someone who arrives late. */
+  players?: { id: number; name: string }[];
   initialEvents: GameEvent[];
   startMs: number;
   target: number;
@@ -122,10 +130,12 @@ export default function Scorekeeper({
   const sync = useGameSync({
     gameId,
     initialEvents,
+    initialRoster,
     paused: sheet !== null || voiceOpen,
     onFinished: () => router.refresh(),
   });
   const events = sync.events;
+  const roster = sync.roster;
   const error = localError ?? sync.error;
 
   const lines = useMemo(
@@ -378,15 +388,28 @@ export default function Scorekeeper({
       sections: [
         {
           cols: 2,
-          options: active(b.team).map((p) => ({
-            label: p.name,
-            tone: "sub" as const,
-            onPick: () =>
-              commit([
-                { playerId: p.id, type: "SUB_OUT" },
-                { playerId: b.id, type: "SUB_IN" },
-              ]),
-          })),
+          options: [
+            // Short-handed (someone left, or the team started with two): just join, no one comes out.
+            ...(active(b.team).length < ON_COURT
+              ? [
+                  {
+                    label: "Join the court",
+                    hint: "no one out",
+                    tone: "good" as const,
+                    onPick: () => commit([{ playerId: b.id, type: "SUB_IN" }]),
+                  },
+                ]
+              : []),
+            ...active(b.team).map((p) => ({
+              label: p.name,
+              tone: "sub" as const,
+              onPick: () =>
+                commit([
+                  { playerId: p.id, type: "SUB_OUT" },
+                  { playerId: b.id, type: "SUB_IN" },
+                ]),
+            })),
+          ],
         },
       ],
     });
@@ -604,6 +627,34 @@ export default function Scorekeeper({
         break;
     }
     return out.groups.some((g) => g.chips.length > 0) ? out : null;
+  }
+
+  // ---- Late arrivals -------------------------------------------------------------------------
+
+  const [lateBusy, setLateBusy] = useState(false);
+
+  /** Adds someone to this game (an existing player, or a new name) and offers to check them in. */
+  async function addLate(team: Team, who: { playerId?: number; name?: string }) {
+    setLateBusy(true);
+    setLocalError(null);
+    try {
+      const res = await addLatePlayer({ gameId, team, ...who });
+      if (!res.ok) return setLocalError(res.error);
+      const entry: RosterEntry = {
+        id: res.player.id,
+        name: res.player.name,
+        team,
+        starter: false,
+        nicknames: res.player.nicknames,
+      };
+      sync.addToRoster(entry);
+      // They're on the bench now. Ask who comes out (or let them join a short team); closing leaves them on the bench.
+      subInStep(entry);
+    } catch {
+      setLocalError("Couldn't add the player. Check the connection and try again.");
+    } finally {
+      setLateBusy(false);
+    }
   }
 
   function finish() {
@@ -1047,6 +1098,21 @@ export default function Scorekeeper({
                 </button>
               );
             })}
+            {!readOnly && (
+              <PlayerPicker
+                label={TEAM_STYLE[t].label}
+                accent={t === "A" ? "court" : "away"}
+                buttonLabel="Late arrival"
+                title={`Late arrival · ${TEAM_STYLE[t].label}`}
+                compact
+                busy={lateBusy}
+                options={leaguePlayers.filter(
+                  (lp) => !roster.some((r) => r.id === lp.id),
+                )}
+                onPick={(playerId) => void addLate(t, { playerId })}
+                onCreate={(name) => void addLate(t, { name })}
+              />
+            )}
             {bench(t).length > 0 && (
               <div className="rounded-2xl bg-black/[0.04] p-2">
                 <div className="label mb-1 px-1 text-[10px] text-muted">
