@@ -1,5 +1,6 @@
 import type { Game, Player } from "./queries";
 import { shortName } from "@/app/components/Avatar";
+import { buildCards } from "./cards";
 import { clutchTotals } from "./clutch";
 import { computeMvp, type Period } from "./mvp";
 import { rankPerformances, statSummary } from "./pog";
@@ -74,6 +75,15 @@ export function buildDigest(opts: {
     out.push(
       "",
       `🔥 Best game: ${best.top.line.name} · ${statSummary(best.top.line)} (rating ${best.top.rating.toFixed(1)})`,
+    );
+  }
+
+  // The week's title cards (Dominator, Pickpocket, ...), one line each.
+  const titles = buildCards(games, "week", week);
+  if (titles.length > 0) {
+    out.push("", "🎴 TITLES");
+    titles.forEach((c) =>
+      out.push(`${c.emoji} ${c.title}: ${shortName(c.name)} (${c.value})`),
     );
   }
 

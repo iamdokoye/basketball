@@ -17,6 +17,8 @@ import { MvpCard } from "@/app/components/MvpCard";
 import { AwardsCard } from "@/app/components/AwardsCard";
 import { monthAwards } from "@/lib/awards";
 import { Countdown } from "@/app/components/Countdown";
+import { AwardCard, CardBack } from "@/app/components/AwardCard";
+import { buildCards, cardsHour, cardsLock } from "@/lib/cards";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +29,11 @@ const LEADER_CATEGORIES: { key: SortKey; label: string; unit: string }[] = [
   { key: "spg", label: "SPG", unit: "stl" },
   { key: "bpg", label: "BPG", unit: "blk" },
 ];
+
+function hourLabel(h: number) {
+  const hh = h % 12 === 0 ? 12 : h % 12;
+  return `${hh}:00 ${h < 12 ? "AM" : "PM"}`;
+}
 
 export default async function Home() {
   const [games, players, access] = await Promise.all([
@@ -51,6 +58,15 @@ export default async function Home() {
     const result = featured ? computeMvp(featured.period.games) : null;
     return featured && result ? { kind, featured, result } : null;
   });
+
+  // Title cards for the latest game week. The current week's stay face-down until 3 PM on a game day.
+  const weekPeriods = groupByPeriod(games, "week", tz, day);
+  const curWeekKey = weekKey(access.now, tz, day);
+  const cardPeriod = weekPeriods.find((p) => p.key === curWeekKey) ?? weekPeriods[0];
+  const cardLock = cardsLock(access.now, games, tz);
+  const cardsHidden = cardLock.locked && cardPeriod?.key === curWeekKey;
+  const weekCards =
+    cardPeriod && !cardsHidden ? buildCards(cardPeriod.games, "week", cardPeriod) : [];
 
   // Awards are handed out when a month is over: show the latest completed month.
   const thisMonth = monthKey(access.now, tz);
@@ -200,6 +216,47 @@ export default async function Home() {
           </div>
         )}
       </section>
+
+      {/* Title cards */}
+      {cardPeriod && (cardsHidden || weekCards.length > 0) && (
+        <section className="space-y-3">
+          <div className="flex items-center justify-between px-1">
+            <h2 className="label">Cards · {cardPeriod.label}</h2>
+            <Link
+              href="/cards"
+              className="text-xs font-semibold text-court-ink hover:underline"
+            >
+              All cards
+            </Link>
+          </div>
+          {cardsHidden ? (
+            <Link href="/cards" className="glass-2 flex items-center gap-4 rounded-3xl p-4">
+              <div className="grid w-28 shrink-0 grid-cols-2 gap-1.5" aria-hidden>
+                {[0, 1, 2, 3].map((i) => (
+                  <CardBack key={i} tier="week" />
+                ))}
+              </div>
+              <div className="min-w-0">
+                <div className="label text-muted">Dropping at {hourLabel(cardsHour())}</div>
+                {cardLock.unlockAt && (
+                  <div className="text-2xl font-extrabold tracking-tight">
+                    <Countdown target={cardLock.unlockAt} serverNow={access.now} compact />
+                  </div>
+                )}
+                <p className="text-xs text-muted">Today&apos;s title cards, after the session.</p>
+              </div>
+            </Link>
+          ) : (
+            <div className="-mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {weekCards.map((c) => (
+                <div key={c.key} className="w-44 shrink-0 snap-start">
+                  <AwardCard card={c} sharePath={`/cards?tier=week&period=${c.periodKey}`} />
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
 
       {lastDone && lastAwards.length > 0 && (
         <section className="space-y-3">

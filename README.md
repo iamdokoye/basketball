@@ -107,6 +107,26 @@ Run `supabase/migrations/20261014000000_function_hardening.sql` in the Supabase 
 - **Import a game** (`Games` → **Import**): for a game that was tracked somewhere else. Pick the date, start time and length, add the players to Team A or B, and type each player's totals (2s, 3s and free throws made and missed, rebounds, assists, steals, blocks, turnovers, fouls, deflections). The score updates as you type and a tied game can't be saved. The plays are rebuilt from the totals: every number comes out exactly, assists and rebounds are attached to a teammate's basket or an opponent's miss where one exists, and the game ends on the winning basket. The order and timing of plays are made up, and everyone counts as on court the whole game (so minutes and plus/minus are the same for all). Times use `LEAGUE_TIMEZONE`.
 - **Edit box score** (on a finished game): the same number boxes, pre-filled from the game. A higher number adds plays at the end of the game, a lower one removes that player's latest plays of that kind. Added points count toward plus/minus for whoever is on court at the end. No SQL needed for either.
 
+## Title cards
+
+After a game session, every stat leader gets a trading card with a title, and the title gets bigger the longer the stretch they led. See them at **Cards** (Home has a strip of the latest week's cards).
+
+| Card | Week | Month | Year |
+|---|---|---|---|
+| 🌟 All-rounder (best average rating) | ⭐ The Chosen One | 👑 The Supreme One | 🐐 The GOAT |
+| 🔥 Scorer (points per game) | 🔥 Flamethrower | 🌋 Inferno | ☄️ Supernova |
+| 🎯 Shooter (effective FG%, with real volume) | Sharpshooter | Deadeye | The Marksman |
+| 🦍 Rebounder (rebounds per game) | Dominator | Glass Titan | The Colossus |
+| 🪄 Assister (assists per game) | Dime Dropper | Maestro | 🧠 The Architect |
+| 🥷 Stealer (steals per game) | Pickpocket | Phantom Thief | The Heist Master |
+| 🧱 Blocker (blocks per game) | Roadblock | Great Wall | 🏰 The Fortress |
+| 🧊 Clutch (game-winners, then clutch points) | Cool Hand | Ice Veins | 🥶 Absolute Zero |
+
+- **Levels:** Week is the game week (game day to the Friday after), Month is the calendar month, Year is the calendar year, all in `LEAGUE_TIMEZONE`. The card frame is bronze, steel blue or gold (with a slow shine) to match. Each card shows the winner, the big number and a **Share** button (the phone's share sheet, or copy).
+- **Who qualifies:** the same rules as the month awards: a player needs at least half as many games as the busiest player in that stretch, and shooters need real shot volume. A card is left out when nobody earned it (no steals, no close finishes). Clutch uses the play-by-play, so games added with Import or edited later are skipped.
+- **When they drop:** on a game day the current week, month and year cards stay face-down until **3 PM** league time (a countdown shows), so nobody gets spoilers mid-session. Set `LEAGUE_CARDS_HOUR` (0 to 23, default 15) to change it. Past periods are always open. Current month and year cards say "Leading so far" until the period ends.
+- The weekly digest lists the week's titles.
+
 ## Seasons, standings, clutch and the weekly digest
 
 - **Seasons** are worked out from each game's date, so nothing is stored and nothing needs resetting: the first game of a new season opens it, and the old one keeps its table. `LEAGUE_SEASON` sets the length: `year` (default), `half` (Jan-Jun, Jul-Dec) or `quarter`. Changing it re-sorts every past game into the new seasons.
