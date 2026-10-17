@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { cardText, TIER_LABEL, type AwardCardData, type Tier } from "@/lib/cards";
+import { TIER_LABEL, type AwardCardData, type Tier } from "@/lib/cards";
 import { Avatar } from "./Avatar";
-import { ShareCardButton } from "./ShareCardButton";
+import { CardActions } from "./CardActions";
 
 const STARS: Record<Tier, string> = { week: "★", month: "★★", year: "★★★" };
 
@@ -65,7 +65,7 @@ export function AwardCard({ card, sharePath }: { card: AwardCardData; sharePath:
           <span className="label min-w-0 flex-1 text-[10px] leading-3 text-muted">
             {card.periodLabel}
           </span>
-          <ShareCardButton text={cardText(card)} path={sharePath} />
+          <CardActions card={card} sharePath={sharePath} />
         </div>
       </div>
     </article>
