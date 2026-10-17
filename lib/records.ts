@@ -38,8 +38,11 @@ const STATS: Stat[] = [
   },
 ];
 
-/** Individual single-game records. The first person to reach a mark keeps it on a tie. */
-export function singleGameRecords(games: Game[]): RecordItem[] {
+/**
+ * Individual single-game records. The first person to reach a mark keeps it on a tie. Pass a
+ * player id to get that player's own bests instead.
+ */
+export function singleGameRecords(games: Game[], onlyPlayerId?: number): RecordItem[] {
   const out: RecordItem[] = [];
   const ordered = finals(games).sort(
     (a, b) => a.startMs - b.startMs || a.id - b.id,
@@ -49,6 +52,7 @@ export function singleGameRecords(games: Game[]): RecordItem[] {
     for (const game of ordered) {
       const ctx = gameContext(game.lines);
       for (const line of game.lines) {
+        if (onlyPlayerId !== undefined && line.playerId !== onlyPlayerId) continue;
         const v = stat.get(line, ctx);
         if (v > 0 && (!best || v > best.v + 1e-9)) best = { v, line, game };
       }

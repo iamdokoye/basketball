@@ -78,7 +78,9 @@ Run `supabase/migrations/20261014000000_function_hardening.sql` in the Supabase 
 ## Voice and quick entry
 
 - On the scorekeeper, **hold Hold to talk** and say a play, e.g. "Daniel scores 2, assisted by Joe", "Billy misses a three, rebound William", "Whyte steals from Daniel", "Joshua comes in for Ephraim", "timeout team B", "pause the clock", "undo that". Or type the same sentence in the box under it. Several plays in one sentence work ("…, then …").
-- **Nothing is recorded until you confirm.** A sheet shows what was understood, one line per play. If a name could be two people, or the points weren't said, it asks you to pick. You can edit the heard text and tap **Re-read**, drop a line with ✕, or Cancel.
+- **Clear sentences save straight away.** If everything is settled, the play is saved at once and a "Saved … Undo" message shows for 5 seconds. Tap **Undo** to take it back (a sentence with several plays is undone together). "Clear" means: every name matched exactly one player (a full name, first or last name, or a nickname), the shot was said to be a 2, 3 or free throw, nothing in the sentence was left over, nobody is on the bench, and there are at most 4 plays.
+- **Anything else asks first.** A sheet shows what was understood, says why it is asking (for example "Not sure who "josef" is" or "Wasn't sure if it was a 2 or a 3"), and has one line per play. If a name could be two people or the points weren't said, it asks you to pick. You can edit the heard text and tap **Re-read**, drop a line with ✕, or Cancel. Near spellings like "Danial" are a good guess but still a guess, so they are asked about, and so is "undo that".
+- **Switch it off** with **Save clear plays without asking** under the box (per phone) if you want the confirm sheet every time.
 - Names are matched loosely (first name, surname, near spellings like "Danial"), preferring players on the court. Nicknames come from the Players page (shared by everyone); the scorekeeper's own **Nicknames** panel adds extras saved on that phone only.
 - It uses the browser's built-in speech recognition, so it's free, but it only exists in some browsers: **Chrome on Android works best** (Chrome sends the audio to Google to turn it into text). iPhone Safari is unreliable, and often missing once the app is added to the Home Screen; typing always works. Noisy courts hurt accuracy, which is what the confirm step is for.
 - The sentence-to-plays logic is in `lib/voice.ts` (plain text in, plays out), so it can be tested without a microphone.
@@ -100,6 +102,41 @@ Run `supabase/migrations/20261014000000_function_hardening.sql` in the Supabase 
 - **Duos and rivals** (`/chemistry`): win rate for teammates, and head-to-head records. Each profile also lists its record with and against every other player.
 - **Trophy shelf:** each profile shows weekly and monthly MVPs, month awards and player-of-the-game counts. Weekly and monthly honours only count once the week or month is over.
 
+## Importing and fixing past games (admin)
+
+- **Import a game** (`Games` → **Import**): for a game that was tracked somewhere else. Pick the date, start time and length, add the players to Team A or B, and type each player's totals (2s, 3s and free throws made and missed, rebounds, assists, steals, blocks, turnovers, fouls, deflections). The score updates as you type and a tied game can't be saved. The plays are rebuilt from the totals: every number comes out exactly, assists and rebounds are attached to a teammate's basket or an opponent's miss where one exists, and the game ends on the winning basket. The order and timing of plays are made up, and everyone counts as on court the whole game (so minutes and plus/minus are the same for all). Times use `LEAGUE_TIMEZONE`.
+- **Edit box score** (on a finished game): the same number boxes, pre-filled from the game. A higher number adds plays at the end of the game, a lower one removes that player's latest plays of that kind. Added points count toward plus/minus for whoever is on court at the end. No SQL needed for either.
+
+## Title cards
+
+After a game session, every stat leader gets a trading card with a title, and the title gets bigger the longer the stretch they led. See them at **Cards** (Home has a strip of the latest week's cards).
+
+| Card | Week | Month | Year |
+|---|---|---|---|
+| 🌟 All-rounder (best average rating) | ⭐ The Chosen One | 👑 The Supreme One | 🐐 The GOAT |
+| 🔥 Scorer (points per game) | 🔥 Flamethrower | 🌋 Inferno | ☄️ Supernova |
+| 🎯 Shooter (effective FG%, with real volume) | Sharpshooter | Deadeye | The Marksman |
+| 🦍 Rebounder (rebounds per game) | Dominator | Glass Titan | The Colossus |
+| 🪄 Assister (assists per game) | Dime Dropper | Maestro | 🧠 The Architect |
+| 🥷 Stealer (steals per game) | Pickpocket | Phantom Thief | The Heist Master |
+| 🧱 Blocker (blocks per game) | Roadblock | Great Wall | 🏰 The Fortress |
+| 🧊 Clutch (game-winners, then clutch points) | Cool Hand | Ice Veins | 🥶 Absolute Zero |
+
+- **Levels:** Week is the game week (game day to the Friday after), Month is the calendar month, Year is the calendar year, all in `LEAGUE_TIMEZONE`. The card frame is bronze, steel blue or gold (with a slow shine) to match. Each card shows the winner and the big number, with two buttons: **Save** downloads the card as a picture (a 1080 x 1350 PNG, which WhatsApp and Instagram show uncropped), and **Share** sends that picture through the phone's share sheet (WhatsApp, Instagram, Messages...) with the text and a link. If the browser can't share pictures it shares the text and link instead, and if it can't share at all it copies them. The picture is drawn on your phone, so it costs the server nothing, works offline, and the emoji match the phone's own.
+- **Who qualifies:** the same rules as the month awards: a player needs at least half as many games as the busiest player in that stretch, and shooters need real shot volume. A card is left out when nobody earned it (no steals, no close finishes). Clutch uses the play-by-play, so games added with Import or edited later are skipped.
+- **When they drop:** on a game day the current week, month and year cards stay face-down until **3 PM** league time (a countdown shows), so nobody gets spoilers mid-session. Set `LEAGUE_CARDS_HOUR` (0 to 23, default 15) to change it. Past periods are always open. Current month and year cards say "Leading so far" until the period ends.
+- The weekly digest lists the week's titles.
+
+## Seasons, standings, clutch and the weekly digest
+
+- **Seasons** are worked out from each game's date, so nothing is stored and nothing needs resetting: the first game of a new season opens it, and the old one keeps its table. `LEAGUE_SEASON` sets the length: `year` (default), `half` (Jan-Jun, Jul-Dec) or `quarter`. Changing it re-sorts every past game into the new seasons.
+- **Standings** (`/standings`, linked from Home and Rankings): wins, losses, win rate, rating, plus/minus, last five results and the current streak, for one season or all time. Ranked by win rate, then wins, then rating; players need 3 games in the season to be ranked. **Rankings** has the same season picker and shows the current season by default.
+- **Season honours:** when a season is over, its best win rate earns **Season champion** and its best rating **Season MVP** on the trophy shelf (same 3-game rule).
+- **Clutch** (`/records#clutch`): a *game-winner* is the last basket of a game decided by 3 or fewer, scored by the winning team. *Clutch points* are scored when a team is within 5 of the target and the game is within 3. Each profile shows a player's game-winners and clutch points. Games added with Import, or whose scoring was edited with Edit box score, are skipped, because their order of plays isn't real.
+- **Profile:** a rating trend over the last 15 games (hover, tap or use the arrow keys to read each game) and personal bests: points, rebounds, assists, steals, blocks, threes, rating and longest win streak.
+- **Weekly digest** (`/digest`, linked from Home): results, MVP of the week, the next best performers, the best single game, game-winners, records set that week (once there are earlier games to beat) and the season standings as they stood after that week, as text for the group chat. **Share** opens the phone's share sheet; **Copy digest** copies it. Pick any past week.
+- **One-time SQL:** run `supabase/migrations/20261015000000_estimated_order.sql` in the Supabase SQL Editor. It adds a flag so imported games stay out of the clutch stats, and flags games already imported with the SQL scripts. Until you run it, every game counts for clutch and Import still works.
+
 ## MVPs and awards
 
 - **MVP of the week:** the best average rating across that week's finished games. A week runs Saturday to Friday (it starts on your game day), so midweek this is last Saturday's games. If this week has no finished game yet, the most recent week with games is shown.
@@ -110,14 +147,17 @@ Run `supabase/migrations/20261014000000_function_hardening.sql` in the Supabase 
 
 ## How scoring works
 
-One person keeps stats on their phone. Tap a player, then the action. Related stats are linked so you only tap once more:
+One person keeps stats on their phone. Pick the scoring style on the scorekeeper (it is remembered per phone, so two scorers can use different ones):
 
-- **Made shot** asks for the assist.
-- **Missed shot** asks who rebounded (teammate = offensive, opponent = defensive).
-- **Free throws** are one tap each (made +1, missed).
-- **Steal** asks whose ball it was and logs their turnover.
-- **Block** asks whose shot it was and logs the miss, then asks for the rebound.
-- **Subs:** tap "Sub out…" on a player, or tap a bench chip to sub in. Only players on the court appear in assist, rebound and steal prompts.
+- **Quick** (default): every player card has **+2 +3 Miss 2 Miss 3** buttons. One tap saves the shot straight away. A strip then offers the detail: **who assisted** after a make, **who rebounded** after a miss (offensive teammates and defensive opponents). Tap a name to add it to that play, tap **Skip**, or ignore it and it fades after 10 seconds, leaving the play as saved. Tap a player's name for the full menu (free throws, steals, blocks, fouls, subs…).
+- **Pad**: tap a player once to select them, then tap actions in the bar at the bottom of the screen (+2, +3, misses, free throws, rebounds, assist, steal, block, turnover, foul, deflection, sub, undo). The player stays selected, so a run of plays by the same person is one tap each, and nothing pops up over the screen. Steals ask whose ball it was and blocks ask whose shot it was in the same chip strip.
+- **Classic**: tap a player, then choose from the menu, with a question after each shot, as before.
+
+In every style the play is saved and shown at once, related stats are linked into one play (a make and its assist, a miss and its rebound, a steal and the turnover, a block and the missed shot), and **Undo last** removes the whole play. The screen stays awake while you are scoring. Voice and typed entry work in every style.
+
+Quick and Pad add the detail to the play that was just saved by replacing it with a copy that carries the extra event, so only the latest play can be annotated. If the phone is offline the swap waits in the same queue as everything else and arrives in order.
+
+**Subs and late arrivals.** Tap a bench chip to sub someone in, or "Sub out…" on a player. For someone who wasn't picked when the game started, each team has a **Late arrival** button: search the league's players, or type a new name to add a guest (they become a normal player in the league). They join that team's bench and a "checks in" sheet asks who comes out. A short-handed team also gets **Join the court**, so nobody has to come out. Closing the sheet leaves them on the bench. Every phone watching the game picks the new player up within a few seconds, and their minutes count from when they check in. A game can have at most 12 players.
 
 Every tap is stored as an event. Box scores, averages, shooting percentages, plus/minus and minutes are computed from that log. **Undo last** removes a whole linked action, the play log lets you delete any earlier play, and a finished game can be reopened to fix stats.
 

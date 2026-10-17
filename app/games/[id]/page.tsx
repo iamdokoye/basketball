@@ -1,16 +1,18 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { getAccess } from "@/lib/access";
 import { buildClock, formatClock } from "@/lib/clock";
 import { leagueTimeZone } from "@/lib/format";
 import { playerOfTheGame, statSummary } from "@/lib/pog";
-import { getGame } from "@/lib/queries";
+import { getGame, listPlayers } from "@/lib/queries";
 import { buildRecap } from "@/lib/recap";
 import { BoxScoreTable, formatDate } from "@/app/components/BoxScore";
 import { Avatar } from "@/app/components/Avatar";
 import { ShareRecap } from "@/app/components/ShareRecap";
 import GameAdminActions from "./GameAdminActions";
 import Scorekeeper from "./Scorekeeper";
+import { parseScoreMode, SCORE_MODE_COOKIE } from "./scoreModeShared";
 
 export const dynamic = "force-dynamic";
 
@@ -24,11 +26,18 @@ export default async function GamePage({
   if (!game) notFound();
 
   if (game.status === "live") {
+    // Everyone who could turn up late: active league players (the scorekeeper hides those already in the game).
+    const league = access.canPlay
+      ? (await listPlayers())
+          .filter((p) => !p.archived)
+          .map((p) => ({ id: p.id, name: p.name }))
+      : [];
     return (
       <Scorekeeper
         key={access.canPlay ? "edit" : "view"}
         gameId={game.id}
         roster={game.roster}
+        players={league}
         initialEvents={game.events}
         startMs={game.startMs}
         target={game.target}
@@ -37,6 +46,7 @@ export default async function GamePage({
         windowLabel={access.windowLabel}
         opensAt={access.opensAt}
         serverNow={access.now}
+        initialMode={parseScoreMode((await cookies()).get(SCORE_MODE_COOKIE)?.value)}
       />
     );
   }
@@ -148,7 +158,7 @@ export default async function GamePage({
         </Link>
       )}
 
-      {recap && <ShareRecap text={recap} gameId={game.id} />}
+      {recap && <ShareRecap text={recap} path={`/games/${game.id}`} />}
 
       <BoxScoreTable lines={game.lines} team="A" pogId={pog?.line.playerId} />
       <BoxScoreTable lines={game.lines} team="B" pogId={pog?.line.playerId} />

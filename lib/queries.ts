@@ -34,6 +34,8 @@ export type Game = {
   lines: StatLine[];
   score: Record<Team, number>;
   winner: Team | null;
+  /** True when the order of plays was made up (imported from totals, or scoring edited later). */
+  estimatedOrder: boolean;
 };
 
 export async function listPlayers(): Promise<Player[]> {
@@ -55,12 +57,38 @@ export async function listPlayers(): Promise<Player[]> {
     );
 }
 
+/** The people in one game, for the live screens to refresh when someone joins late. */
+export async function getGameRoster(gameId: number): Promise<RosterEntry[]> {
+  const { data, error } = await db()
+    .from("game_players")
+    .select("team, starter, players(*)")
+    .eq("game_id", gameId);
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as unknown as Pick<RosterRow, "team" | "starter" | "players">[])
+    .flatMap((r) =>
+      r.players
+        ? [
+            {
+              id: Number(r.players.id),
+              name: r.players.name,
+              team: r.team,
+              starter: r.starter,
+              nicknames: toNicknames(r.players.nicknames),
+            } satisfies RosterEntry,
+          ]
+        : [],
+    )
+    .sort((a, b) => Number(b.starter) - Number(a.starter) || a.name.localeCompare(b.name));
+}
+
 type GameRow = {
   id: number;
   played_at: string;
   status: string;
   target: number;
   win_by: number;
+  /** Only present once the estimated_order migration has been run. */
+  estimated_order?: boolean | null;
 };
 type RosterRow = {
   game_id: number;
@@ -82,7 +110,8 @@ type EventRow = {
 async function loadGames(gameId?: number): Promise<Game[]> {
   const gamesQ = db()
     .from("games")
-    .select("id, played_at, status, target, win_by")
+    // "*" so this keeps working before the estimated_order migration adds that column
+    .select("*")
     .order("id", { ascending: false });
   const rosterQ = (from: number, to: number) => {
     let q = db()
@@ -160,6 +189,7 @@ async function loadGames(gameId?: number): Promise<Game[]> {
       score,
       winner:
         final && score.A !== score.B ? (score.A > score.B ? "A" : "B") : null,
+      estimatedOrder: g.estimated_order === true,
     } satisfies Game;
   });
 }

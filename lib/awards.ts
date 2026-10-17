@@ -35,10 +35,10 @@ export type Award = {
   winner: AwardWinner | null;
 };
 
-type Ctx = { minGames: number; maxFga: number; maxFg2a: number };
+export type Ctx = { minGames: number; maxFga: number; maxFg2a: number };
 
-type Spec = {
-  id: Exclude<AwardId, "mvp">;
+export type Spec = {
+  id: string;
   title: string;
   blurb: string;
   eligible?: (p: PlayerTotals, ctx: Ctx) => boolean;
@@ -146,18 +146,41 @@ export const AWARD_TITLES: Record<AwardId, string> = {
   >),
 };
 
-/** Awards for the finished games given (normally one calendar month). Empty if there are none. */
-export function monthAwards(games: Game[]): Award[] {
-  const players = aggregatePlayers(games);
-  if (players.length === 0) return [];
+export type AwardPool = { pool: PlayerTotals[]; ctx: Ctx };
 
+/** Who can win an award from these games (enough games played), plus the shot-volume bars. Null if nobody played. */
+export function awardPool(games: Game[]): AwardPool | null {
+  const players = aggregatePlayers(games);
+  if (players.length === 0) return null;
   const minGames = minGamesFor(players);
   const pool = players.filter((p) => p.gp >= minGames);
-  const ctx: Ctx = {
-    minGames,
-    maxFga: Math.max(0, ...pool.map((p) => p.total.fga)),
-    maxFg2a: Math.max(0, ...pool.map((p) => p.total.fg2a)),
+  return {
+    pool,
+    ctx: {
+      minGames,
+      maxFga: Math.max(0, ...pool.map((p) => p.total.fga)),
+      maxFg2a: Math.max(0, ...pool.map((p) => p.total.fg2a)),
+    },
   };
+}
+
+/** The eligible players for one award, best first. Anyone scoring 0 or less is left out. */
+export function rankPool(
+  spec: Pick<Spec, "eligible" | "score" | "tie">,
+  { pool, ctx }: AwardPool,
+): PlayerTotals[] {
+  return pool
+    .filter((p) => (spec.eligible ? spec.eligible(p, ctx) : true))
+    .map((p) => ({ p, s: spec.score(p), t: spec.tie?.(p) ?? 0 }))
+    .filter((x) => x.s > 0)
+    .sort((a, b) => b.s - a.s || b.t - a.t || a.p.name.localeCompare(b.p.name))
+    .map((x) => x.p);
+}
+
+/** Awards for the finished games given (normally one calendar month). Empty if there are none. */
+export function monthAwards(games: Game[]): Award[] {
+  const ap = awardPool(games);
+  if (!ap) return [];
 
   const awards: Award[] = [];
 
@@ -177,16 +200,9 @@ export function monthAwards(games: Game[]): Award[] {
   });
 
   for (const spec of SPECS) {
-    const ranked = pool
-      .filter((p) => (spec.eligible ? spec.eligible(p, ctx) : true))
-      .map((p) => ({ p, s: spec.score(p), t: spec.tie?.(p) ?? 0 }))
-      .filter((x) => x.s > 0)
-      .sort(
-        (a, b) => b.s - a.s || b.t - a.t || a.p.name.localeCompare(b.p.name),
-      );
-    const top = ranked[0]?.p;
+    const top = rankPool(spec, ap)[0];
     awards.push({
-      id: spec.id,
+      id: spec.id as Exclude<AwardId, "mvp">,
       title: spec.title,
       blurb: spec.blurb,
       winner: top

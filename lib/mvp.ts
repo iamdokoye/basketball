@@ -38,7 +38,7 @@ export type MvpResult = {
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-function localDate(
+export function localDate(
   ms: number,
   timeZone: string,
 ): { y: number; m: number; d: number; wd: number } {

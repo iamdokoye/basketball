@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { finishGame } from "@/lib/actions";
+import { addLatePlayer, finishGame } from "@/lib/actions";
 import { useGameSync } from "./useGameSync";
 import {
   buildClock,
@@ -23,8 +23,13 @@ import {
   type Team,
 } from "@/lib/stats";
 import { Avatar, shortName } from "@/app/components/Avatar";
+import { PlayerPicker } from "@/app/components/PlayerPicker";
 import { Countdown } from "@/app/components/Countdown";
 import { VoiceEntry } from "./VoiceEntry";
+import { ActionPad, type PadAction } from "./ActionPad";
+import { FollowUp, SavedToast, type ChipGroup } from "./FollowUp";
+import { useScoreMode } from "./scoreMode";
+import { SCORE_MODES, type ScoreMode } from "./scoreModeShared";
 
 type Ev = { playerId: number; type: EventType; team?: Team };
 
@@ -42,12 +47,23 @@ type Sheet = {
   sections: Section[];
 };
 
+/** A play that was just saved and can still take one more detail (who assisted, who rebounded...). */
+type FollowState = {
+  grp: string;
+  kind: "assist" | "rebound" | "stealFrom" | "blockShot";
+  /** The player the follow-up is about: the scorer, the shooter who missed, the stealer or the blocker. */
+  playerId: number;
+};
+
 const TONES = {
   good: "bg-win/15 text-emerald-800 ring-1 ring-win/30 active:bg-win/25",
   bad: "bg-white/60 text-loss ring-1 ring-black/5 active:bg-loss/10",
   neutral: "bg-white/60 text-ink ring-1 ring-black/5 active:bg-white",
   sub: "bg-sub/10 text-sub ring-1 ring-sub/25 active:bg-sub/20",
 };
+
+/** Players per side on the court in this league's 3v3. A team with fewer can take a late arrival without anyone coming out. */
+const ON_COURT = 3;
 
 const COLS = { 1: "grid-cols-1", 2: "grid-cols-2", 3: "grid-cols-3" };
 
@@ -68,7 +84,8 @@ const TEAM_STYLE = {
 
 export default function Scorekeeper({
   gameId,
-  roster,
+  roster: initialRoster,
+  players: leaguePlayers = [],
   initialEvents,
   startMs,
   target,
@@ -77,9 +94,13 @@ export default function Scorekeeper({
   windowLabel = "",
   opensAt = null,
   serverNow = 0,
+  initialMode = "quick",
 }: {
   gameId: number;
+  /** Everyone in the game when the page loaded. Late arrivals are added on top (see useGameSync). */
   roster: RosterEntry[];
+  /** Every active player in the league, for adding someone who arrives late. */
+  players?: { id: number; name: string }[];
   initialEvents: GameEvent[];
   startMs: number;
   target: number;
@@ -90,22 +111,31 @@ export default function Scorekeeper({
   /** Epoch ms when scoring next opens (view-only banner countdown). */
   opensAt?: number | null;
   serverNow?: number;
+  /** The scoring style saved on this phone, read from a cookie by the server. */
+  initialMode?: ScoreMode;
 }) {
   const router = useRouter();
   const [sheet, setSheet] = useState<Sheet | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
   const [showLog, setShowLog] = useState(false);
   const [voiceOpen, setVoiceOpen] = useState(false);
+  const [mode, setMode] = useScoreMode(initialMode);
+  const [follow, setFollow] = useState<FollowState | null>(null);
+  const [padSel, setPadSel] = useState<number | null>(null);
+  /** Plays a spoken or typed sentence saved without asking, kept for the Undo message. */
+  const [saved, setSaved] = useState<{ text: string; grps: string[] } | null>(null);
   const [finishing, startFinish] = useTransition();
   // Plays are saved in the background (queued if the phone loses signal), and the server's copy
   // is polled so plays recorded on another phone show up here too. Paused while a menu is open.
   const sync = useGameSync({
     gameId,
     initialEvents,
+    initialRoster,
     paused: sheet !== null || voiceOpen,
     onFinished: () => router.refresh(),
   });
   const events = sync.events;
+  const roster = sync.roster;
   const error = localError ?? sync.error;
 
   const lines = useMemo(
@@ -124,6 +154,31 @@ export default function Scorekeeper({
     const id = setInterval(() => redraw((n) => n + 1), 250);
     return () => clearInterval(id);
   }, [clock.running, clock.activeTimeout]);
+  // Keep the screen on while someone is scoring, so the phone doesn't lock between plays.
+  useEffect(() => {
+    if (readOnly || !("wakeLock" in navigator)) return;
+    let lock: WakeLockSentinel | null = null;
+    let stopped = false;
+    const acquire = async () => {
+      try {
+        const l = await navigator.wakeLock.request("screen");
+        if (stopped) void l.release();
+        else lock = l;
+      } catch {
+        /* not allowed here (low battery, or not a secure page): the screen just follows the phone's setting */
+      }
+    };
+    void acquire();
+    // The lock is dropped when the page is hidden; take it again on return.
+    const back = () => document.visibilityState === "visible" && void acquire();
+    document.addEventListener("visibilitychange", back);
+    return () => {
+      stopped = true;
+      document.removeEventListener("visibilitychange", back);
+      void lock?.release();
+    };
+  }, [readOnly]);
+
   const nowMs = sync.now();
   const timeoutsBy = (t: Team) =>
     clock.timeouts.filter((x) => x.team === t).length;
@@ -160,11 +215,13 @@ export default function Scorekeeper({
     return roster.find((p) => p.id === miss.playerId)?.team ?? null;
   }, [groups, roster]);
 
-  function commit(evs: Ev[]) {
+  function commit(evs: Ev[]): string {
     navigator.vibrate?.(12);
     setSheet(null);
     setLocalError(null);
-    sync.add(evs);
+    setFollow(null);
+    setSaved(null);
+    return sync.add(evs);
   }
 
   function removeGroup(grp: string) {
@@ -331,15 +388,28 @@ export default function Scorekeeper({
       sections: [
         {
           cols: 2,
-          options: active(b.team).map((p) => ({
-            label: p.name,
-            tone: "sub" as const,
-            onPick: () =>
-              commit([
-                { playerId: p.id, type: "SUB_OUT" },
-                { playerId: b.id, type: "SUB_IN" },
-              ]),
-          })),
+          options: [
+            // Short-handed (someone left, or the team started with two): just join, no one comes out.
+            ...(active(b.team).length < ON_COURT
+              ? [
+                  {
+                    label: "Join the court",
+                    hint: "no one out",
+                    tone: "good" as const,
+                    onPick: () => commit([{ playerId: b.id, type: "SUB_IN" }]),
+                  },
+                ]
+              : []),
+            ...active(b.team).map((p) => ({
+              label: p.name,
+              tone: "sub" as const,
+              onPick: () =>
+                commit([
+                  { playerId: p.id, type: "SUB_OUT" },
+                  { playerId: b.id, type: "SUB_IN" },
+                ]),
+            })),
+          ],
         },
       ],
     });
@@ -455,6 +525,138 @@ export default function Scorekeeper({
     });
   }
 
+  // ---- Quick and Pad flows: save the play first, add the detail after ---------------------
+
+  const dismissFollow = useCallback(() => setFollow(null), []);
+  const dismissSaved = useCallback(() => setSaved(null), []);
+
+  /** A shot is saved at once; a chip strip then offers the assist (made) or the rebound (missed). */
+  function quickShot(p: RosterEntry, type: "MAKE2" | "MAKE3" | "MISS2" | "MISS3") {
+    const grp = commit([{ playerId: p.id, type }]);
+    setFollow({
+      grp,
+      kind: type.startsWith("MAKE") ? "assist" : "rebound",
+      playerId: p.id,
+    });
+  }
+
+  function quickSolo(p: RosterEntry, type: EventType) {
+    commit([{ playerId: p.id, type }]);
+  }
+
+  function quickSteal(p: RosterEntry) {
+    const grp = commit([{ playerId: p.id, type: "STL" }]);
+    setFollow({ grp, kind: "stealFrom", playerId: p.id });
+  }
+
+  function quickBlock(p: RosterEntry) {
+    const grp = commit([{ playerId: p.id, type: "BLK" }]);
+    setFollow({ grp, kind: "blockShot", playerId: p.id });
+  }
+
+  /**
+   * Adds events to the play that was just saved. A saved group can't be appended to, so the play is
+   * swapped for a copy that carries the extra events (same time, same place in the log). It is
+   * only ever the latest play, so nothing recorded in between can be reordered.
+   */
+  function attach(extra: Ev[], next?: (grp: string) => FollowState | null) {
+    const g = groups[groups.length - 1];
+    if (!follow || !g || g.grp !== follow.grp) return setFollow(null);
+    navigator.vibrate?.(12);
+    const base: Ev[] = g.events.map((e) => ({
+      playerId: e.playerId,
+      type: e.type,
+      ...(e.team ? { team: e.team } : {}),
+    }));
+    sync.remove(g.grp);
+    const grp = sync.add([...base, ...extra], g.events[0].at);
+    setFollow(next ? next(grp) : null);
+  }
+
+  /** What the strip offers for the current follow-up, or null when there is nothing to pick. */
+  function followView(f: FollowState): { title: string; groups: ChipGroup[] } | null {
+    const p = roster.find((r) => r.id === f.playerId);
+    if (!p) return null;
+    const who = shortName(p.name);
+    const chipsFor = (list: RosterEntry[], type: EventType, tone?: "good") =>
+      list.map((m) => ({
+        key: `${type}-${m.id}`,
+        label: shortName(m.name),
+        tone,
+        onPick: () => attach([{ playerId: m.id, type }]),
+      }));
+    let out: { title: string; groups: ChipGroup[] };
+    switch (f.kind) {
+      case "assist":
+        out = {
+          title: `${who} scored · assist?`,
+          groups: [{ chips: chipsFor(mates(p), "AST", "good") }],
+        };
+        break;
+      case "rebound":
+        out = {
+          title: `${who} missed · rebound?`,
+          groups: [
+            { heading: "Off", chips: chipsFor(active(p.team), "OREB") },
+            { heading: "Def", chips: chipsFor(opponents(p), "DREB") },
+          ],
+        };
+        break;
+      case "stealFrom":
+        out = {
+          title: `${who} steal · whose ball?`,
+          groups: [{ chips: chipsFor(opponents(p), "TOV") }],
+        };
+        break;
+      case "blockShot":
+        out = {
+          title: `${who} block · whose shot?`,
+          groups: opponents(p).map((o) => ({
+            heading: shortName(o.name),
+            chips: ([2, 3] as const).map((n) => ({
+              key: `blk-${o.id}-${n}`,
+              label: `Missed ${n}`,
+              onPick: () =>
+                attach(
+                  [{ playerId: o.id, type: n === 3 ? "MISS3" : "MISS2" }],
+                  (grp) => ({ grp, kind: "rebound", playerId: o.id }),
+                ),
+            })),
+          })),
+        };
+        break;
+    }
+    return out.groups.some((g) => g.chips.length > 0) ? out : null;
+  }
+
+  // ---- Late arrivals -------------------------------------------------------------------------
+
+  const [lateBusy, setLateBusy] = useState(false);
+
+  /** Adds someone to this game (an existing player, or a new name) and offers to check them in. */
+  async function addLate(team: Team, who: { playerId?: number; name?: string }) {
+    setLateBusy(true);
+    setLocalError(null);
+    try {
+      const res = await addLatePlayer({ gameId, team, ...who });
+      if (!res.ok) return setLocalError(res.error);
+      const entry: RosterEntry = {
+        id: res.player.id,
+        name: res.player.name,
+        team,
+        starter: false,
+        nicknames: res.player.nicknames,
+      };
+      sync.addToRoster(entry);
+      // They're on the bench now. Ask who comes out (or let them join a short team); closing leaves them on the bench.
+      subInStep(entry);
+    } catch {
+      setLocalError("Couldn't add the player. Check the connection and try again.");
+    } finally {
+      setLateBusy(false);
+    }
+  }
+
   function finish() {
     // Plays still waiting to be sent would be refused once the game is finished, so wait for them.
     if (sync.pending > 0) {
@@ -470,8 +672,88 @@ export default function Scorekeeper({
 
   const last = groups[groups.length - 1];
 
+  // Spectators always see the plain cards. Scorers get the style they picked on this phone.
+  const view = readOnly ? "classic" : mode;
+  // The follow-up only belongs to the latest play: another play, an undo or a delete clears it.
+  const followNow = follow && last?.grp === follow.grp ? followView(follow) : null;
+  const padPlayer =
+    roster.find((p) => p.id === padSel && court.has(p.id)) ?? null;
+
+  // The scoring-style switch and the voice box. In Pad mode they sit below the tiles so the fixed
+  // action bar doesn't cover the players.
+  const controls = (
+    <>
+      {!readOnly && (
+        <div className="space-y-1.5">
+          <div
+            role="radiogroup"
+            aria-label="Scoring style"
+            className="grid grid-cols-3 gap-1 rounded-2xl bg-black/[0.05] p-1"
+          >
+            {SCORE_MODES.map((m) => (
+              <button
+                key={m.id}
+                type="button"
+                role="radio"
+                aria-checked={mode === m.id}
+                onClick={() => {
+                  setMode(m.id);
+                  setFollow(null);
+                }}
+                className={`h-10 rounded-xl text-sm font-bold transition ${
+                  mode === m.id
+                    ? "bg-white shadow-sm ring-1 ring-black/5"
+                    : "text-muted"
+                }`}
+              >
+                {m.title}
+              </button>
+            ))}
+          </div>
+          <p className="px-1 text-xs font-medium text-muted">
+            {SCORE_MODES.find((m) => m.id === mode)?.hint}
+          </p>
+        </div>
+      )}
+
+      {!readOnly && (
+        <VoiceEntry
+          roster={roster}
+          court={court}
+          lastMissTeam={lastMissTeam}
+          lastPlay={last ? describeGroup(last.events, nameOf) : null}
+          onCommit={commit}
+          onSaved={setSaved}
+          onUndo={() => last && removeGroup(last.grp)}
+          onOpenChange={setVoiceOpen}
+        />
+      )}
+    </>
+  );
+
+  const padActions: PadAction[] = [
+    { key: "m2", label: "+2", tone: "good", onPress: () => padPlayer && quickShot(padPlayer, "MAKE2") },
+    { key: "m3", label: "+3", tone: "good", onPress: () => padPlayer && quickShot(padPlayer, "MAKE3") },
+    { key: "x2", label: "Miss 2", tone: "bad", onPress: () => padPlayer && quickShot(padPlayer, "MISS2") },
+    { key: "x3", label: "Miss 3", tone: "bad", onPress: () => padPlayer && quickShot(padPlayer, "MISS3") },
+    { key: "ftm", label: "FT +1", tone: "good", onPress: () => padPlayer && quickSolo(padPlayer, "MAKE_FT") },
+    { key: "ftx", label: "FT miss", tone: "bad", onPress: () => padPlayer && quickSolo(padPlayer, "MISS_FT") },
+    { key: "oreb", label: "Off reb", tone: "neutral", onPress: () => padPlayer && quickSolo(padPlayer, "OREB") },
+    { key: "dreb", label: "Def reb", tone: "neutral", onPress: () => padPlayer && quickSolo(padPlayer, "DREB") },
+    { key: "ast", label: "Assist", tone: "neutral", onPress: () => padPlayer && quickSolo(padPlayer, "AST") },
+    { key: "stl", label: "Steal", tone: "neutral", onPress: () => padPlayer && quickSteal(padPlayer) },
+    { key: "blk", label: "Block", tone: "neutral", onPress: () => padPlayer && quickBlock(padPlayer) },
+    { key: "tov", label: "Turnover", tone: "bad", onPress: () => padPlayer && quickSolo(padPlayer, "TOV") },
+    { key: "pf", label: "Foul", tone: "bad", onPress: () => padPlayer && quickSolo(padPlayer, "FOUL") },
+    { key: "defl", label: "Deflect", tone: "neutral", onPress: () => padPlayer && quickSolo(padPlayer, "DEFL") },
+    { key: "sub", label: "Sub out…", tone: "sub", onPress: () => padPlayer && bench(padPlayer.team).length > 0 && subOutStep(padPlayer) },
+    { key: "undo", label: "↶ Undo", tone: "neutral", needsPlayer: false, onPress: () => last && removeGroup(last.grp) },
+  ];
+
   return (
-    <div className="space-y-4">
+    <div
+      className={`space-y-4 ${view === "pad" ? "pb-[26rem]" : view === "quick" ? "pb-44" : ""}`}
+    >
       {/* Scoreboard */}
       <div className="sticky top-[calc(var(--header-h)+8px)] z-10 -mx-4 px-4 pb-2 pt-1">
         <div className="glass-3 overflow-hidden rounded-3xl">
@@ -698,17 +980,7 @@ export default function Scorekeeper({
         </div>
       )}
 
-      {!readOnly && (
-        <VoiceEntry
-          roster={roster}
-          court={court}
-          lastMissTeam={lastMissTeam}
-          lastPlay={last ? describeGroup(last.events, nameOf) : null}
-          onCommit={commit}
-          onUndo={() => last && removeGroup(last.grp)}
-          onOpenChange={setVoiceOpen}
-        />
-      )}
+      {view !== "pad" && controls}
 
       {/* On-court cards + bench */}
       <div className="grid grid-cols-2 gap-3">
@@ -716,6 +988,100 @@ export default function Scorekeeper({
           <div key={t} className="space-y-2">
             {active(t).map((p) => {
               const l = lines.find((x) => x.playerId === p.id)!;
+              const header = (
+                <div className="flex items-center gap-2">
+                  <Avatar id={p.id} name={p.name} size="sm" />
+                  <span className="min-w-0 flex-1 truncate font-bold">
+                    {shortName(p.name)}
+                  </span>
+                  <span
+                    key={l.pts}
+                    className="pop tabular text-2xl font-extrabold tracking-tight"
+                  >
+                    {l.pts}
+                  </span>
+                </div>
+              );
+              const stats = (
+                <div className="tabular mt-2 flex flex-wrap gap-x-2 gap-y-0.5 text-[11px] font-semibold text-muted">
+                  <span>
+                    FG {l.fgm}/{l.fga}
+                  </span>
+                  {l.fta > 0 && (
+                    <span>
+                      FT {l.ftm}/{l.fta}
+                    </span>
+                  )}
+                  <span>{l.reb} reb</span>
+                  <span>{l.ast} ast</span>
+                  <span>{l.stl} stl</span>
+                  <span>{l.blk} blk</span>
+                  {l.tov > 0 && <span>{l.tov} to</span>}
+                  {l.pf > 0 && (
+                    <span className={l.pf >= 4 ? "font-bold text-loss" : ""}>
+                      {l.pf} pf
+                    </span>
+                  )}
+                </div>
+              );
+
+              // Quick: the shot buttons are on the card, one tap each. The name opens the full menu.
+              if (view === "quick") {
+                return (
+                  <div key={p.id} className="glass-1 rounded-2xl p-3">
+                    <button
+                      onClick={() => playerSheet(p)}
+                      aria-label={`${p.name}: all actions`}
+                      className="block w-full text-left active:opacity-70"
+                    >
+                      {header}
+                      {stats}
+                    </button>
+                    <div className="mt-2.5 grid grid-cols-2 gap-1.5">
+                      {(
+                        [
+                          ["MAKE2", "+2", "good"],
+                          ["MAKE3", "+3", "good"],
+                          ["MISS2", "Miss 2", "bad"],
+                          ["MISS3", "Miss 3", "bad"],
+                        ] as const
+                      ).map(([type, label, tone]) => (
+                        <button
+                          key={type}
+                          onClick={() => quickShot(p, type)}
+                          aria-label={`${p.name} ${label}`}
+                          className={`h-12 rounded-xl text-sm font-extrabold transition-transform active:scale-95 ${TONES[tone]}`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              }
+
+              // Pad: tap a player once to select them; the action bar at the bottom does the rest.
+              if (view === "pad") {
+                const picked = padPlayer?.id === p.id;
+                return (
+                  <button
+                    key={p.id}
+                    onClick={() => setPadSel(p.id)}
+                    aria-pressed={picked}
+                    className={`glass-1 w-full rounded-2xl p-3 text-left transition active:scale-[0.98] ${
+                      picked
+                        ? t === "A"
+                          ? "!border-court !bg-court/20 ring-2 ring-court"
+                          : "!border-away !bg-away/20 ring-2 ring-away"
+                        : ""
+                    }`}
+                  >
+                    {header}
+                    {stats}
+                  </button>
+                );
+              }
+
               return (
                 <button
                   key={p.id}
@@ -727,41 +1093,26 @@ export default function Scorekeeper({
                       : `transition-transform active:scale-[0.98] active:ring-2 ${TEAM_STYLE[t].ring}`
                   }`}
                 >
-                  <div className="flex items-center gap-2">
-                    <Avatar id={p.id} name={p.name} size="sm" />
-                    <span className="min-w-0 flex-1 truncate font-bold">
-                      {shortName(p.name)}
-                    </span>
-                    <span
-                      key={l.pts}
-                      className="pop tabular text-2xl font-extrabold tracking-tight"
-                    >
-                      {l.pts}
-                    </span>
-                  </div>
-                  <div className="tabular mt-2 flex flex-wrap gap-x-2 gap-y-0.5 text-[11px] font-semibold text-muted">
-                    <span>
-                      FG {l.fgm}/{l.fga}
-                    </span>
-                    {l.fta > 0 && (
-                      <span>
-                        FT {l.ftm}/{l.fta}
-                      </span>
-                    )}
-                    <span>{l.reb} reb</span>
-                    <span>{l.ast} ast</span>
-                    <span>{l.stl} stl</span>
-                    <span>{l.blk} blk</span>
-                    {l.tov > 0 && <span>{l.tov} to</span>}
-                    {l.pf > 0 && (
-                      <span className={l.pf >= 4 ? "font-bold text-loss" : ""}>
-                        {l.pf} pf
-                      </span>
-                    )}
-                  </div>
+                  {header}
+                  {stats}
                 </button>
               );
             })}
+            {!readOnly && (
+              <PlayerPicker
+                label={TEAM_STYLE[t].label}
+                accent={t === "A" ? "court" : "away"}
+                buttonLabel="Late arrival"
+                title={`Late arrival · ${TEAM_STYLE[t].label}`}
+                compact
+                busy={lateBusy}
+                options={leaguePlayers.filter(
+                  (lp) => !roster.some((r) => r.id === lp.id),
+                )}
+                onPick={(playerId) => void addLate(t, { playerId })}
+                onCreate={(name) => void addLate(t, { name })}
+              />
+            )}
             {bench(t).length > 0 && (
               <div className="rounded-2xl bg-black/[0.04] p-2">
                 <div className="label mb-1 px-1 text-[10px] text-muted">
@@ -838,6 +1189,8 @@ export default function Scorekeeper({
         )}
       </div>
 
+      {view === "pad" && controls}
+
       {!result.over && !readOnly && (
         <button
           onClick={() => {
@@ -852,6 +1205,36 @@ export default function Scorekeeper({
         >
           End game early
         </button>
+      )}
+
+      {/* Follow-up chips and (in Pad) the action bar sit in the thumb zone, above the bottom nav. */}
+      {!readOnly && (view === "pad" || followNow || saved) && (
+        <div className="pointer-events-none fixed inset-x-0 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-30 mx-auto max-w-3xl px-4 md:bottom-4">
+          <div className="pointer-events-auto space-y-2">
+            {saved && (
+              <SavedToast
+                stamp={saved.grps.join("")}
+                text={saved.text}
+                onUndo={() => {
+                  saved.grps.forEach(removeGroup);
+                  setSaved(null);
+                }}
+                onDismiss={dismissSaved}
+              />
+            )}
+            {follow && followNow && (
+              <FollowUp
+                stamp={follow.grp}
+                title={followNow.title}
+                groups={followNow.groups}
+                onDismiss={dismissFollow}
+              />
+            )}
+            {view === "pad" && (
+              <ActionPad player={padPlayer} actions={padActions} />
+            )}
+          </div>
+        </div>
       )}
 
       {/* Action sheet */}
