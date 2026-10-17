@@ -271,3 +271,136 @@ body {
     repeating-linear-gradient(45deg, rgb(255 255 255 / 0.07) 0 6px, transparent 6px 12px),
     linear-gradient(165deg, #292524, #44403c);
 }
+
+/* ---- Recap slideshows (month = royal blue, year = black and gold) ---- */
+.show {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  overflow: hidden;
+  color: #fff;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+}
+.show-month {
+  background: radial-gradient(120% 80% at 50% 0%, #1e40af 0%, #172554 48%, #0b1226 100%);
+}
+.show-year {
+  background: radial-gradient(110% 70% at 50% 18%, #854d0e 0%, #3b2306 46%, #0a0603 100%);
+}
+.show-vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(120% 90% at 50% 40%, transparent 55%, rgb(0 0 0 / 0.55) 100%);
+}
+/* Slowly turning light rays behind the year show. */
+.show-rays {
+  position: absolute;
+  inset: -60%;
+  pointer-events: none;
+  background: repeating-conic-gradient(
+    from 0deg at 50% 50%,
+    rgb(253 224 71 / 0) 0deg 9deg,
+    rgb(253 224 71 / 0.14) 9deg 18deg
+  );
+  -webkit-mask-image: radial-gradient(circle at 50% 50%, #000 0%, transparent 38%);
+  mask-image: radial-gradient(circle at 50% 50%, #000 0%, transparent 38%);
+  animation: show-spin 70s linear infinite;
+}
+@keyframes show-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes show-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.97);
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+@keyframes show-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes show-pulse {
+  50% {
+    transform: scale(1.14);
+    opacity: 0.75;
+  }
+}
+@keyframes show-shimmer {
+  to {
+    background-position: -250% 0;
+  }
+}
+.show-in,
+.show-pop {
+  opacity: 0;
+  animation: show-in 700ms cubic-bezier(0.2, 0.8, 0.2, 1) var(--d, 0ms) forwards;
+}
+.show-pop {
+  animation-name: show-pop;
+  animation-duration: 650ms;
+}
+.show-pulse {
+  animation: show-pulse 900ms ease-in-out infinite;
+}
+/* Gold lettering with a light that sweeps across it. */
+.show-gold-text {
+  background: linear-gradient(100deg, #fde68a 20%, #ffffff 45%, #facc15 60%, #fde68a 80%) 0 0 / 250% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: show-shimmer 3.5s linear infinite;
+}
+/* Gold lettering that also arrives with an entrance: both animations have to be named together. */
+.show-gold-text.show-in {
+  animation:
+    show-in 700ms cubic-bezier(0.2, 0.8, 0.2, 1) var(--d, 0ms) forwards,
+    show-shimmer 3.5s linear infinite;
+}
+.show-gold-text.show-pop {
+  animation:
+    show-pop 650ms cubic-bezier(0.2, 0.8, 0.2, 1) var(--d, 0ms) forwards,
+    show-shimmer 3.5s linear infinite;
+}
+.show-paused,
+.show-paused * {
+  animation-play-state: paused !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .show-in,
+  .show-pop,
+  .show-gold-text.show-in,
+  .show-gold-text.show-pop {
+    opacity: 1;
+    animation: none;
+  }
+  .show-pulse,
+  .show-rays,
+  .show-gold-text {
+    animation: none;
+  }
+  .show-gold-text {
+    background-position: 0 0;
+  }
+}
