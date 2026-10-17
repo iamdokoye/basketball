@@ -4,6 +4,7 @@ import { useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import type { RosterEntry, Team } from "@/lib/stats";
 import {
+  autoPlan,
   buildPlay,
   parseVoice,
   playNeeds,
@@ -83,6 +84,35 @@ function writeNicks(list: { alias: string; id: number }[]) {
   nickListeners.forEach((cb) => cb());
 }
 
+// ---- "save clear plays without asking", kept on this phone ------------------------------------
+
+const AUTO_KEY = "pl-voice-auto-v1";
+const autoListeners = new Set<() => void>();
+/** On unless it was switched off. */
+const readAuto = () => {
+  try {
+    return localStorage.getItem(AUTO_KEY) !== "off";
+  } catch {
+    return true;
+  }
+};
+const subscribeAuto = (cb: () => void) => {
+  autoListeners.add(cb);
+  window.addEventListener("storage", cb);
+  return () => {
+    autoListeners.delete(cb);
+    window.removeEventListener("storage", cb);
+  };
+};
+function writeAuto(on: boolean) {
+  try {
+    localStorage.setItem(AUTO_KEY, on ? "on" : "off");
+  } catch {
+    /* private mode: the choice lasts until reload */
+  }
+  autoListeners.forEach((cb) => cb());
+}
+
 type Draftset = { heard: string; plays: Play[]; unparsed: string[] };
 
 export function VoiceEntry({
@@ -91,6 +121,7 @@ export function VoiceEntry({
   lastMissTeam,
   lastPlay,
   onCommit,
+  onSaved,
   onUndo,
   onOpenChange,
 }: {
@@ -100,7 +131,10 @@ export function VoiceEntry({
   lastMissTeam: Team | null;
   /** Wording of the most recent play (what "undo" would remove), or null if there is none. */
   lastPlay: string | null;
-  onCommit: (events: Draft[]) => void;
+  /** Records one play and returns its id, so an automatic save can be taken back. */
+  onCommit: (events: Draft[]) => string;
+  /** Called after plays were saved without asking, with their wording and ids (for the Undo message). */
+  onSaved: (saved: { text: string; grps: string[] }) => void;
   onUndo: () => void;
   onOpenChange: (open: boolean) => void;
 }) {
@@ -116,6 +150,7 @@ export function VoiceEntry({
       (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1),
     () => false,
   );
+  const autoOn = useSyncExternalStore(subscribeAuto, readAuto, () => true);
   const nickRaw = useSyncExternalStore(subscribeNicks, readNicks, () => "[]");
   const aliases = useMemo(() => {
     try {
@@ -155,6 +190,8 @@ export function VoiceEntry({
   const [note, setNote] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draftset | null>(null);
   const [reread, setReread] = useState("");
+  /** Why this one is being asked about instead of saved straight away (shown on the confirm sheet). */
+  const [why, setWhy] = useState<string | null>(null);
   const [showNicks, setShowNicks] = useState(false);
   const [nickName, setNickName] = useState("");
   const [nickId, setNickId] = useState<number>(roster[0]?.id ?? 0);
@@ -184,6 +221,14 @@ export function VoiceEntry({
       return;
     }
     setNote(null);
+    // Clear enough to trust? Save it now (with an Undo) instead of asking.
+    const plan = autoOn ? autoPlan(parsed, ctx) : null;
+    if (plan?.auto) {
+      const grps = plan.plays.map((b) => onCommit(b.events));
+      onSaved({ text: plan.plays.map((b) => b.summary).join(" · "), grps });
+      return;
+    }
+    setWhy(plan && !plan.auto ? plan.reason : null);
     setReread(t);
     open({ heard: t, plays: parsed.plays, unparsed: parsed.unparsed });
   }
@@ -467,14 +512,33 @@ export function VoiceEntry({
       )}
 
       <div className="px-1">
-        <button
-          type="button"
-          onClick={() => setShowNicks((s) => !s)}
-          className="text-xs font-semibold text-muted"
-        >
-          Nicknames {aliases.length > 0 ? `(${aliases.length})` : ""}{" "}
-          {showNicks ? "▲" : "▼"}
-        </button>
+        <div className="flex items-center justify-between gap-3">
+          <button
+            type="button"
+            onClick={() => setShowNicks((s) => !s)}
+            className="text-xs font-semibold text-muted"
+          >
+            Nicknames {aliases.length > 0 ? `(${aliases.length})` : ""}{" "}
+            {showNicks ? "▲" : "▼"}
+          </button>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={autoOn}
+            onClick={() => writeAuto(!autoOn)}
+            className="flex items-center gap-2 text-xs font-semibold text-muted"
+          >
+            Save clear plays without asking
+            <span
+              aria-hidden
+              className={`relative h-5 w-9 rounded-full transition-colors ${autoOn ? "bg-win" : "bg-black/20"}`}
+            >
+              <span
+                className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${autoOn ? "left-[1.1rem]" : "left-0.5"}`}
+              />
+            </span>
+          </button>
+        </div>
         {showNicks && (
           <div className="mt-2 space-y-2">
             <p className="text-xs text-muted">
@@ -569,6 +633,10 @@ export function VoiceEntry({
                   ✕
                 </button>
               </div>
+
+              {why && (
+                <p className="-mt-1 text-sm font-semibold text-sub">{why}</p>
+              )}
 
               <form
                 onSubmit={(e) => {

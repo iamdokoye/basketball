@@ -95,3 +95,62 @@ export function FollowUp({
     </div>
   );
 }
+
+/** How long the "Saved" message (with its Undo) stays up. */
+export const SAVED_MS = 5_000;
+
+/**
+ * Shown after a voice or typed play was saved without asking. The plays are already in the log; this is
+ * the one-tap way out if it heard something wrong. It goes away by itself.
+ */
+export function SavedToast({
+  stamp,
+  text,
+  onUndo,
+  onDismiss,
+}: {
+  stamp: string;
+  text: string;
+  onUndo: () => void;
+  onDismiss: () => void;
+}) {
+  useEffect(() => {
+    const t = setTimeout(onDismiss, SAVED_MS);
+    return () => clearTimeout(t);
+  }, [stamp, onDismiss]);
+
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="glass-3 sheet-up overflow-hidden rounded-3xl !bg-paper/95 shadow-lg"
+    >
+      <div className="flex items-center gap-3 p-3">
+        <span
+          aria-hidden
+          className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-win/15 font-extrabold text-win"
+        >
+          ✓
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="label text-[10px] text-muted">Saved</div>
+          <div className="text-sm font-bold leading-snug">{text}</div>
+        </div>
+        <button
+          type="button"
+          onClick={onUndo}
+          className="h-10 shrink-0 rounded-full bg-ink px-4 text-sm font-semibold text-paper active:scale-95"
+        >
+          Undo
+        </button>
+      </div>
+      <div className="h-1 bg-black/[0.05]">
+        <div
+          key={stamp}
+          className="h-full origin-left bg-win/60"
+          style={{ animation: `follow-up-drain ${SAVED_MS}ms linear forwards` }}
+        />
+      </div>
+    </div>
+  );
+}

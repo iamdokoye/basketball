@@ -26,7 +26,7 @@ import { Avatar, shortName } from "@/app/components/Avatar";
 import { Countdown } from "@/app/components/Countdown";
 import { VoiceEntry } from "./VoiceEntry";
 import { ActionPad, type PadAction } from "./ActionPad";
-import { FollowUp, type ChipGroup } from "./FollowUp";
+import { FollowUp, SavedToast, type ChipGroup } from "./FollowUp";
 import { useScoreMode } from "./scoreMode";
 import { SCORE_MODES, type ScoreMode } from "./scoreModeShared";
 
@@ -114,6 +114,8 @@ export default function Scorekeeper({
   const [mode, setMode] = useScoreMode(initialMode);
   const [follow, setFollow] = useState<FollowState | null>(null);
   const [padSel, setPadSel] = useState<number | null>(null);
+  /** Plays a spoken or typed sentence saved without asking, kept for the Undo message. */
+  const [saved, setSaved] = useState<{ text: string; grps: string[] } | null>(null);
   const [finishing, startFinish] = useTransition();
   // Plays are saved in the background (queued if the phone loses signal), and the server's copy
   // is polled so plays recorded on another phone show up here too. Paused while a menu is open.
@@ -208,6 +210,7 @@ export default function Scorekeeper({
     setSheet(null);
     setLocalError(null);
     setFollow(null);
+    setSaved(null);
     return sync.add(evs);
   }
 
@@ -502,6 +505,7 @@ export default function Scorekeeper({
   // ---- Quick and Pad flows: save the play first, add the detail after ---------------------
 
   const dismissFollow = useCallback(() => setFollow(null), []);
+  const dismissSaved = useCallback(() => setSaved(null), []);
 
   /** A shot is saved at once; a chip strip then offers the assist (made) or the rebound (missed). */
   function quickShot(p: RosterEntry, type: "MAKE2" | "MAKE3" | "MISS2" | "MISS3") {
@@ -668,6 +672,7 @@ export default function Scorekeeper({
           lastMissTeam={lastMissTeam}
           lastPlay={last ? describeGroup(last.events, nameOf) : null}
           onCommit={commit}
+          onSaved={setSaved}
           onUndo={() => last && removeGroup(last.grp)}
           onOpenChange={setVoiceOpen}
         />
@@ -1137,9 +1142,20 @@ export default function Scorekeeper({
       )}
 
       {/* Follow-up chips and (in Pad) the action bar sit in the thumb zone, above the bottom nav. */}
-      {!readOnly && (view === "pad" || followNow) && (
+      {!readOnly && (view === "pad" || followNow || saved) && (
         <div className="pointer-events-none fixed inset-x-0 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-30 mx-auto max-w-3xl px-4 md:bottom-4">
           <div className="pointer-events-auto space-y-2">
+            {saved && (
+              <SavedToast
+                stamp={saved.grps.join("")}
+                text={saved.text}
+                onUndo={() => {
+                  saved.grps.forEach(removeGroup);
+                  setSaved(null);
+                }}
+                onDismiss={dismissSaved}
+              />
+            )}
             {follow && followNow && (
               <FollowUp
                 stamp={follow.grp}
