@@ -26,6 +26,7 @@ const HEAD = [
   "PTS",
   "RTG",
   "FG",
+  "2P",
   "3P",
   "FT",
   "REB",
@@ -42,6 +43,8 @@ const SUM_KEYS = [
   "pts",
   "fgm",
   "fga",
+  "fg2m",
+  "fg2a",
   "fg3m",
   "fg3a",
   "ftm",
@@ -127,6 +130,9 @@ export function BoxScoreTable({
                   {l.fgm}-{l.fga}
                 </td>
                 <td className={cell}>
+                  {l.fg2m}-{l.fg2a}
+                </td>
+                <td className={cell}>
                   {l.fg3m}-{l.fg3a}
                 </td>
                 <td className={cell}>
@@ -162,6 +168,9 @@ export function BoxScoreTable({
                 {total.fgm}-{total.fga}
               </td>
               <td className={cell}>
+                {total.fg2m}-{total.fg2a}
+              </td>
+              <td className={cell}>
                 {total.fg3m}-{total.fg3a}
               </td>
               <td className={cell}>
@@ -180,8 +189,9 @@ export function BoxScoreTable({
         </table>
       </div>
       <div className="hairline border-t px-3 py-2 text-xs text-muted">
-        FG {fmtPct(total.fgm, total.fga)} · 3P {fmtPct(total.fg3m, total.fg3a)}{" "}
-        · FT {fmtPct(total.ftm, total.fta)} · eFG{" "}
+        FG {fmtPct(total.fgm, total.fga)} (2P + 3P) · 2P{" "}
+        {fmtPct(total.fg2m, total.fg2a)} · 3P {fmtPct(total.fg3m, total.fg3a)} ·
+        FT {fmtPct(total.ftm, total.fta)} · eFG{" "}
         {fmtEfg({ fgm: total.fgm, fg3m: total.fg3m, fga: total.fga })} · TS{" "}
         {fmtTs({ pts: total.pts, fga: total.fga, fta: total.fta })}
       </div>
