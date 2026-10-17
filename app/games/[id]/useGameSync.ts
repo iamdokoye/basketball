@@ -246,10 +246,11 @@ export function useGameSync({
     };
   }, [gameId, paused]);
 
+  /** Records a play (one or more linked events) and returns its group id. `atMs` keeps an earlier time (used when amending). */
   const add = useCallback(
-    (evs: Ev[]) => {
+    (evs: Ev[], atMs?: number): string => {
       const grp = crypto.randomUUID();
-      const at = Date.now() + offset.current;
+      const at = atMs ?? Date.now() + offset.current;
       setError(null);
       setAdds((m) =>
         new Map(m).set(
@@ -260,6 +261,7 @@ export function useGameSync({
       queue.current.push({ kind: "add", gameId, grp, at, events: evs });
       persist();
       void flush();
+      return grp;
     },
     [gameId, persist, flush],
   );

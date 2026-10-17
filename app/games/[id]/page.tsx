@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { getAccess } from "@/lib/access";
 import { buildClock, formatClock } from "@/lib/clock";
@@ -11,6 +12,7 @@ import { Avatar } from "@/app/components/Avatar";
 import { ShareRecap } from "@/app/components/ShareRecap";
 import GameAdminActions from "./GameAdminActions";
 import Scorekeeper from "./Scorekeeper";
+import { parseScoreMode, SCORE_MODE_COOKIE } from "./scoreModeShared";
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +39,7 @@ export default async function GamePage({
         windowLabel={access.windowLabel}
         opensAt={access.opensAt}
         serverNow={access.now}
+        initialMode={parseScoreMode((await cookies()).get(SCORE_MODE_COOKIE)?.value)}
       />
     );
   }
