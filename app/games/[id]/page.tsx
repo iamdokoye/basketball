@@ -9,7 +9,9 @@ import { getGame, listPlayers } from "@/lib/queries";
 import { buildRecap } from "@/lib/recap";
 import { BoxScoreTable, formatDate } from "@/app/components/BoxScore";
 import { Avatar } from "@/app/components/Avatar";
+import { GameMomentumChart } from "@/app/components/GameMomentumChart";
 import { ShareRecap } from "@/app/components/ShareRecap";
+import { buildGameMomentum } from "@/lib/momentum";
 import GameAdminActions from "./GameAdminActions";
 import Scorekeeper from "./Scorekeeper";
 import { parseScoreMode, SCORE_MODE_COOKIE } from "./scoreModeShared";
@@ -58,6 +60,7 @@ export default async function GamePage({
 
   const pog = playerOfTheGame(game);
   const svp = gameSvp(game);
+  const momentum = buildGameMomentum(game);
   const recap = buildRecap(game, leagueTimeZone());
   // Total playing time (pauses and timeouts excluded) and the timeouts, with who called each.
   const clock = buildClock(game.events, game.startMs, game.roster);
@@ -191,6 +194,8 @@ export default async function GamePage({
           )}
         </div>
       )}
+
+      {momentum && <GameMomentumChart momentum={momentum} />}
 
       {recap && <ShareRecap text={recap} path={`/games/${game.id}`} />}
 

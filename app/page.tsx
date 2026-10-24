@@ -19,7 +19,9 @@ import { AwardsCard } from "@/app/components/AwardsCard";
 import { monthAwards } from "@/lib/awards";
 import { Countdown } from "@/app/components/Countdown";
 import { AwardCard, CardBack } from "@/app/components/AwardCard";
+import { MilestoneWatch } from "@/app/components/MilestoneWatch";
 import { buildCards, cardsHour, cardsLock } from "@/lib/cards";
+import { getUpcomingMilestones } from "@/lib/milestones";
 
 export const dynamic = "force-dynamic";
 
@@ -82,6 +84,8 @@ export default async function Home() {
     );
     return best ? [{ label, unit, key, player: best }] : [];
   });
+
+  const upcomingMilestones = getUpcomingMilestones(career);
 
   return (
     <div className="space-y-8">
@@ -377,6 +381,9 @@ export default async function Home() {
           </div>
         </section>
       )}
+
+      {/* Milestone Watch */}
+      <MilestoneWatch milestones={upcomingMilestones} />
 
       {/* Explore */}
       <section className="space-y-2.5">

@@ -24,6 +24,10 @@ import { InjuryToggle } from "@/app/components/InjuryToggle";
 import { NicknamesButton } from "@/app/components/NicknamesEditor";
 import { RenamePlayerButton } from "@/app/components/RenamePlayer";
 import { RatingTrend, type TrendPoint } from "@/app/components/RatingTrend";
+import { computePlayerArchetype } from "@/lib/badges";
+import { getPlayerMilestones } from "@/lib/milestones";
+import { PlayerBadges } from "@/app/components/PlayerBadges";
+import { PlayerMilestonesCard } from "@/app/components/PlayerMilestonesCard";
 
 export const dynamic = "force-dynamic";
 
@@ -110,6 +114,8 @@ export default async function PlayerPage({
   const bests = singleGameRecords(games, playerId);
   const streak = winStreaks(games).find((x) => x.playerId === playerId);
   const clutch = clutchTotals(games).find((x) => x.playerId === playerId);
+  const archetype = computePlayerArchetype(c, clutch);
+  const milestones = getPlayerMilestones(c);
 
   const th = "px-2 py-2 text-right font-semibold";
   const td = "px-2 py-2 text-right";
@@ -229,6 +235,8 @@ export default async function PlayerPage({
         </section>
       )}
 
+      <PlayerBadges archetype={archetype} />
+
       <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
         {cards.map(([label, value]) => (
           <div key={label} className="glass-1 rounded-2xl p-3 text-center">
@@ -239,6 +247,8 @@ export default async function PlayerPage({
           </div>
         ))}
       </div>
+
+      <PlayerMilestonesCard milestones={milestones} />
 
       <section className="space-y-2">
         <div className="flex items-baseline justify-between px-1">
