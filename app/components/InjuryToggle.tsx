@@ -41,7 +41,7 @@ export function InjuryToggle({
       onClick={handleToggle}
       disabled={playerId < 0 || pending}
       aria-label={injured ? `Mark ${name} as active` : `Mark ${name} as injured`}
-      className={`tabular inline-flex items-center gap-1.5 transition active:scale-95 disabled:opacity-40 ${className}`}
+      className={`tabular inline-flex items-center gap-1 sm:gap-1.5 transition active:scale-95 disabled:opacity-40 ${className}`}
     >
       <span
         className={`h-2 w-2 rounded-full ${injured ? "bg-rose-500" : "bg-emerald-500"}`}

@@ -77,7 +77,7 @@ function reduce(state: RosterPlayer[], op: Op): RosterPlayer[] {
 }
 
 const PILL =
-  "rounded-full px-3 py-1.5 text-xs font-semibold transition active:scale-95 disabled:opacity-40";
+  "rounded-full px-2 py-1 text-xs font-semibold transition active:scale-95 disabled:opacity-40 sm:px-3 sm:py-1.5";
 
 /**
  * Roster list that updates instantly and saves in the background. The server
@@ -202,7 +202,7 @@ export function PlayerRoster({
                 </div>
               </div>
             </Link>
-            <div className="ml-auto flex shrink-0 items-center gap-2">
+            <div className="flex flex-wrap items-center gap-1 sm:ml-auto sm:gap-2">
               {(canAdd || isAdmin) && (
                 <InjuryToggle
                   playerId={p.id}
