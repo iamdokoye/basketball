@@ -61,11 +61,14 @@ export function BoxScoreTable({
   lines,
   team,
   pogId,
+  svpId,
 }: {
   lines: StatLine[];
   team: Team;
-  /** Player of the game, marked with a star. */
+  /** Player of the game (MVP), marked with a star. */
   pogId?: number;
+  /** Second Valuable Player (SVP), marked with a shield. */
+  svpId?: number;
 }) {
   const rows = lines.filter((l) => l.team === team);
   const total = Object.fromEntries(
@@ -112,11 +115,20 @@ export function BoxScoreTable({
                   )}
                   {l.playerId === pogId && (
                     <span
-                      title="Player of the game"
+                      title="Player of the game (MVP)"
                       aria-label="Player of the game"
                       className="ml-1 text-court-soft"
                     >
                       ★
+                    </span>
+                  )}
+                  {l.playerId === svpId && (
+                    <span
+                      title="SVP (Star of the Vanquished Party)"
+                      aria-label="SVP"
+                      className="ml-1 text-slate-500"
+                    >
+                      🛡️
                     </span>
                   )}
                 </td>

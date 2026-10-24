@@ -1,7 +1,7 @@
 import type { Game } from "./queries";
 import { AWARD_TITLES, monthAwards, type AwardId } from "./awards";
 import { computeMvp, groupByPeriod, monthKey, weekKey } from "./mvp";
-import { playerOfTheGame } from "./pog";
+import { gameSvp, playerOfTheGame } from "./pog";
 import { careerTotals } from "./queries";
 import { rankPlayers } from "./rankings";
 import { groupBySeason, seasonKey, seasonMode } from "./seasons";
@@ -10,6 +10,7 @@ export type Trophies = {
   weeklyMvp: number;
   monthlyMvp: number;
   playerOfTheGame: number;
+  svp: number;
   /** Season honours, only for seasons that are over. */
   seasonMvp: number;
   seasonChampion: number;
@@ -21,6 +22,7 @@ const empty = (): Trophies => ({
   weeklyMvp: 0,
   monthlyMvp: 0,
   playerOfTheGame: 0,
+  svp: 0,
   seasonMvp: 0,
   seasonChampion: 0,
   awards: {},
@@ -47,6 +49,8 @@ export function trophyShelf(
   for (const g of games) {
     const pog = playerOfTheGame(g);
     if (pog) get(pog.line.playerId).playerOfTheGame++;
+    const svp = gameSvp(g);
+    if (svp) get(svp.line.playerId).svp++;
   }
 
   const thisWeek = weekKey(nowMs, timeZone, weekStartDay);
@@ -97,6 +101,7 @@ export function shelfEntries(
       }),
     ),
     { label: "Player of the game", count: t.playerOfTheGame },
+    { label: "SVP", count: t.svp },
   ];
   return entries.filter((e) => e.count > 0);
 }

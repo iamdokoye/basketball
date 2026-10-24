@@ -26,9 +26,21 @@ export function rankPerformances(game: Game): Performance[] {
     .map(({ line, rating }) => ({ line, rating }));
 }
 
-/** Player of the game: the top performance, or null for an unfinished or empty game. */
+/** Player of the game (MVP): the top performance on the winning team, or top overall if tied. */
 export function playerOfTheGame(game: Game): Performance | null {
-  return rankPerformances(game)[0] ?? null;
+  if (game.status !== "final") return null;
+  const perfs = rankPerformances(game);
+  if (perfs.length === 0) return null;
+  if (!game.winner) return perfs[0];
+  return perfs.find((p) => p.line.team === game.winner) ?? perfs[0];
+}
+
+/** SVP: the highest rated player on the losing team (Star of the Vanquished Party). */
+export function gameSvp(game: Game): Performance | null {
+  if (game.status !== "final" || !game.winner) return null;
+  const losingTeam = game.winner === "A" ? "B" : "A";
+  const perfs = rankPerformances(game);
+  return perfs.find((p) => p.line.team === losingTeam) ?? null;
 }
 
 /** "12 pts · 7 reb · 3 ast", leaving out zeros (points always shown). */

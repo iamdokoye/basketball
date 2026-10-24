@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { getAccess } from "@/lib/access";
 import { buildClock, formatClock } from "@/lib/clock";
 import { leagueTimeZone } from "@/lib/format";
-import { playerOfTheGame, statSummary } from "@/lib/pog";
+import { gameSvp, playerOfTheGame, statSummary } from "@/lib/pog";
 import { getGame, listPlayers } from "@/lib/queries";
 import { buildRecap } from "@/lib/recap";
 import { BoxScoreTable, formatDate } from "@/app/components/BoxScore";
@@ -57,6 +57,7 @@ export default async function GamePage({
   }
 
   const pog = playerOfTheGame(game);
+  const svp = gameSvp(game);
   const recap = buildRecap(game, leagueTimeZone());
   // Total playing time (pauses and timeouts excluded) and the timeouts, with who called each.
   const clock = buildClock(game.events, game.startMs, game.roster);
@@ -138,35 +139,63 @@ export default async function GamePage({
         </div>
       )}
 
-      {pog && (
-        <Link
-          href={`/players/${pog.line.playerId}`}
-          className="glass-2 flex items-center gap-3 rounded-3xl p-4 transition-transform active:scale-[0.99]"
-        >
-          <Avatar name={pog.line.name} tone="ink" size="lg" />
-          <div className="min-w-0 flex-1">
-            <div className="label text-court-ink">★ Player of the game</div>
-            <div className="truncate text-xl font-extrabold leading-6 tracking-tight">
-              {pog.line.name}
-            </div>
-            <div className="tabular text-xs font-semibold text-muted">
-              {statSummary(pog.line)}
-            </div>
-          </div>
-          <div className="text-right">
-            <div className="tabular text-2xl font-extrabold leading-7 text-court-ink">
-              {pog.rating.toFixed(1)}
-              <span className="text-xs font-bold text-muted">/10</span>
-            </div>
-            <div className="label text-muted">rating</div>
-          </div>
-        </Link>
+      {(pog || svp) && (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {pog && (
+            <Link
+              href={`/players/${pog.line.playerId}`}
+              className="glass-2 flex items-center gap-3 rounded-3xl p-4 transition-transform active:scale-[0.99]"
+            >
+              <Avatar name={pog.line.name} tone="ink" size="lg" />
+              <div className="min-w-0 flex-1">
+                <div className="label text-court-ink">★ MVP · Winning team</div>
+                <div className="truncate text-xl font-extrabold leading-6 tracking-tight">
+                  {pog.line.name}
+                </div>
+                <div className="tabular text-xs font-semibold text-muted">
+                  {statSummary(pog.line)}
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="tabular text-2xl font-extrabold leading-7 text-court-ink">
+                  {pog.rating.toFixed(1)}
+                  <span className="text-xs font-bold text-muted">/10</span>
+                </div>
+                <div className="label text-muted">rating</div>
+              </div>
+            </Link>
+          )}
+          {svp && (
+            <Link
+              href={`/players/${svp.line.playerId}`}
+              className="glass-1 flex items-center gap-3 rounded-3xl p-4 transition-transform active:scale-[0.99]"
+            >
+              <Avatar name={svp.line.name} tone="soft" size="lg" />
+              <div className="min-w-0 flex-1">
+                <div className="label text-muted">🛡️ SVP · The Lone Wolf</div>
+                <div className="truncate text-xl font-extrabold leading-6 tracking-tight">
+                  {svp.line.name}
+                </div>
+                <div className="tabular text-xs font-semibold text-muted">
+                  {statSummary(svp.line)}
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="tabular text-2xl font-extrabold leading-7 text-ink">
+                  {svp.rating.toFixed(1)}
+                  <span className="text-xs font-bold text-muted">/10</span>
+                </div>
+                <div className="label text-muted">rating</div>
+              </div>
+            </Link>
+          )}
+        </div>
       )}
 
       {recap && <ShareRecap text={recap} path={`/games/${game.id}`} />}
 
-      <BoxScoreTable lines={game.lines} team="A" pogId={pog?.line.playerId} />
-      <BoxScoreTable lines={game.lines} team="B" pogId={pog?.line.playerId} />
+      <BoxScoreTable lines={game.lines} team="A" pogId={pog?.line.playerId} svpId={svp?.line.playerId} />
+      <BoxScoreTable lines={game.lines} team="B" pogId={pog?.line.playerId} svpId={svp?.line.playerId} />
 
       {access.isAdmin && <GameAdminActions gameId={game.id} />}
     </div>

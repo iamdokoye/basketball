@@ -1,6 +1,6 @@
 import type { Game } from "./queries";
 import { formatGameDateTime } from "./format";
-import { rankPerformances, statSummary } from "./pog";
+import { gameSvp, playerOfTheGame, rankPerformances, statSummary } from "./pog";
 
 /**
  * Plain-text recap of a finished game for pasting into a group chat. The caller adds the
@@ -28,10 +28,20 @@ export function buildRecap(game: Game, timeZone: string): string | null {
     "",
   ];
 
-  const [pog, ...rest] = perf;
+  const pog = playerOfTheGame(game) ?? perf[0];
+  const svp = gameSvp(game);
+
   lines.push(`⭐ Player of the game: ${pog.line.name}`);
   lines.push(`${statSummary(pog.line)} (rating ${pog.rating.toFixed(1)}/10)`);
 
+  if (svp && svp.line.playerId !== pog.line.playerId) {
+    lines.push(`🛡️ SVP: ${svp.line.name}`);
+    lines.push(`${statSummary(svp.line)} (rating ${svp.rating.toFixed(1)}/10)`);
+  }
+
+  const rest = perf.filter(
+    (p) => p.line.playerId !== pog.line.playerId && (!svp || p.line.playerId !== svp.line.playerId),
+  );
   const standouts = rest.slice(0, 2);
   if (standouts.length > 0) {
     lines.push("", "Also standing out:");

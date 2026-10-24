@@ -54,7 +54,7 @@ const per = (n: number, gp: number) => (gp ? n / gp : 0);
 const pct = (n: number) => `${Math.round(n * 100)}%`;
 const one = (n: number) => n.toFixed(1);
 
-const SPECS: Spec[] = [
+export const SPECS: Spec[] = [
   {
     id: "scorer",
     title: "Top Scorer",

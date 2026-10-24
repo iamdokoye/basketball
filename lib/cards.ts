@@ -1,8 +1,9 @@
 import type { Game } from "./queries";
-import { awardPool, monthAwards, rankPool, type Spec } from "./awards";
+import { awardPool, rankPool, SPECS, type Spec } from "./awards";
 import { clutchTotals } from "./clutch";
 import { zonedTimeToMs } from "./import";
-import { localDate } from "./mvp";
+import { computeMvp, localDate } from "./mvp";
+import { gameSvp } from "./pog";
 
 // Title cards. After a game session each stat leader gets a trading card with a name that sounds bigger the
 // longer the stretch they led: a week, a month or a whole year. The same stat leader gets a different title
@@ -19,7 +20,8 @@ export type CatId =
   | "playmaker"
   | "stealer"
   | "blocker"
-  | "clutch";
+  | "clutch"
+  | "svp";
 
 type Category = {
   id: CatId;
@@ -96,6 +98,18 @@ export const DECK: Category[] = [
     names: { week: "Cool Hand", month: "Ice Veins", year: "Absolute Zero" },
     line: "Delivered when it was close",
   },
+  {
+    id: "svp",
+    label: "SVP",
+    emoji: "🐺",
+    tierEmoji: { week: "🐺", month: "⚔️", year: "🛡️" },
+    names: {
+      week: "The Lone Wolf",
+      month: "The Tragic Hero",
+      year: "The Bloodied Warrior",
+    },
+    line: "Fought hardest in defeat",
+  },
 ];
 
 export const TIER_LABEL: Record<Tier, string> = { week: "Week", month: "Month", year: "Year" };
@@ -104,6 +118,13 @@ export const TIER_PHRASE: Record<Tier, string> = {
   week: "this week",
   month: "this month",
   year: "this year",
+};
+
+export type AwardRunnerUp = {
+  playerId: number;
+  name: string;
+  value: string;
+  detail: string;
 };
 
 export type AwardCardData = {
@@ -122,6 +143,12 @@ export type AwardCardData = {
   detail: string;
   periodKey: string;
   periodLabel: string;
+  /** Detailed narrative explanation of why this player earned the card. */
+  explanation?: string;
+  /** Description of the criteria used to evaluate the award. */
+  criteria?: string;
+  /** The 2nd place contender for this award, if one qualified. */
+  runnerUp?: AwardRunnerUp | null;
 };
 
 // ---- the three stats the monthly awards don't cover -------------------------------------------------
@@ -173,28 +200,101 @@ export function buildCards(
   const ap = awardPool(finals);
   if (!ap) return [];
 
-  const awards = new Map(monthAwards(finals).map((a) => [a.id as string, a]));
   const out: AwardCardData[] = [];
+  const mvp = computeMvp(finals);
+
   for (const cat of DECK) {
     let w: { playerId: number; name: string; value: string; detail: string } | null = null;
-    const awardId = FROM_AWARD[cat.id];
-    if (awardId) {
-      w = awards.get(awardId)?.winner ?? null;
+    let runnerUp: AwardRunnerUp | null = null;
+    let criteria = "";
+    let explanation = "";
+
+    if (cat.id === "allround") {
+      if (mvp) {
+        w = {
+          playerId: mvp.winner.playerId,
+          name: mvp.winner.name,
+          value: `${mvp.winner.rating.toFixed(1)}/10`,
+          detail: `${mvp.winner.wins}-${mvp.winner.losses} in ${games(mvp.winner.gp)}`,
+        };
+        criteria = "Highest weighted Game Score rating per game (requires playing in at least half of the busiest player's games).";
+        explanation = `${w.name} achieved the top Hollinger rating (${w.value}) with a ${w.detail} record, leading all players in overall impact ${TIER_PHRASE[tier]}.`;
+        const ru = mvp.runnersUp[0];
+        if (ru) {
+          runnerUp = {
+            playerId: ru.playerId,
+            name: ru.name,
+            value: `${ru.rating.toFixed(1)}/10`,
+            detail: `${ru.wins}-${ru.losses} in ${games(ru.gp)} · ${one(ru.pts)} ppg`,
+          };
+        }
+      }
+    } else if (FROM_AWARD[cat.id]) {
+      const awardId = FROM_AWARD[cat.id];
+      const spec = SPECS.find((s) => s.id === awardId);
+      if (spec) {
+        const ranked = rankPool(spec, ap);
+        const top = ranked[0];
+        if (top) {
+          w = {
+            playerId: top.playerId,
+            name: top.name,
+            value: spec.value(top),
+            detail: spec.detail(top),
+          };
+          criteria = spec.blurb;
+          if (cat.id === "scorer") {
+            explanation = `${w.name} led the league in scoring, averaging ${w.value} (${w.detail}) ${TIER_PHRASE[tier]}.`;
+          } else if (cat.id === "shooter") {
+            explanation = `${w.name} had the highest shooting efficiency with ${w.value} (${w.detail}) on qualifying shot volume.`;
+          } else if (cat.id === "rebounder") {
+            explanation = `${w.name} controlled the boards with ${w.value} (${w.detail}) to lead all rebounders ${TIER_PHRASE[tier]}.`;
+          } else if (cat.id === "playmaker") {
+            explanation = `${w.name} directed the offense, averaging ${w.value} (${w.detail}) to lead in assists ${TIER_PHRASE[tier]}.`;
+          }
+          const ru = ranked[1];
+          if (ru) {
+            runnerUp = {
+              playerId: ru.playerId,
+              name: ru.name,
+              value: spec.value(ru),
+              detail: spec.detail(ru),
+            };
+          }
+        }
+      }
     } else if (cat.id === "stealer" || cat.id === "blocker") {
       const spec = EXTRA[cat.id];
-      const top = rankPool(spec, ap)[0];
-      if (top) w = { playerId: top.playerId, name: top.name, value: spec.value(top), detail: spec.detail(top) };
+      const ranked = rankPool(spec, ap);
+      const top = ranked[0];
+      if (top) {
+        w = { playerId: top.playerId, name: top.name, value: spec.value(top), detail: spec.detail(top) };
+        criteria = `${spec.blurb}. ${cat.id === "stealer" ? "Deflections" : "Defensive rebounds"} used as tie-breaker.`;
+        explanation =
+          cat.id === "stealer"
+            ? `${w.name} disrupted opponents with ${w.value} (${w.detail}) ${TIER_PHRASE[tier]}.`
+            : `${w.name} protected the basket with ${w.value} (${w.detail}) ${TIER_PHRASE[tier]}.`;
+        const ru = ranked[1];
+        if (ru) {
+          runnerUp = {
+            playerId: ru.playerId,
+            name: ru.name,
+            value: spec.value(ru),
+            detail: spec.detail(ru),
+          };
+        }
+      }
     } else if (cat.id === "clutch") {
-      // Game-winners first, then points in clutch time. Only games with a real play order count.
-      const top = clutchTotals(finals)
+      const topList = clutchTotals(finals)
         .filter((c) => c.gameWinners > 0 || c.clutchPts > 0)
         .sort(
           (a, b) =>
             b.gameWinners - a.gameWinners ||
             b.clutchPts - a.clutchPts ||
             a.name.localeCompare(b.name),
-        )[0];
-      if (top)
+        );
+      const top = topList[0];
+      if (top) {
         w = {
           playerId: top.playerId,
           name: top.name,
@@ -204,6 +304,67 @@ export function buildCards(
               : `${top.clutchPts} clutch pts`,
           detail: `${top.clutchPts} points when it was close`,
         };
+        criteria = "Most game-winning shots, followed by total points scored in clutch time (score within 3 points near target).";
+        explanation =
+          top.gameWinners > 0
+            ? `${w.name} delivered in high-leverage moments with ${w.value} and ${top.clutchPts} clutch points ${TIER_PHRASE[tier]}.`
+            : `${w.name} came up clutch in close games, scoring ${top.clutchPts} points under pressure ${TIER_PHRASE[tier]}.`;
+        const ru = topList[1];
+        if (ru) {
+          runnerUp = {
+            playerId: ru.playerId,
+            name: ru.name,
+            value:
+              ru.gameWinners > 0
+                ? `${ru.gameWinners} game-winner${ru.gameWinners === 1 ? "" : "s"}`
+                : `${ru.clutchPts} clutch pts`,
+            detail: `${ru.clutchPts} points when it was close`,
+          };
+        }
+      }
+    } else if (cat.id === "svp") {
+      const svpCounts = new Map<number, { id: number; name: string; count: number; ratings: number[] }>();
+      for (const g of finals) {
+        const s = gameSvp(g);
+        if (!s) continue;
+        const entry = svpCounts.get(s.line.playerId) ?? {
+          id: s.line.playerId,
+          name: s.line.name,
+          count: 0,
+          ratings: [],
+        };
+        entry.count++;
+        entry.ratings.push(s.rating);
+        svpCounts.set(s.line.playerId, entry);
+      }
+      const list = [...svpCounts.values()]
+        .map((e) => ({
+          ...e,
+          avgRating: e.ratings.reduce((sum, r) => sum + r, 0) / e.ratings.length,
+        }))
+        .sort((a, b) => b.count - a.count || b.avgRating - a.avgRating || a.name.localeCompare(b.name));
+
+      const top = list[0];
+      if (top) {
+        w = {
+          playerId: top.id,
+          name: top.name,
+          value: `${top.count} SVP${top.count === 1 ? "" : "s"}`,
+          detail: `avg ${top.avgRating.toFixed(1)} rating in defeat`,
+        };
+        criteria = "Most SVP awards (best performer on the losing team) in finished games across the period. Tied by average rating in those games.";
+        explanation = `${w.name} earned ${cat.names[tier]} by battling for ${w.value} (${w.detail}), leaving everything on the court ${TIER_PHRASE[tier]}.`;
+
+        const ru = list[1];
+        if (ru) {
+          runnerUp = {
+            playerId: ru.id,
+            name: ru.name,
+            value: `${ru.count} SVP${ru.count === 1 ? "" : "s"}`,
+            detail: `avg ${ru.avgRating.toFixed(1)} rating in defeat`,
+          };
+        }
+      }
     }
     if (!w) continue;
     out.push({
@@ -220,6 +381,9 @@ export function buildCards(
       detail: w.detail,
       periodKey: period.key,
       periodLabel: period.label,
+      explanation,
+      criteria,
+      runnerUp,
     });
   }
   return out;
