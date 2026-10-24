@@ -59,14 +59,11 @@ export function GameRow({ game }: { game: Game }) {
 }
 
 /** Larger card for a game in progress, with a race-to-target bar. */
-export function LiveGameCard({ game }: { game: Game }) {
+export function LiveGameCard({ game, canScore = true }: { game: Game; canScore?: boolean }) {
   const pct = (t: "A" | "B") => Math.min(100, (game.score[t] / game.target) * 100);
   const leader = game.score.A >= game.score.B ? "A" : "B";
   return (
-    <Link
-      href={`/games/${game.id}`}
-      className="glass-1 block space-y-3 rounded-2xl p-4 transition-transform active:scale-[0.99]"
-    >
+    <div className="glass-1 space-y-3 rounded-2xl p-4">
       {TEAMS.map(({ t, dot, name }, i) => (
         <div key={t} className="space-y-3">
           <div className="flex items-center justify-between gap-3">
@@ -107,9 +104,22 @@ export function LiveGameCard({ game }: { game: Game }) {
           )}
         </div>
       ))}
-      <div className="flex justify-end">
-        <span className="rounded-full bg-white/70 px-3 py-1.5 text-[11px] font-semibold shadow-sm">Open scorekeeper</span>
+      <div className="flex justify-end gap-2">
+        <Link
+          href={`/games/${game.id}?watch=1`}
+          className="rounded-full bg-white/70 px-3 py-1.5 text-[11px] font-semibold shadow-sm active:scale-95"
+        >
+          Watch live
+        </Link>
+        {canScore && (
+          <Link
+            href={`/games/${game.id}`}
+            className="rounded-full bg-ink px-3 py-1.5 text-[11px] font-semibold text-paper shadow-sm active:scale-95"
+          >
+            Open scorekeeper
+          </Link>
+        )}
       </div>
-    </Link>
+    </div>
   );
 }

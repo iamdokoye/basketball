@@ -34,6 +34,7 @@ The service role key is used only in server code (`lib/supabase.ts` imports `ser
 | Rename or archive players, reopen or delete games | Never | Any time |
 
 The open window is **Saturdays 6:00 AM – 1:00 PM** in `LEAGUE_TIMEZONE` (default `Africa/Lagos`). A live countdown in the header and on Home shows when it opens (or closes), and the page flips by itself when the time comes. Outside the window everyone sees a read-only view, and a live game can still be followed (it refreshes every few seconds).
+- **Spectating:** every live game on Home has a **Watch live** button (or open `/games/<id>?watch=1`). It shows the live scoreboard and play log with nothing tappable, and updates by itself, even for someone who is allowed to score. **Stop watching** returns to the normal game page.
 
 Set these in `.env.local` and in your host's environment variables:
 

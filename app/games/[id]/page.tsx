@@ -18,23 +18,27 @@ export const dynamic = "force-dynamic";
 
 export default async function GamePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ watch?: string }>;
 }) {
   const { id } = await params;
+  // ?watch=1 opens a live game as a spectator, even for someone who is allowed to score.
+  const spectating = (await searchParams).watch === "1";
   const [game, access] = await Promise.all([getGame(Number(id)), getAccess()]);
   if (!game) notFound();
 
   if (game.status === "live") {
     // Everyone who could turn up late: active league players (the scorekeeper hides those already in the game).
-    const league = access.canPlay
+    const league = access.canPlay && !spectating
       ? (await listPlayers())
           .filter((p) => !p.archived)
           .map((p) => ({ id: p.id, name: p.name }))
       : [];
     return (
       <Scorekeeper
-        key={access.canPlay ? "edit" : "view"}
+        key={access.canPlay && !spectating ? "edit" : "view"}
         gameId={game.id}
         roster={game.roster}
         players={league}
@@ -42,7 +46,8 @@ export default async function GamePage({
         startMs={game.startMs}
         target={game.target}
         winBy={game.winBy}
-        readOnly={!access.canPlay}
+        readOnly={!access.canPlay || spectating}
+        spectating={spectating}
         windowLabel={access.windowLabel}
         opensAt={access.opensAt}
         serverNow={access.now}

@@ -91,6 +91,7 @@ export default function Scorekeeper({
   target,
   winBy,
   readOnly = false,
+  spectating = false,
   windowLabel = "",
   opensAt = null,
   serverNow = 0,
@@ -107,6 +108,8 @@ export default function Scorekeeper({
   winBy: number;
   /** Spectator mode: nothing is tappable and the page follows the live game. */
   readOnly?: boolean;
+  /** Opened on purpose to watch (not because scoring is closed): offers a way back to scoring. */
+  spectating?: boolean;
   windowLabel?: string;
   /** Epoch ms when scoring next opens (view-only banner countdown). */
   opensAt?: number | null;
@@ -880,10 +883,14 @@ export default function Scorekeeper({
       {readOnly && (
         <div className="glass-1 flex items-center justify-between gap-3 rounded-2xl p-3.5">
           <div className="min-w-0">
-            <div className="text-sm font-bold">View only</div>
+            <div className="text-sm font-bold">
+              {spectating ? "Spectating" : "View only"}
+            </div>
             <div className="text-xs text-muted">
               Following live.{" "}
-              {opensAt ? (
+              {spectating ? (
+                <>Scores update by themselves.</>
+              ) : opensAt ? (
                 <>
                   Scoring opens in{" "}
                   <Countdown target={opensAt} serverNow={serverNow} compact /> (
@@ -895,10 +902,10 @@ export default function Scorekeeper({
             </div>
           </div>
           <Link
-            href="/admin"
+            href={spectating ? `/games/${gameId}` : "/admin"}
             className="shrink-0 rounded-full bg-black/[0.06] px-3 py-1.5 text-xs font-semibold text-muted active:scale-95"
           >
-            Admin
+            {spectating ? "Stop watching" : "Admin"}
           </Link>
         </div>
       )}

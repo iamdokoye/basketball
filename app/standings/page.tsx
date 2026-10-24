@@ -169,7 +169,7 @@ export default async function StandingsPage({
           </div>
           {hasProvisional && (
             <p className="hairline border-t px-3 py-2 text-xs text-muted">
-              Players need at least 70% of games ({qualifyAt} {qualifyAt === 1 ? "game" : "games"}) in a season to be ranked. Inactive averages remain frozen.
+              Players need at least 40% of games ({qualifyAt} {qualifyAt === 1 ? "game" : "games"}) in a season to be ranked. Inactive averages remain frozen.
             </p>
           )}
         </div>

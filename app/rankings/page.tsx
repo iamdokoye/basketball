@@ -124,7 +124,7 @@ export default async function RankingsPage({
                             colSpan={COLUMNS.length + 1}
                             className="px-3 py-2 text-xs font-bold uppercase tracking-wider text-muted"
                           >
-                            Inactive / Under 70% Threshold ({qualifyAt} GP needed · averages frozen)
+                            Inactive / Under 40% Threshold ({qualifyAt} GP needed · averages frozen)
                           </td>
                         </tr>
                       )}
@@ -178,7 +178,7 @@ export default async function RankingsPage({
           {hasProvisional && (
             <div className="hairline border-t px-3 py-2.5 text-xs text-muted space-y-0.5">
               <p>
-                Official leaderboard requires playing in at least 70% of games ({qualifyAt} of {totalGames} {totalGames === 1 ? "game" : "games"}).
+                Official leaderboard requires playing in at least 40% of games ({qualifyAt} of {totalGames} {totalGames === 1 ? "game" : "games"}).
               </p>
               <p className="text-[11px] opacity-80">
                 Inactive and injured players keep their statistical averages frozen until they return.
