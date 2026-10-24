@@ -40,6 +40,7 @@ const TIER_LABELS: Record<BadgeTier, string> = {
 export function computePlayerArchetype(
   career: CareerLine,
   clutch?: ClutchLine | null,
+  totalLeagueGames?: number,
 ): PlayerArchetype {
   const gp = Math.max(1, career.gp);
   const ppg = career.pts / gp;
@@ -184,21 +185,28 @@ export function computePlayerArchetype(
   }
 
   // 8. Iron Man
-  if (career.gp >= 4) {
-    let tier: BadgeTier = "bronze";
-    if (career.gp >= 40) tier = "hof";
-    else if (career.gp >= 20) tier = "gold";
-    else if (career.gp >= 10) tier = "silver";
+  // Dynamically evaluated based on attendance rate (% of total league games).
+  const totalGames = Math.max(career.gp, totalLeagueGames ?? 0);
+  if (totalGames >= 5 && career.gp >= 3) {
+    const attendancePct = career.gp / totalGames;
+    let tier: BadgeTier | null = null;
 
-    badges.push({
-      id: "iron-man",
-      name: "Iron Man",
-      emoji: "👑",
-      tier,
-      tierLabel: TIER_LABELS[tier],
-      description: "Always answers the bell; unmatched attendance and league consistency.",
-      progress: `${career.gp} games played (${career.wins}W - ${career.losses}L)`,
-    });
+    if (attendancePct >= 0.9) tier = "hof";
+    else if (attendancePct >= 0.8) tier = "gold";
+    else if (attendancePct >= 0.65) tier = "silver";
+    else if (attendancePct >= 0.5) tier = "bronze";
+
+    if (tier) {
+      badges.push({
+        id: "iron-man",
+        name: "Iron Man",
+        emoji: "👑",
+        tier,
+        tierLabel: TIER_LABELS[tier],
+        description: "Always answers the bell; unmatched attendance and league consistency.",
+        progress: `${Math.round(attendancePct * 100)}% attendance (${career.gp}/${totalGames} games)`,
+      });
+    }
   }
 
   // Sort badges by tier (HOF first, then Gold, Silver, Bronze)

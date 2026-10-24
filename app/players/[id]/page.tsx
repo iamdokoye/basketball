@@ -114,7 +114,7 @@ export default async function PlayerPage({
   const bests = singleGameRecords(games, playerId);
   const streak = winStreaks(games).find((x) => x.playerId === playerId);
   const clutch = clutchTotals(games).find((x) => x.playerId === playerId);
-  const archetype = computePlayerArchetype(c, clutch);
+  const archetype = computePlayerArchetype(c, clutch, finalGames.length);
   const milestones = getPlayerMilestones(c);
 
   const th = "px-2 py-2 text-right font-semibold";
