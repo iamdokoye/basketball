@@ -21,6 +21,7 @@ export default async function PlayersPage() {
       id: p.id,
       name: p.name,
       archived: p.archived,
+      injured: p.injured,
       nicknames: p.nicknames,
       stats:
         c && c.gp > 0

@@ -12,6 +12,7 @@ import { careerTotals, listGames, listPlayers } from "@/lib/queries";
 import { rankPlayers, SORTS, type Ranked, type SortKey } from "@/lib/rankings";
 import { GameRow, LiveGameCard } from "@/app/components/GameRow";
 import { Avatar, shortName } from "@/app/components/Avatar";
+import { InjuredBadge } from "@/app/components/InjuredBadge";
 import { InstallHint } from "@/app/components/InstallHint";
 import { MvpCard } from "@/app/components/MvpCard";
 import { AwardsCard } from "@/app/components/AwardsCard";
@@ -44,7 +45,7 @@ export default async function Home() {
   const live = games.filter((g) => g.status === "live");
   const final = games.filter((g) => g.status === "final");
   const career = careerTotals(games, players);
-  const { rows: ranked } = rankPlayers(career);
+  const { rows: ranked } = rankPlayers(career, "rating", final.length);
   const top3 = ranked.filter((r) => r.rank !== null).slice(0, 3);
 
   // MVP of the week (Sat–Fri, so midweek this is last Saturday's games) and of the month.
@@ -76,7 +77,9 @@ export default async function Home() {
   const lastAwards = lastDone ? monthAwards(lastDone.games) : [];
 
   const leaders = LEADER_CATEGORIES.flatMap(({ key, label, unit }) => {
-    const best = rankPlayers(career, key).rows[0];
+    const best = rankPlayers(career, key, final.length).rows.find(
+      (r) => r.rank !== null,
+    );
     return best ? [{ label, unit, key, player: best }] : [];
   });
 
@@ -317,8 +320,9 @@ export default async function Home() {
                     size={first ? "lg" : "md"}
                     tone={first ? "ink" : "soft"}
                   />
-                  <span className="mt-2 w-full truncate text-sm font-bold">
-                    {shortName(r.name)}
+                  <span className="mt-2 flex w-full items-center justify-center gap-1 text-sm font-bold">
+                    <span className="truncate">{shortName(r.name)}</span>
+                    {r.injured && <InjuredBadge size="sm" />}
                   </span>
                   <span
                     className={`tabular text-xs font-semibold ${first ? "text-court-ink" : "text-muted"}`}
@@ -364,9 +368,10 @@ export default async function Home() {
                     {unit}
                   </span>
                 </div>
-                <span className="truncate text-[11px] font-semibold text-muted">
-                  {player.name}
-                </span>
+                <div className="flex items-center gap-1 text-[11px] font-semibold text-muted">
+                  <span className="truncate">{player.name}</span>
+                  {player.injured && <InjuredBadge size="sm" />}
+                </div>
               </Link>
             ))}
           </div>

@@ -181,6 +181,29 @@ export async function setPlayerArchived(
   return { ok: true };
 }
 
+export async function setPlayerInjured(
+  playerId: number,
+  injured: boolean,
+): Promise<ActionResult> {
+  const denied = await needPlay();
+  if (denied) return denied;
+  if (!isId(playerId)) return fail(GENERIC);
+
+  const { error } = await db()
+    .from("players")
+    .update({ injured: Boolean(injured) })
+    .eq("id", playerId);
+  if (error) {
+    return fail(
+      ["42703", "PGRST204"].includes(error.code ?? "")
+        ? "Injury status needs a database update. Run the newest SQL migration."
+        : GENERIC,
+    );
+  }
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
 // ---- Games -----------------------------------------------------------------
 
 /** Starts a game. On success this redirects; it only returns when something is wrong. */

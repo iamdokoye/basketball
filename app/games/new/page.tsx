@@ -57,7 +57,7 @@ export default async function NewGamePage() {
         New game
       </h1>
       <NewGameForm
-        players={players.map((p) => ({ id: p.id, name: p.name }))}
+        players={players.map((p) => ({ id: p.id, name: p.name, injured: p.injured }))}
         strengths={strengths}
       />
     </div>

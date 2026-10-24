@@ -9,6 +9,8 @@ import {
   setPlayerArchived,
 } from "@/lib/actions";
 import { Avatar } from "@/app/components/Avatar";
+import { InjuredBadge } from "@/app/components/InjuredBadge";
+import { InjuryToggle } from "@/app/components/InjuryToggle";
 import { NicknamesEditor } from "@/app/components/NicknamesEditor";
 import { RenamePlayer } from "@/app/components/RenamePlayer";
 
@@ -16,6 +18,7 @@ export type RosterPlayer = {
   id: number;
   name: string;
   archived: boolean;
+  injured: boolean;
   nicknames: string[];
   /** Pre-formatted career line, computed on the server. */
   stats: string;
@@ -26,7 +29,8 @@ export type RosterPlayer = {
 type Op =
   | { t: "add"; name: string }
   | { t: "rename"; id: number; name: string }
-  | { t: "archive"; id: number; archived: boolean };
+  | { t: "archive"; id: number; archived: boolean }
+  | { t: "injury"; id: number; injured: boolean };
 
 const byName = (a: RosterPlayer, b: RosterPlayer) =>
   a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
@@ -48,6 +52,7 @@ function reduce(state: RosterPlayer[], op: Op): RosterPlayer[] {
           id: -(state.length + 1),
           name: op.name,
           archived: false,
+          injured: false,
           nicknames: [],
           stats: "No games yet",
           pending: true,
@@ -63,6 +68,10 @@ function reduce(state: RosterPlayer[], op: Op): RosterPlayer[] {
     case "archive":
       return state.map((p) =>
         p.id === op.id ? { ...p, archived: op.archived, pending: true } : p,
+      );
+    case "injury":
+      return state.map((p) =>
+        p.id === op.id ? { ...p, injured: op.injured, pending: true } : p,
       );
   }
 }
@@ -179,7 +188,10 @@ export function PlayerRoster({
             >
               <Avatar name={p.name} />
               <div className="min-w-0">
-                <div className="truncate font-bold">{p.name}</div>
+                <div className="flex items-center gap-2">
+                  <span className="truncate font-bold">{p.name}</span>
+                  {p.injured && <InjuredBadge size="sm" />}
+                </div>
                 {p.nicknames.length > 0 && (
                   <div className="truncate text-xs font-semibold text-court-ink">
                     aka {p.nicknames.join(", ")}
@@ -191,6 +203,19 @@ export function PlayerRoster({
               </div>
             </Link>
             <div className="ml-auto flex shrink-0 items-center gap-2">
+              {(canAdd || isAdmin) && (
+                <InjuryToggle
+                  playerId={p.id}
+                  injured={p.injured}
+                  name={p.name}
+                  onToggle={(next) => apply({ t: "injury", id: p.id, injured: next })}
+                  className={`${PILL} ${
+                    p.injured
+                      ? "bg-rose-500/15 text-rose-700 ring-1 ring-rose-500/30 hover:bg-rose-500/25"
+                      : "bg-emerald-500/10 text-emerald-800 ring-1 ring-emerald-500/25 hover:bg-emerald-500/20"
+                  }`}
+                />
+              )}
               {canAdd && (
                 <NicknamesEditor
                   name={p.name}

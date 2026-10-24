@@ -11,6 +11,7 @@ import {
 import { standings, type StandingRow } from "@/lib/standings";
 import { fmtSigned } from "@/lib/stats";
 import { Avatar } from "@/app/components/Avatar";
+import { InjuredBadge } from "@/app/components/InjuredBadge";
 import { RankBadge } from "@/app/components/RankBadge";
 import { SeasonPills } from "@/app/components/SeasonPills";
 
@@ -128,7 +129,10 @@ export default async function StandingsPage({
                       >
                         <RankBadge rank={r.rank} />
                         <Avatar id={r.playerId} name={r.name} size="sm" />
-                        <span className="font-bold">{r.name}</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold">{r.name}</span>
+                          {r.injured && <InjuredBadge size="sm" />}
+                        </div>
                       </Link>
                     </td>
                     <td className="px-2.5 py-2.5 text-right font-extrabold">
@@ -165,7 +169,7 @@ export default async function StandingsPage({
           </div>
           {hasProvisional && (
             <p className="hairline border-t px-3 py-2 text-xs text-muted">
-              Players need {qualifyAt} games in a season to be ranked.
+              Players need at least 70% of games ({qualifyAt} {qualifyAt === 1 ? "game" : "games"}) in a season to be ranked. Inactive averages remain frozen.
             </p>
           )}
         </div>

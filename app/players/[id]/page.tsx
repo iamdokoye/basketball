@@ -19,6 +19,8 @@ import {
 } from "@/lib/stats";
 import { formatDate } from "@/app/components/BoxScore";
 import { Avatar } from "@/app/components/Avatar";
+import { InjuredBadge } from "@/app/components/InjuredBadge";
+import { InjuryToggle } from "@/app/components/InjuryToggle";
 import { NicknamesButton } from "@/app/components/NicknamesEditor";
 import { RenamePlayerButton } from "@/app/components/RenamePlayer";
 import { RatingTrend, type TrendPoint } from "@/app/components/RatingTrend";
@@ -42,7 +44,9 @@ export default async function PlayerPage({
 
   const career = careerTotals(games, players);
   const c = career.find((x) => x.playerId === playerId)!;
-  const ranked = rankPlayers(career).rows.find((r) => r.playerId === playerId);
+  const finalGames = games.filter((g) => g.status === "final");
+  const { rows: rankedRows, qualifyAt, totalGames } = rankPlayers(career, "rating", finalGames.length);
+  const ranked = rankedRows.find((r) => r.playerId === playerId);
   const log = games
     .filter((g) => g.status === "final")
     .flatMap((g) => {
@@ -122,9 +126,12 @@ export default async function PlayerPage({
       <div className="flex items-center gap-4">
         <Avatar id={player.id} name={player.name} size="lg" tone="ink" />
         <div className="min-w-0">
-          <h1 className="truncate text-[32px] font-extrabold leading-[38px] tracking-tight">
-            {player.name}
-          </h1>
+          <div className="flex items-center gap-2">
+            <h1 className="truncate text-[32px] font-extrabold leading-[38px] tracking-tight">
+              {player.name}
+            </h1>
+            {player.injured && <InjuredBadge />}
+          </div>
           <p className="tabular text-sm font-semibold text-muted">
             {c.gp} {c.gp === 1 ? "game" : "games"} · {c.wins}-{c.losses}
             {c.gp > 0 && <> · {fmtMinutes(c.sec / c.gp)} min/g</>}
@@ -136,6 +143,16 @@ export default async function PlayerPage({
           )}
           {(access.canPlay || access.isAdmin) && (
             <div className="mt-1.5 flex flex-wrap gap-2">
+              <InjuryToggle
+                playerId={player.id}
+                injured={player.injured}
+                name={player.name}
+                className={`rounded-full px-3 py-1.5 text-xs font-semibold ring-1 transition hover:opacity-90 active:scale-95 ${
+                  player.injured
+                    ? "bg-rose-500/15 text-rose-700 ring-rose-500/30"
+                    : "bg-emerald-500/10 text-emerald-800 ring-emerald-500/25"
+                }`}
+              />
               <NicknamesButton
                 playerId={player.id}
                 name={player.name}
@@ -162,8 +179,23 @@ export default async function PlayerPage({
           <div>
             <div className="label text-muted">League rank</div>
             <div className="text-3xl font-extrabold tracking-tight">
-              {ranked.rank ? `#${ranked.rank}` : "Qualifying"}
+              {ranked.rank ? (
+                `#${ranked.rank}`
+              ) : player.injured ? (
+                <span className="text-2xl text-rose-600">Inactive</span>
+              ) : (
+                <span className="text-2xl text-muted">Under threshold</span>
+              )}
             </div>
+            {player.injured ? (
+              <p className="text-xs font-medium text-rose-600">
+                Injured · Averages frozen at {c.gp} {c.gp === 1 ? "game" : "games"}
+              </p>
+            ) : ranked.rank === null ? (
+              <p className="text-xs font-medium text-muted">
+                Needs {qualifyAt} of {totalGames} games (70%) to qualify
+              </p>
+            ) : null}
           </div>
           <div className="text-right">
             <div className="label text-muted">Rating</div>

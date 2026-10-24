@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import Link from "next/link";
 import { getAccess } from "@/lib/access";
 import { leagueTimeZone } from "@/lib/format";
@@ -7,6 +8,7 @@ import { SeasonPills } from "@/app/components/SeasonPills";
 import { rankPlayers, SORTS, type Ranked, type SortKey } from "@/lib/rankings";
 import { fmtAvg, fmtPct, fmtSigned } from "@/lib/stats";
 import { Avatar } from "@/app/components/Avatar";
+import { InjuredBadge } from "@/app/components/InjuredBadge";
 import { RankBadge } from "@/app/components/RankBadge";
 import { SortPills } from "./SortPills";
 
@@ -47,9 +49,11 @@ export default async function RankingsPage({
   const mode = seasonMode();
   const seasons = groupBySeason(games, tz, mode);
   const view = pickSeason(seasons, games, requested, seasonKey(access.now, tz, mode));
-  const { rows, qualifyAt } = rankPlayers(
+  const finalGames = view.games.filter((g) => g.status === "final");
+  const { rows, qualifyAt, totalGames } = rankPlayers(
     careerTotals(view.games, players),
     sortKey,
+    finalGames.length,
   );
   const hasProvisional = rows.some((r) => r.rank === null);
 
@@ -109,54 +113,77 @@ export default async function RankingsPage({
                 </tr>
               </thead>
               <tbody className="divide-y divide-black/[0.06]">
-                {rows.map((r) => (
-                  <tr
-                    key={r.playerId}
-                    className={r.rank === null ? "opacity-45" : ""}
-                  >
-                    <td className="sticky-cell px-3 py-2.5">
-                      <Link
-                        href={`/players/${r.playerId}`}
-                        className="flex items-center gap-2.5"
+                {rows.map((r, i) => {
+                  const isFirstUnranked =
+                    r.rank === null && (i === 0 || rows[i - 1].rank !== null);
+                  return (
+                    <Fragment key={r.playerId}>
+                      {isFirstUnranked && (
+                        <tr className="bg-black/[0.03]">
+                          <td
+                            colSpan={COLUMNS.length + 1}
+                            className="px-3 py-2 text-xs font-bold uppercase tracking-wider text-muted"
+                          >
+                            Inactive / Under 70% Threshold ({qualifyAt} GP needed · averages frozen)
+                          </td>
+                        </tr>
+                      )}
+                      <tr
+                        className={r.rank === null ? "opacity-60" : ""}
                       >
-                        <RankBadge rank={r.rank} />
-                        <Avatar id={r.playerId} name={r.name} size="sm" />
-                        <span className="font-bold">{r.name}</span>
-                      </Link>
-                    </td>
-                    {COLUMNS.map((c) => {
-                      const v = c.cell(r);
-                      const signed = c.label === "+/-";
-                      return (
-                        <td
-                          key={c.label}
-                          className={`px-2.5 py-2.5 text-right ${
-                            c.key === sortKey
-                              ? "bg-court-soft/10 font-extrabold"
-                              : ""
-                          } ${c.key === "rating" ? "font-bold" : ""} ${
-                            signed
-                              ? v.startsWith("+")
-                                ? "text-win"
-                                : v.startsWith("-")
-                                  ? "text-loss"
-                                  : ""
-                              : ""
-                          }`}
-                        >
-                          {v}
+                        <td className="sticky-cell px-3 py-2.5">
+                          <Link
+                            href={`/players/${r.playerId}`}
+                            className="flex items-center gap-2.5"
+                          >
+                            <RankBadge rank={r.rank} />
+                            <Avatar id={r.playerId} name={r.name} size="sm" />
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-bold">{r.name}</span>
+                              {r.injured && <InjuredBadge size="sm" />}
+                            </div>
+                          </Link>
                         </td>
-                      );
-                    })}
-                  </tr>
-                ))}
+                        {COLUMNS.map((c) => {
+                          const v = c.cell(r);
+                          const signed = c.label === "+/-";
+                          return (
+                            <td
+                              key={c.label}
+                              className={`px-2.5 py-2.5 text-right ${
+                                c.key === sortKey
+                                  ? "bg-court-soft/10 font-extrabold"
+                                  : ""
+                              } ${c.key === "rating" ? "font-bold" : ""} ${
+                                signed
+                                  ? v.startsWith("+")
+                                    ? "text-win"
+                                    : v.startsWith("-")
+                                      ? "text-loss"
+                                      : ""
+                                  : ""
+                              }`}
+                            >
+                              {v}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    </Fragment>
+                  );
+                })}
               </tbody>
             </table>
           </div>
           {hasProvisional && (
-            <p className="hairline border-t px-3 py-2 text-xs text-muted">
-              Players need {qualifyAt} games to get a rank.
-            </p>
+            <div className="hairline border-t px-3 py-2.5 text-xs text-muted space-y-0.5">
+              <p>
+                Official leaderboard requires playing in at least 70% of games ({qualifyAt} of {totalGames} {totalGames === 1 ? "game" : "games"}).
+              </p>
+              <p className="text-[11px] opacity-80">
+                Inactive and injured players keep their statistical averages frozen until they return.
+              </p>
+            </div>
           )}
         </div>
       )}

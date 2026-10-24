@@ -17,6 +17,7 @@ export type Player = {
   name: string;
   archived: boolean;
   nicknames: string[];
+  injured: boolean;
 };
 
 const toNicknames = (v: unknown): string[] =>
@@ -51,6 +52,7 @@ export async function listPlayers(): Promise<Player[]> {
       name: String(p.name),
       archived: Boolean(p.archived),
       nicknames: toNicknames(p.nicknames),
+      injured: Boolean((p as { injured?: boolean }).injured),
     }))
     .sort((a, b) =>
       a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
@@ -209,6 +211,8 @@ export type CareerLine = StatLine & {
   /** Sum of (per-game rating x weight) and of the weights; average rating = ratingSum / ratingW. */
   ratingSum: number;
   ratingW: number;
+  /** Whether the player is currently tagged as injured. */
+  injured: boolean;
 };
 
 const SUMMED: (keyof StatLine)[] = [
@@ -236,6 +240,7 @@ const SUMMED: (keyof StatLine)[] = [
 
 /** Season/career totals per player across finished games. */
 export function careerTotals(games: Game[], players: Player[]): CareerLine[] {
+  const injuredMap = new Map<number, boolean>(players.map((p) => [p.id, p.injured]));
   const byId = new Map<number, CareerLine>();
   const get = (id: number, name: string): CareerLine => {
     let l = byId.get(id);
@@ -247,6 +252,7 @@ export function careerTotals(games: Game[], players: Player[]): CareerLine[] {
         losses: 0,
         ratingSum: 0,
         ratingW: 0,
+        injured: injuredMap.get(id) ?? false,
       };
       byId.set(id, l);
     }

@@ -1,6 +1,6 @@
 import type { Game, Player } from "./queries";
 import { careerTotals } from "./queries";
-import { MAX_QUALIFY_GAMES } from "./rankings";
+import { minGamesToQualify } from "./rankings";
 import { averageRating, played } from "./rating";
 
 export type StandingRow = {
@@ -21,6 +21,8 @@ export type StandingRow = {
   streak: { kind: "W" | "L"; n: number } | null;
   /** 1-based, or null until the player has enough games (see qualifyAt). */
   rank: number | null;
+  /** Whether the player is currently tagged as injured. */
+  injured: boolean;
 };
 
 /**
@@ -33,7 +35,10 @@ export function standings(
   players: Player[],
 ): { rows: StandingRow[]; qualifyAt: number } {
   const career = careerTotals(games, players).filter((c) => c.gp > 0);
-  const qualifyAt = Math.min(MAX_QUALIFY_GAMES, Math.max(1, ...career.map((c) => c.gp)));
+  const finalGames = games.filter((g) => g.status === "final");
+  const baseline =
+    finalGames.length > 0 ? finalGames.length : Math.max(0, ...career.map((c) => c.gp));
+  const qualifyAt = minGamesToQualify(baseline);
 
   // Results per player in play order (ties are skipped: neither a win nor a loss).
   const results = new Map<number, ("W" | "L")[]>();
@@ -70,6 +75,7 @@ export function standings(
       form: list.slice(-5),
       streak: last ? { kind: last, n } : null,
       rank: null,
+      injured: c.injured,
     };
   });
   const byRecord = (a: StandingRow, b: StandingRow) =>

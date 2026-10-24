@@ -3,6 +3,7 @@
 import { useRef, useState, useTransition } from "react";
 import { createGame } from "@/lib/actions";
 import { Avatar, shortName } from "@/app/components/Avatar";
+import { InjuredBadge } from "@/app/components/InjuredBadge";
 import { balanceTeams, fairness } from "@/lib/balance";
 
 type Assign = { team: "A" | "B"; seq: number };
@@ -37,7 +38,7 @@ export default function NewGameForm({
   players,
   strengths,
 }: {
-  players: { id: number; name: string }[];
+  players: { id: number; name: string; injured?: boolean }[];
   /** Player id -> strength (rating and win rate, from past games), for balancing. */
   strengths: Record<number, number>;
 }) {
@@ -164,9 +165,10 @@ export default function NewGameForm({
               }`}
             >
               <Avatar id={p.id} name={p.name} size="sm" />
-              <span className="min-w-0 flex-1 truncate">
-                {shortName(p.name)}
-              </span>
+              <div className="min-w-0 flex-1 truncate">
+                <span className="truncate">{shortName(p.name)}</span>
+                {p.injured && <span className="ml-1 inline-block"><InjuredBadge size="sm" /></span>}
+              </div>
               {t && (
                 <span
                   className={`text-right text-[10px] font-bold uppercase leading-tight ${t === "A" ? "text-court-ink" : "text-away-dark"}`}
