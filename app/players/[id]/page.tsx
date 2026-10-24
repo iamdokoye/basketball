@@ -193,7 +193,7 @@ export default async function PlayerPage({
               </p>
             ) : ranked.rank === null ? (
               <p className="text-xs font-medium text-muted">
-                Needs {qualifyAt} of {totalGames} games (70%) to qualify
+                Needs {qualifyAt} of {totalGames} games (40%) to qualify
               </p>
             ) : null}
           </div>

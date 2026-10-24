@@ -25,7 +25,7 @@ export const SORTS = {
 export type SortKey = keyof typeof SORTS;
 
 /** Minimum percentage of total games a player must play in to qualify for the leaderboard (NBA-style). */
-export const MIN_QUALIFY_PCT = 0.7;
+export const MIN_QUALIFY_PCT = 0.4;
 
 export function minGamesToQualify(totalGames: number): number {
   if (totalGames <= 0) return 1;
@@ -34,8 +34,8 @@ export function minGamesToQualify(totalGames: number): number {
 
 /**
  * Ranks everyone who has played. To keep the leaderboard fair and realistic, players
- * must play in at least 70% of total games to qualify. Injured or absent players have
- * their averages frozen; if their absence drops them below 70%, their rank becomes provisional
+ * must play in at least 40% of total games to qualify. Injured or absent players have
+ * their averages frozen; if their absence drops them below 40%, their rank becomes provisional
  * until they return.
  */
 export function rankPlayers(

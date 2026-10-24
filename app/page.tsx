@@ -182,7 +182,7 @@ export default async function Home() {
             <h2 className="label">Live on court</h2>
           </div>
           {live.map((g) => (
-            <LiveGameCard key={g.id} game={g} />
+            <LiveGameCard key={g.id} game={g} canScore={access.canPlay} />
           ))}
         </section>
       )}
