@@ -18,7 +18,14 @@ export function MvpCard({
   result: MvpResult;
 }) {
   const w = result.winner;
-  const noun = kind === "week" ? "week" : "month";
+  const noun =
+    kind === "week"
+      ? "week"
+      : kind === "month"
+        ? "month"
+        : kind === "quarter"
+          ? "quarter"
+          : "year";
   const when = isCurrent ? `This ${noun}` : `Last ${noun} played`;
   const perGame = w.gp > 1;
   const stats: [string, number][] = [

@@ -7,7 +7,7 @@ import { formatShortDay, leagueGameDay, leagueTimeZone } from "@/lib/format";
 import { clutchTotals } from "@/lib/clutch";
 import { singleGameRecords, winStreaks } from "@/lib/records";
 import { shelfEntries, trophyShelf } from "@/lib/trophies";
-import { careerTotals, listGames, listPlayers } from "@/lib/queries";
+import { careerTotals, listGames, listPlayers, listVotedAwards } from "@/lib/queries";
 import { rankPlayers } from "@/lib/rankings";
 import {
   fmtAvg,
@@ -38,10 +38,11 @@ export default async function PlayerPage({
 }) {
   const { id } = await params;
   const playerId = Number(id);
-  const [players, games, access] = await Promise.all([
+  const [players, games, access, votedAwards] = await Promise.all([
     listPlayers(),
     listGames(),
     getAccess(),
+    listVotedAwards(),
   ]);
   const player = players.find((p) => p.id === playerId);
   if (!player) notFound();
@@ -73,10 +74,16 @@ export default async function PlayerPage({
     ["+/-", c.gp ? fmtSigned(c.plusMinus / c.gp, 1) : "–"],
   ];
 
+  const playerNames = new Map<number, string>(players.map((p) => [p.id, p.name]));
   const shelf = shelfEntries(
-    trophyShelf(games, leagueTimeZone(), leagueGameDay(), access.now).get(
-      playerId,
-    ),
+    trophyShelf(
+      games,
+      leagueTimeZone(),
+      leagueGameDay(),
+      access.now,
+      votedAwards,
+      playerNames,
+    ).get(playerId),
   );
   const relations = relationsFor(playerId, pairStats(games));
 
@@ -215,7 +222,7 @@ export default async function PlayerPage({
 
       {shelf.length > 0 && (
         <section className="space-y-2">
-          <h2 className="label px-1">Trophy shelf</h2>
+          <h2 className="label px-1">Trophies & honors</h2>
           <div className="flex flex-wrap gap-2">
             {shelf.map((t) => (
               <span

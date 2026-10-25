@@ -251,6 +251,11 @@ export default async function Home() {
                   </div>
                 )}
                 <p className="text-xs text-muted">Today&apos;s title cards, after the session.</p>
+                {access.isAdmin && (
+                  <p className="mt-1 text-[11px] font-bold text-amber-700">
+                    🔒 Admin: Preview today&apos;s cards with disclaimer
+                  </p>
+                )}
               </div>
             </Link>
           ) : (

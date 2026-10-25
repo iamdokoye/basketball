@@ -5,14 +5,18 @@ import {
   computeMvp,
   groupByPeriod,
   monthKey,
+  monthLabel,
+  quarterKey,
   weekKey,
+  yearKey,
   type Period,
 } from "@/lib/mvp";
-import { listGames } from "@/lib/queries";
+import { listGames, listPlayers, listVotedAwards } from "@/lib/queries";
 import { Avatar } from "@/app/components/Avatar";
 import { AwardsCard } from "@/app/components/AwardsCard";
-import { monthAwards } from "@/lib/awards";
-import { monthLabel } from "@/lib/mvp";
+import { MajorAwardsCard } from "@/app/components/MajorAwardsCard";
+import { AdminDisclaimerBanner } from "@/app/components/AdminDisclaimer";
+import { computeMajorAwards, monthAwards } from "@/lib/awards";
 
 export const dynamic = "force-dynamic";
 
@@ -71,13 +75,42 @@ function Rows({
   );
 }
 
-export default async function MvpHistoryPage() {
-  const [games, access] = await Promise.all([listGames(), getAccess()]);
+export default async function MvpHistoryPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string; admin_preview?: string }>;
+}) {
+  const [{ tab, admin_preview }, games, players, access, votedAwards] = await Promise.all([
+    searchParams,
+    listGames(),
+    listPlayers(),
+    getAccess(),
+    listVotedAwards(),
+  ]);
+
   const tz = leagueTimeZone();
   const day = leagueGameDay();
-  const weeks = groupByPeriod(games, "week", tz, day);
+
+  const years = groupByPeriod(games, "year", tz, day);
+  const quarters = groupByPeriod(games, "quarter", tz, day);
   const months = groupByPeriod(games, "month", tz, day);
+  const weeks = groupByPeriod(games, "week", tz, day);
+
+  const thisYear = yearKey(access.now, tz);
+  const thisQuarter = quarterKey(access.now, tz);
   const thisMonth = monthKey(access.now, tz);
+
+  const playerNames = new Map(players.map((p) => [p.id, p.name]));
+
+  const tabs = [
+    { id: "yearly", label: "Yearly" },
+    { id: "quarterly", label: "Quarterly" },
+    { id: "monthly", label: "Monthly" },
+    { id: "weekly", label: "Weekly" },
+    { id: "all", label: "All" },
+  ];
+
+  const activeTab = tab && tabs.some((t) => t.id === tab) ? tab : "yearly";
 
   return (
     <div className="space-y-6">
@@ -92,53 +125,185 @@ export default async function MvpHistoryPage() {
           MVPs & awards
         </h1>
         <p className="text-sm text-muted">
-          The best average rating across each week&apos;s or month&apos;s
-          finished games. A week runs Saturday to Friday.
+          Tournament honors, team awards, quarterly and yearly honors, and
+          weekly MVPs across finished games.
         </p>
       </div>
 
-      <section className="space-y-3">
-        <h2 className="label px-1">Month awards</h2>
-        {months.some((m) => m.key === thisMonth) && (
-          <p className="glass-1 rounded-2xl p-4 text-sm text-muted">
-            {monthLabel(thisMonth)} awards are revealed when the month ends.
-          </p>
-        )}
-        {months.filter((m) => m.key < thisMonth).length === 0 ? (
-          <p className="glass-1 rounded-2xl p-6 text-center text-sm text-muted">
-            The first awards card appears at the end of the first month with
-            finished games.
-          </p>
-        ) : (
-          months
-            .filter((m) => m.key < thisMonth)
-            .map((m) => (
-              <AwardsCard
-                key={m.key}
-                monthLabel={m.label}
-                awards={monthAwards(m.games)}
+      {/* Period Filter Tabs */}
+      <div className="flex flex-wrap gap-1.5">
+        {tabs.map((t) => {
+          const active = t.id === activeTab;
+          return (
+            <Link
+              key={t.id}
+              href={`/mvp?tab=${t.id}`}
+              className={`rounded-full px-4 py-1.5 text-xs font-bold transition-all ${
+                active
+                  ? "bg-ink text-paper shadow-sm"
+                  : "bg-black/[0.05] text-muted hover:bg-black/[0.08] hover:text-ink"
+              }`}
+            >
+              {t.label}
+            </Link>
+          );
+        })}
+      </div>
+
+      {/* Yearly View */}
+      {(activeTab === "yearly" || activeTab === "all") && (
+        <section className="space-y-5">
+          <div className="flex items-center justify-between px-1">
+            <h2 className="label text-ink">Yearly awards</h2>
+            <span className="text-xs font-semibold text-muted">
+              Team of Year, All-Star Three, MVP & honors
+            </span>
+          </div>
+
+          {years.length === 0 ? (
+            <p className="glass-1 rounded-2xl p-6 text-center text-sm text-muted">
+              The first yearly awards appear when the year&apos;s finished games
+              are played.
+            </p>
+          ) : (
+            years.map((y) => (
+              <MajorAwardsCard
+                key={y.key}
+                periodLabel={y.label}
+                periodKind="year"
+                isCurrent={y.key === thisYear}
+                awards={computeMajorAwards(
+                  y.games,
+                  games,
+                  "year",
+                  tz,
+                  votedAwards,
+                  playerNames,
+                )}
               />
             ))
-        )}
-      </section>
+          )}
 
-      <section className="space-y-2.5">
-        <h2 className="label px-1">MVP by month</h2>
-        <Rows
-          periods={months}
-          currentKey={monthKey(access.now, tz)}
-          noun="monthly"
-        />
-      </section>
+          <div className="space-y-2.5">
+            <h3 className="label px-1">MVP by year</h3>
+            <Rows periods={years} currentKey={thisYear} noun="yearly" />
+          </div>
+        </section>
+      )}
 
-      <section className="space-y-2.5">
-        <h2 className="label px-1">MVP by week</h2>
-        <Rows
-          periods={weeks}
-          currentKey={weekKey(access.now, tz, day)}
-          noun="weekly"
-        />
-      </section>
+      {/* Quarterly View */}
+      {(activeTab === "quarterly" || activeTab === "all") && (
+        <section className="space-y-5">
+          <div className="flex items-center justify-between px-1">
+            <h2 className="label text-ink">Quarterly awards</h2>
+            <span className="text-xs font-semibold text-muted">
+              All-Star Three, Best Trio & tournament honors
+            </span>
+          </div>
+
+          {quarters.length === 0 ? (
+            <p className="glass-1 rounded-2xl p-6 text-center text-sm text-muted">
+              The first quarterly awards appear when a quarter has finished
+              games.
+            </p>
+          ) : (
+            quarters.map((q) => (
+              <MajorAwardsCard
+                key={q.key}
+                periodLabel={q.label}
+                periodKind="quarter"
+                isCurrent={q.key === thisQuarter}
+                awards={computeMajorAwards(
+                  q.games,
+                  games,
+                  "quarter",
+                  tz,
+                  votedAwards,
+                  playerNames,
+                )}
+              />
+            ))
+          )}
+
+          <div className="space-y-2.5">
+            <h3 className="label px-1">MVP by quarter</h3>
+            <Rows periods={quarters} currentKey={thisQuarter} noun="quarterly" />
+          </div>
+        </section>
+      )}
+
+      {/* Monthly View */}
+      {(activeTab === "monthly" || activeTab === "all") && (
+        <section className="space-y-5">
+          <div className="space-y-3">
+            <h2 className="label px-1">Month awards</h2>
+            {months.some((m) => m.key === thisMonth) && (
+              <div className="space-y-2">
+                <p className="glass-1 rounded-2xl p-4 text-sm text-muted">
+                  {monthLabel(thisMonth)} awards are revealed when the month ends.
+                </p>
+                {access.isAdmin && (
+                  <AdminDisclaimerBanner
+                    isUnlocked={admin_preview === "1"}
+                    unlockHref={`/mvp?tab=${activeTab}&admin_preview=1`}
+                    lockHref={`/mvp?tab=${activeTab}`}
+                    periodName={monthLabel(thisMonth)}
+                    reason="Current month awards are locked for regular players until the month ends."
+                  />
+                )}
+              </div>
+            )}
+            {access.isAdmin &&
+              admin_preview === "1" &&
+              months.find((m) => m.key === thisMonth) && (
+                <AwardsCard
+                  monthLabel={`${monthLabel(thisMonth)} (Admin Preview)`}
+                  awards={monthAwards(
+                    months.find((m) => m.key === thisMonth)!.games,
+                  )}
+                />
+              )}
+            {months.filter((m) => m.key < thisMonth).length === 0 &&
+            !(access.isAdmin && admin_preview === "1") ? (
+              <p className="glass-1 rounded-2xl p-6 text-center text-sm text-muted">
+                The first awards card appears at the end of the first month with
+                finished games.
+              </p>
+            ) : (
+              months
+                .filter((m) => m.key < thisMonth)
+                .map((m) => (
+                  <AwardsCard
+                    key={m.key}
+                    monthLabel={m.label}
+                    awards={monthAwards(m.games)}
+                  />
+                ))
+            )}
+          </div>
+
+          <div className="space-y-2.5">
+            <h3 className="label px-1">MVP by month</h3>
+            <Rows
+              periods={months}
+              currentKey={thisMonth}
+              noun="monthly"
+            />
+          </div>
+        </section>
+      )}
+
+      {/* Weekly View */}
+      {(activeTab === "weekly" || activeTab === "all") && (
+        <section className="space-y-2.5">
+          <h2 className="label px-1">MVP by week</h2>
+          <Rows
+            periods={weeks}
+            currentKey={weekKey(access.now, tz, day)}
+            noun="weekly"
+          />
+        </section>
+      )}
     </div>
   );
 }

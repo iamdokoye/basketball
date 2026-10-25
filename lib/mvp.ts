@@ -6,7 +6,7 @@ import { emptyLine, type StatLine } from "./stats";
 // timezone. A "week" starts on the league's game day (Saturday by default) and runs
 // to the Friday after, so on a Wednesday "this week" is last Saturday's games.
 
-export type PeriodKind = "week" | "month";
+export type PeriodKind = "week" | "month" | "quarter" | "year";
 export type Period = {
   kind: PeriodKind;
   key: string;
@@ -79,6 +79,18 @@ export function monthKey(ms: number, timeZone: string): string {
   return `${y}-${pad(m)}`;
 }
 
+/** "YYYY-Q1" to "YYYY-Q4" of the quarter containing `ms`, in the league timezone. */
+export function quarterKey(ms: number, timeZone: string): string {
+  const { y, m } = localDate(ms, timeZone);
+  return `${y}-Q${Math.ceil(m / 3)}`;
+}
+
+/** "YYYY" of the calendar year containing `ms`, in the league timezone. */
+export function yearKey(ms: number, timeZone: string): string {
+  const { y } = localDate(ms, timeZone);
+  return String(y);
+}
+
 const utcFmt = (opts: Intl.DateTimeFormatOptions) =>
   new Intl.DateTimeFormat("en-US", { timeZone: "UTC", ...opts });
 
@@ -97,7 +109,18 @@ export function monthLabel(key: string): string {
   );
 }
 
-/** Finished games grouped into weeks or months, newest first. */
+/** "Q4 2026" */
+export function quarterLabel(key: string): string {
+  const [y, q] = key.split("-");
+  return `${q} ${y}`;
+}
+
+/** "2026" */
+export function yearLabel(key: string): string {
+  return key;
+}
+
+/** Finished games grouped into weeks, months, quarters, or years, newest first. */
 export function groupByPeriod(
   games: Game[],
   kind: PeriodKind,
@@ -110,7 +133,11 @@ export function groupByPeriod(
     const key =
       kind === "week"
         ? weekKey(g.startMs, timeZone, weekStartDay)
-        : monthKey(g.startMs, timeZone);
+        : kind === "month"
+          ? monthKey(g.startMs, timeZone)
+          : kind === "quarter"
+            ? quarterKey(g.startMs, timeZone)
+            : yearKey(g.startMs, timeZone);
     const list = map.get(key) ?? [];
     list.push(g);
     map.set(key, list);
@@ -120,7 +147,14 @@ export function groupByPeriod(
     .map(([key, list]) => ({
       kind,
       key,
-      label: kind === "week" ? weekLabel(key) : monthLabel(key),
+      label:
+        kind === "week"
+          ? weekLabel(key)
+          : kind === "month"
+            ? monthLabel(key)
+            : kind === "quarter"
+              ? quarterLabel(key)
+              : yearLabel(key),
       games: list,
     }));
 }
@@ -188,11 +222,25 @@ export function minGamesFor(players: PlayerTotals[]): number {
   return Math.ceil(Math.max(0, ...players.map((p) => p.gp)) / 2);
 }
 
-export function computeMvp(games: Game[]): MvpResult | null {
+export function computeMvp(
+  games: Game[],
+  options?: { championPriority?: boolean },
+): MvpResult | null {
   const acc = new Map(aggregatePlayers(games).map((a) => [a.playerId, a]));
   if (acc.size === 0) return null;
 
   const minGames = minGamesFor([...acc.values()]);
+  const finals = games.filter((g) => g.status === "final");
+  const lastFinal = [...finals].sort((a, b) => a.startMs - b.startMs).at(-1);
+  const champPlayerIds = new Set<number>();
+  if (options?.championPriority && lastFinal && lastFinal.winner) {
+    const winnerTeam = lastFinal.winner;
+    for (const l of lastFinal.lines) {
+      if (l.team === winnerTeam && played(l)) {
+        champPlayerIds.add(l.playerId);
+      }
+    }
+  }
 
   const candidates: Candidate[] = [...acc.entries()]
     .filter(([, a]) => a.gp >= minGames)
@@ -209,19 +257,25 @@ export function computeMvp(games: Game[]): MvpResult | null {
       stl: a.total.stl / a.gp,
       blk: a.total.blk / a.gp,
     }))
-    .sort(
-      (a, b) =>
+    .sort((a, b) => {
+      if (options?.championPriority && champPlayerIds.size > 0) {
+        const aChamp = champPlayerIds.has(a.playerId) ? 1 : 0;
+        const bChamp = champPlayerIds.has(b.playerId) ? 1 : 0;
+        if (aChamp !== bChamp) return bChamp - aChamp;
+      }
+      return (
         b.rating - a.rating ||
         b.wins / b.gp - a.wins / a.gp ||
         b.pts - a.pts ||
-        a.name.localeCompare(b.name),
-    );
+        a.name.localeCompare(b.name)
+      );
+    });
 
   const [winner, ...rest] = candidates;
   return {
     winner,
     runnersUp: rest.slice(0, 2),
-    games: games.filter((g) => g.status === "final").length,
+    games: finals.length,
   };
 }
 

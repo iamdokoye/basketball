@@ -2,11 +2,38 @@ import { getAccess } from "@/lib/access";
 import { adminLogout } from "@/lib/actions";
 import { Countdown } from "@/app/components/Countdown";
 import { LoginForm } from "./LoginForm";
+import { AwardVoteForm } from "./AwardVoteForm";
+import { listGames, listPlayers, listVotedAwards } from "@/lib/queries";
+import { groupByPeriod, quarterKey, yearKey } from "@/lib/mvp";
+import { leagueGameDay, leagueTimeZone } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminPage() {
-  const a = await getAccess();
+  const [a, players, games, votedAwards] = await Promise.all([
+    getAccess(),
+    listPlayers(),
+    listGames(),
+    listVotedAwards(),
+  ]);
+
+  const tz = leagueTimeZone();
+  const day = leagueGameDay();
+  const years = groupByPeriod(games, "year", tz, day);
+  const quarters = groupByPeriod(games, "quarter", tz, day);
+  const thisYear = yearKey(a.now, tz);
+  const thisQuarter = quarterKey(a.now, tz);
+
+  const periodList = [
+    ...years.map((y) => ({ key: y.key, label: `Year ${y.label}` })),
+    ...quarters.map((q) => ({ key: q.key, label: `Quarter ${q.label}` })),
+  ];
+  if (!periodList.some((p) => p.key === thisYear)) {
+    periodList.unshift({ key: thisYear, label: `Year ${thisYear}` });
+  }
+  if (!periodList.some((p) => p.key === thisQuarter)) {
+    periodList.unshift({ key: thisQuarter, label: `Quarter ${thisQuarter}` });
+  }
 
   return (
     <div className="space-y-5">
@@ -35,16 +62,25 @@ export default async function AdminPage() {
       </div>
 
       {a.isAdmin ? (
-        <div className="glass-2 space-y-3 rounded-2xl p-4">
-          <p className="text-sm font-semibold">You&apos;re signed in as admin on this device.</p>
-          <p className="text-sm text-muted">
-            You can edit at any time, rename or archive players, reopen finished games and delete games.
-          </p>
-          <form action={adminLogout}>
-            <button className="h-11 rounded-full bg-ink px-6 text-sm font-semibold text-paper active:scale-95">
-              Sign out
-            </button>
-          </form>
+        <div className="space-y-5">
+          <div className="glass-2 space-y-3 rounded-2xl p-4">
+            <p className="text-sm font-semibold">You&apos;re signed in as admin on this device.</p>
+            <p className="text-sm text-muted">
+              You can edit at any time, rename or archive players, reopen finished games, delete games, and award peer honors.
+            </p>
+            <form action={adminLogout}>
+              <button className="h-11 rounded-full bg-ink px-6 text-sm font-semibold text-paper active:scale-95">
+                Sign out
+              </button>
+            </form>
+          </div>
+
+          {/* Record peer-voted awards (e.g. Most Spectacular Player) */}
+          <AwardVoteForm
+            players={players}
+            periods={periodList}
+            votedAwards={votedAwards}
+          />
         </div>
       ) : a.adminConfigured ? (
         <LoginForm />

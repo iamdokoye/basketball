@@ -281,3 +281,32 @@ export function careerTotals(games: Game[], players: Player[]): CareerLine[] {
   }
   return [...byId.values()];
 }
+
+export type VotedAward = {
+  id: number;
+  periodKey: string;
+  awardId: string;
+  playerId: number;
+  notes: string;
+  createdAt: string;
+};
+
+export async function listVotedAwards(): Promise<VotedAward[]> {
+  try {
+    const { data, error } = await db()
+      .from("voted_awards")
+      .select("*")
+      .order("created_at", { ascending: false });
+    if (error) return [];
+    return (data ?? []).map((r) => ({
+      id: Number(r.id),
+      periodKey: String(r.period_key),
+      awardId: String(r.award_id),
+      playerId: Number(r.player_id),
+      notes: String(r.notes ?? ""),
+      createdAt: String(r.created_at),
+    }));
+  } catch {
+    return [];
+  }
+}

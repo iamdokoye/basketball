@@ -121,3 +121,95 @@ export function relationsFor(
     b.gp - a.gp || b.wins - a.wins || a.name.localeCompare(b.name);
   return { teammates: teammates.sort(sort), opponents: opponents.sort(sort) };
 }
+
+export type Trio = {
+  players: [
+    { id: number; name: string },
+    { id: number; name: string },
+    { id: number; name: string },
+  ];
+  gp: number;
+  wins: number;
+  losses: number;
+  pts: number;
+  oppPts: number;
+  diff: number;
+};
+
+/** All 3-player squads who shared the court on the same team, with their record together. */
+export function trioStats(games: Game[]): Trio[] {
+  const trios = new Map<string, Trio>();
+  for (const g of games) {
+    if (g.status !== "final" || g.score.A === g.score.B) continue;
+    const winner = g.score.A > g.score.B ? "A" : "B";
+    const teams: ("A" | "B")[] = ["A", "B"];
+    for (const t of teams) {
+      const oppTeam = t === "A" ? "B" : "A";
+      const teamLines = g.lines.filter((l) => l.team === t && played(l));
+      if (teamLines.length < 3) continue;
+      const sorted = [...teamLines].sort((a, b) => a.playerId - b.playerId);
+      for (let i = 0; i < sorted.length - 2; i++) {
+        for (let j = i + 1; j < sorted.length - 1; j++) {
+          for (let k = j + 1; k < sorted.length; k++) {
+            const p1 = sorted[i];
+            const p2 = sorted[j];
+            const p3 = sorted[k];
+            const key = `${p1.playerId}-${p2.playerId}-${p3.playerId}`;
+            let trio = trios.get(key);
+            if (!trio) {
+              trio = {
+                players: [
+                  { id: p1.playerId, name: p1.name },
+                  { id: p2.playerId, name: p2.name },
+                  { id: p3.playerId, name: p3.name },
+                ],
+                gp: 0,
+                wins: 0,
+                losses: 0,
+                pts: 0,
+                oppPts: 0,
+                diff: 0,
+              };
+              trios.set(key, trio);
+            }
+            trio.gp++;
+            if (t === winner) trio.wins++;
+            else trio.losses++;
+            trio.pts += g.score[t];
+            trio.oppPts += g.score[oppTeam];
+            trio.diff += g.score[t] - g.score[oppTeam];
+          }
+        }
+      }
+    }
+  }
+  return [...trios.values()];
+}
+
+/** Trios ranked by team chemistry (win rate together, then point differential and games). */
+export function bestTrios(trios: Trio[], minGames = 1): Trio[] {
+  return trios
+    .filter((t) => t.gp >= minGames)
+    .sort(
+      (a, b) =>
+        b.wins / b.gp - a.wins / a.gp ||
+        b.wins - a.wins ||
+        b.diff - a.diff ||
+        b.pts - a.pts ||
+        b.gp - a.gp,
+    );
+}
+
+/** Trios ranked for Team of the Year (most dominant run: wins first, then points scored, win rate, and point differential). */
+export function dominantTrios(trios: Trio[], minGames = 1): Trio[] {
+  return trios
+    .filter((t) => t.gp >= minGames)
+    .sort(
+      (a, b) =>
+        b.wins - a.wins ||
+        b.pts - a.pts ||
+        b.wins / b.gp - a.wins / a.gp ||
+        b.diff - a.diff ||
+        b.gp - a.gp,
+    );
+}

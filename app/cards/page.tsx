@@ -17,6 +17,7 @@ import { groupByPeriod, monthKey, weekKey } from "@/lib/mvp";
 import { listGames } from "@/lib/queries";
 import { AwardCard, CardBack } from "@/app/components/AwardCard";
 import { Countdown } from "@/app/components/Countdown";
+import { AdminDisclaimerBanner } from "@/app/components/AdminDisclaimer";
 
 export const dynamic = "force-dynamic";
 
@@ -34,9 +35,9 @@ function hourLabel(h: number) {
 export default async function CardsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tier?: string; period?: string }>;
+  searchParams: Promise<{ tier?: string; period?: string; unlock?: string }>;
 }) {
-  const { tier: t, period } = await searchParams;
+  const { tier: t, period, unlock } = await searchParams;
   const tier: Tier = TIERS.includes(t as Tier) ? (t as Tier) : "week";
   const [games, access] = await Promise.all([listGames(), getAccess()]);
   const tz = leagueTimeZone();
@@ -54,8 +55,12 @@ export default async function CardsPage({
       : tier === "month"
         ? monthKey(access.now, tz)
         : yearKey(access.now, tz);
-  // A month or a year stays face-down until it is over: only the finished ones are open.
-  const periods = tier === "week" ? allPeriods : allPeriods.filter((p) => p.key < currentKey);
+  // A month or a year stays face-down until it is over: only the finished ones are open to regular users.
+  // Admins can see and preview any period including active ones.
+  const periods =
+    tier === "week" || access.isAdmin
+      ? allPeriods
+      : allPeriods.filter((p) => p.key < currentKey);
   const pending = tier === "week" ? undefined : allPeriods.find((p) => p.key === currentKey);
   const pendingEnds = pending && tier !== "week" ? periodEndsAt(tier, pending.key, tz) : null;
   const selected =
@@ -64,10 +69,15 @@ export default async function CardsPage({
     periods[0];
 
   const lock = cardsLock(access.now, games, tz);
-  const hidden = lock.locked && selected?.key === currentKey;
-  const cards = selected && !hidden ? buildCards(selected.games, tier, selected) : [];
   const isCurrent = selected?.key === currentKey;
-  const path = `/cards?tier=${tier}${selected ? `&period=${selected.key}` : ""}`;
+  const isLocked =
+    (tier === "week" && lock.locked && isCurrent) ||
+    (tier !== "week" && isCurrent);
+  const isUnlockedByAdmin = Boolean(access.isAdmin && unlock === "1");
+  const hidden = isLocked && !isUnlockedByAdmin;
+
+  const cards = selected && !hidden ? buildCards(selected.games, tier, selected) : [];
+  const path = `/cards?tier=${tier}${selected ? `&period=${selected.key}` : ""}${unlock ? `&unlock=${unlock}` : ""}`;
   const href = (nextTier: Tier, key?: string) =>
     `/cards?tier=${nextTier}${key ? `&period=${key}` : ""}`;
 
@@ -173,16 +183,42 @@ export default async function CardsPage({
             ))}
           </div>
           <div className="space-y-1">
-            <div className="label text-muted">Today&apos;s cards drop at {hourLabel(cardsHour())}</div>
-            {lock.unlockAt && (
+            <div className="label text-muted">
+              {tier === "week"
+                ? `Today's cards drop at ${hourLabel(cardsHour())}`
+                : `${selected.label} cards drop when the ${tier} ends`}
+            </div>
+            {tier === "week" && lock.unlockAt ? (
               <div className="text-3xl font-extrabold tracking-tight">
                 <Countdown target={lock.unlockAt} serverNow={access.now} />
               </div>
-            )}
+            ) : pendingEnds ? (
+              <div className="text-3xl font-extrabold tracking-tight">
+                <Countdown target={pendingEnds} serverNow={access.now} />
+              </div>
+            ) : null}
             <p className="text-sm text-muted">
-              No spoilers while games are being played. Earlier weeks are open below.
+              {tier === "week"
+                ? "No spoilers while games are being played. Earlier weeks are open below."
+                : "Month and year cards stay face-down until the stretch is over."}
             </p>
           </div>
+
+          {access.isAdmin && (
+            <div className="text-left">
+              <AdminDisclaimerBanner
+                isUnlocked={false}
+                unlockHref={`/cards?tier=${tier}&period=${selected.key}&unlock=1`}
+                lockHref={`/cards?tier=${tier}&period=${selected.key}`}
+                periodName={selected.label}
+                reason={
+                  tier === "week"
+                    ? "Today's cards stay face-down until 2:00 PM to prevent spoilers during play."
+                    : `This ${tier} is still active and locked for regular users.`
+                }
+              />
+            </div>
+          )}
         </section>
       ) : cards.length === 0 ? (
         <p className="glass-1 rounded-2xl p-8 text-center text-sm text-muted">
@@ -190,6 +226,15 @@ export default async function CardsPage({
         </p>
       ) : (
         <>
+          {access.isAdmin && isLocked && (
+            <AdminDisclaimerBanner
+              isUnlocked={true}
+              unlockHref={`/cards?tier=${tier}&period=${selected.key}&unlock=1`}
+              lockHref={`/cards?tier=${tier}&period=${selected.key}`}
+              periodName={selected.label}
+            />
+          )}
+
           <div className="flex items-center justify-between px-1">
             <span className="label text-muted">
               {tier === "year" ? selected.label : `${TIER_LABEL[tier]} of ${selected.label}`}
@@ -199,10 +244,10 @@ export default async function CardsPage({
                 isCurrent ? "bg-court-soft/15 text-court-ink" : "bg-black/[0.06] text-muted"
               }`}
             >
-              {isCurrent ? "Leading so far" : "Final"}
+              {isCurrent ? (access.isAdmin ? "Leading so far (Admin Preview)" : "Leading so far") : "Final"}
             </span>
           </div>
-          {tier !== "week" && !isCurrent && (
+          {tier !== "week" && (!isCurrent || access.isAdmin) && (
             <Link
               href={`/cards/show?tier=${tier}&period=${selected.key}`}
               className={`flex items-center justify-between gap-3 rounded-2xl px-4 py-3.5 text-white shadow-md active:scale-[0.99] ${
@@ -213,10 +258,17 @@ export default async function CardsPage({
             >
               <span className="min-w-0">
                 <span className="block text-sm font-extrabold">
-                  {tier === "year" ? `Watch the ${selected.label} recap` : `Watch the ${selected.label.split(" ")[0]} recap`}
+                  {tier === "year"
+                    ? `Watch the ${selected.label} recap`
+                    : `Watch the ${selected.label.split(" ")[0]} recap`}
+                  {isCurrent && " (Admin Preview)"}
                 </span>
                 <span className="block text-xs font-medium text-white/75">
-                  {tier === "year" ? "The full show, with music" : "A short slideshow, with music"}
+                  {isCurrent
+                    ? "Preview in-progress recap slideshow (requires confirmation)"
+                    : tier === "year"
+                      ? "The full show, with music"
+                      : "A short slideshow, with music"}
                 </span>
               </span>
               <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white text-ink" aria-hidden>

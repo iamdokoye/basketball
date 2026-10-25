@@ -733,3 +733,35 @@ export async function addLatePlayer(input: {
     },
   };
 }
+
+/** Admin action to save a community/peer-voted award (e.g. Most Spectacular Player). */
+export async function recordVotedAward(input: {
+  periodKey: string;
+  awardId: string;
+  playerId: number;
+  notes?: string;
+}): Promise<ActionResult> {
+  const guard = await needAdmin();
+  if (guard) return guard;
+  const { error } = await db()
+    .from("voted_awards")
+    .upsert(
+      {
+        period_key: input.periodKey,
+        award_id: input.awardId,
+        player_id: input.playerId,
+        notes: (input.notes ?? "").trim(),
+      },
+      { onConflict: "period_key,award_id" },
+    );
+  if (error) {
+    if (error.message.includes("voted_awards")) {
+      return fail(
+        "Voted awards need a database update. Run 20261025000000_voted_awards.sql in Supabase.",
+      );
+    }
+    return fail("Couldn't save the award. Try again.");
+  }
+  revalidatePath("/", "layout");
+  return { ok: true };
+}

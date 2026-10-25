@@ -32,8 +32,10 @@ The service role key is used only in server code (`lib/supabase.ts` imports `ser
 | View stats, rankings, games, live scores | Always | Always |
 | Start games, score, undo, finish games, add players | **Only during the open window** | Any time |
 | Rename or archive players, reopen or delete games | Never | Any time |
+| Preview locked cards, slideshows & in-progress awards | Locked until end of period / 2 PM | Any time (with disclaimer confirmation) |
 
 The open window is **Saturdays 6:00 AM – 1:00 PM** in `LEAGUE_TIMEZONE` (default `Africa/Lagos`). A live countdown in the header and on Home shows when it opens (or closes), and the page flips by itself when the time comes. Outside the window everyone sees a read-only view, and a live game can still be followed (it refreshes every few seconds).
+- **Admin preview & disclaimers:** When signed in as admin, you can preview and verify any content normally locked for regular players (cards before 2 PM or before month/year end, in-progress month awards, and recap slideshows for active periods). An explicit confirmation disclaimer asks if you really want to view the locked content before revealing spoilers.
 - **Spectating:** every live game on Home has a **Watch live** button (or open `/games/<id>?watch=1`). It shows the live scoreboard and play log with nothing tappable, and updates by itself, even for someone who is allowed to score. **Stop watching** returns to the normal game page.
 
 Set these in `.env.local` and in your host's environment variables:
@@ -101,7 +103,7 @@ Run `supabase/migrations/20261014000000_function_hardening.sql` in the Supabase 
 - **Balance teams:** on New game, tap everyone who's playing and press **Balance teams**. It splits them into the two most even teams from ratings and win rates (people with few games count as average), and **Shuffle** gives another fair split.
 - **Records and streaks** (`/records`): single-game highs, biggest win, win streaks, best month.
 - **Duos and rivals** (`/chemistry`): win rate for teammates, and head-to-head records. Each profile also lists its record with and against every other player.
-- **Trophy shelf:** each profile shows weekly and monthly MVPs, month awards and player-of-the-game counts. Weekly and monthly honours only count once the week or month is over.
+- **Trophies & honors:** each profile shows their trophy shelf: yearly and quarterly major honors (MVP, Rookie of the Year, DPOY, Sixth Man, Most Improved, Clutch), monthly and weekly MVPs, month awards, season honors, and player-of-the-game counts. Periodic honours only count once that week, month, quarter or year is over.
 
 ## Importing and fixing past games (admin)
 
@@ -141,11 +143,22 @@ After a game session, every stat leader gets a trading card with a title, and th
 
 ## MVPs and awards
 
-- **MVP of the week:** the best average rating across that week's finished games. A week runs Saturday to Friday (it starts on your game day), so midweek this is last Saturday's games. If this week has no finished game yet, the most recent week with games is shown.
-- **MVP of the month:** the same, across the calendar month.
+- **Tournament, quarterly and yearly honors** (`/mvp`):
+  - **Most Valuable Player (MVP):** Single most outstanding player of the tournament/period (prioritized from the championship/gold-medal winning team, matching basketball tradition).
+  - **All-Star Three ("Team of the Tournament"):** Selection honoring the top 3 individual players of the entire event across all teams.
+  - **Team of the Tournament (Best Trio):** The 3-player lineup that played together on the same court with the best winning record and team chemistry.
+  - **Team of the Year:** The squad with the highest point total and most dominant multi-tournament run during the season.
+  - **Most Spectacular Player:** Community & peer-voted award decided between players based on highlight mixtapes and public interaction (recordable in `/admin`).
+  - **Rookie of the Year / Rookie of the Quarter:** Top performing player in their debut season.
+  - **Defensive Player of the Year (DPOY):** Best defensive impact across steals, blocks, deflections, and defensive boards.
+  - **Sixth Man of the Year / Sixth Man of the Quarter:** Top player predominantly checking in off the bench (majority bench games).
+  - **Most Improved Player:** Greatest leap in Game Score rating compared to prior play (returning players with established baselines).
+  - **Clutch Player of the Year / Clutch Player of the Quarter:** Most clutch points and game-winners in close games.
+- **One-time SQL:** run `supabase/migrations/20261025000000_voted_awards.sql` in the Supabase SQL Editor to store peer-voted honors.
+- **MVP of the week and month:** the best average rating across that week's or month's finished games. A week runs Saturday to Friday.
 - **Month awards card:** appears once a month has ended: MVP, Top Scorer, Best Shooter (effective FG%), Best Finisher (2-point %), Best Playmaker (assists), Best Defender (steals + blocks + deflections), Board Man (rebounds), Winner (win rate) and Difference Maker (plus/minus). One player can win several.
-- To be considered, a player needs at least half as many games as the busiest player that month. The two percentage awards also need real shot volume, so a lucky 1-for-1 night can't win. Awards with no qualifying player show "No winner".
-- Weeks and months use `LEAGUE_TIMEZONE`.
+- To be considered, a player needs at least half as many games as the busiest player that period. The percentage awards also need real shot volume. Awards with no qualifying player show "No winner".
+- Weeks, months, quarters and years use `LEAGUE_TIMEZONE`.
 
 ## How scoring works
 
