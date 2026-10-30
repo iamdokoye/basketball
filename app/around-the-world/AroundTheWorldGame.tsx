@@ -16,6 +16,7 @@ import {
 } from "@/lib/shootingGame";
 import { playSwish, playClang, playBuzzer, playWhistle } from "@/lib/courtAudio";
 import type { Player } from "@/lib/queries";
+import { Court2DVisual } from "./Court2DVisual";
 
 const STORAGE_KEY = "pickup_around_the_world_v1";
 
@@ -39,6 +40,7 @@ export function AroundTheWorldGame({ allPlayers }: { allPlayers: Player[] }) {
   const [penalty, setPenalty] = useState<"reset_to_start" | "back_one">("reset_to_start");
   const [keepShooting, setKeepShooting] = useState<boolean>(true);
   const [spots, setSpots] = useState<CourtSpot[]>(DEFAULT_COURT_SPOTS);
+  const [selectedSpotId, setSelectedSpotId] = useState<string | null>(null);
   const [customSpotName, setCustomSpotName] = useState("");
 
   // Persist game state
@@ -298,13 +300,13 @@ export function AroundTheWorldGame({ allPlayers }: { allPlayers: Player[] }) {
           </div>
         </div>
 
-        {/* Court Spots Config / Preview */}
+        {/* Court Spots Config & 2D Visual Map */}
         <div className="glass-1 space-y-4 rounded-3xl p-5 sm:p-6">
           <div className="flex items-center justify-between">
             <div>
               <div className="label text-xs">3. Court Positions ({spots.length} Spots)</div>
               <p className="text-xs text-muted">
-                Order of spots players must sink shots from to win Around the World.
+                2D visual representation of the Around the World shooting sequence.
               </p>
             </div>
             <button
@@ -316,30 +318,49 @@ export function AroundTheWorldGame({ allPlayers }: { allPlayers: Player[] }) {
             </button>
           </div>
 
+          {/* 2D Court Visual */}
+          <Court2DVisual
+            spots={spots}
+            interactive={true}
+            selectedSpotId={selectedSpotId ?? undefined}
+            onSelectSpot={(spot) => setSelectedSpotId(spot.id)}
+          />
+
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {spots.map((spot, idx) => (
-              <div
-                key={spot.id}
-                className="group relative flex items-center justify-between rounded-xl border border-black/8 bg-white/80 p-2.5 text-xs font-bold shadow-2xs"
-              >
-                <div className="flex items-center gap-2">
-                  <span className="grid h-5 w-5 place-items-center rounded-full bg-court-ink/10 text-[10px] font-black text-court-ink">
-                    {idx + 1}
-                  </span>
-                  <span className="truncate">{spot.name}</span>
+            {spots.map((spot, idx) => {
+              const isSelected = selectedSpotId === spot.id;
+              return (
+                <div
+                  key={spot.id}
+                  onClick={() => setSelectedSpotId(spot.id)}
+                  className={`group relative flex cursor-pointer items-center justify-between rounded-xl border p-2.5 text-xs font-bold shadow-2xs transition ${
+                    isSelected
+                      ? "border-amber-400 bg-amber-500/15 ring-2 ring-amber-400/40"
+                      : "border-black/8 bg-white/80 hover:bg-white"
+                  }`}
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-court-ink/10 text-[10px] font-black text-court-ink">
+                      {idx + 1}
+                    </span>
+                    <span className="truncate">{spot.name}</span>
+                  </div>
+                  {spots.length > 2 && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeSpot(spot.id);
+                      }}
+                      title="Remove spot"
+                      className="opacity-0 transition group-hover:opacity-100 hover:text-rose-600"
+                    >
+                      ✕
+                    </button>
+                  )}
                 </div>
-                {spots.length > 2 && (
-                  <button
-                    type="button"
-                    onClick={() => removeSpot(spot.id)}
-                    title="Remove spot"
-                    className="opacity-0 transition group-hover:opacity-100 hover:text-rose-600"
-                  >
-                    ✕
-                  </button>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           <div className="flex gap-2">
@@ -566,86 +587,12 @@ export function AroundTheWorldGame({ allPlayers }: { allPlayers: Player[] }) {
           </div>
         </div>
 
-        {/* Half-Court SVG Visual */}
-        <div className="relative mx-auto aspect-[16/10] w-full max-w-2xl overflow-hidden rounded-2xl border border-black/10 bg-[#e8be89] shadow-inner">
-          {/* Court Wood Texture & Lines */}
-          <svg
-            viewBox="0 0 100 70"
-            className="absolute inset-0 h-full w-full stroke-court-lines/40"
-            fill="none"
-            strokeWidth="0.8"
-          >
-            {/* Baseline */}
-            <line x1="0" y1="70" x2="100" y2="70" strokeWidth="1.2" stroke="#8c5826" />
-            {/* Key / Paint */}
-            <rect x="36" y="38" width="28" height="32" fill="#d99f66" stroke="#8c5826" strokeWidth="0.9" />
-            {/* Free Throw Circle */}
-            <circle cx="50" cy="38" r="14" stroke="#8c5826" strokeDasharray="2,2" />
-            {/* 3-Point Arc */}
-            <path
-              d="M 12 70 L 12 56 A 40 40 0 0 1 88 56 L 88 70"
-              stroke="#8c5826"
-              strokeWidth="1"
-            />
-            {/* Backboard & Rim */}
-            <line x1="42" y1="67" x2="58" y2="67" stroke="#333" strokeWidth="1.5" />
-            <circle cx="50" cy="64" r="3.2" stroke="#e04e26" strokeWidth="1.2" fill="#e04e26/20" />
-          </svg>
-
-          {/* Spots Plotted on Court */}
-          {game.spots.map((spot, idx) => {
-            // Find which players are currently at this spot
-            const playersAtSpot = game.players.filter((p) => p.currentSpotIndex === idx);
-            const isTargetForActive =
-              activePlayer && activePlayer.currentSpotIndex === idx;
-
-            // Map standard court coordinates
-            const posX = spot.x ?? (15 + (idx * 70) / (game.spots.length - 1));
-            const posY = spot.y ?? 50;
-
-            return (
-              <div
-                key={spot.id}
-                style={{ left: `${posX}%`, top: `${posY}%` }}
-                className="absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center"
-              >
-                {/* Spot Pin / Marker */}
-                <div
-                  className={`relative grid h-7 w-7 sm:h-8 sm:w-8 place-items-center rounded-full text-xs font-black shadow-md transition-all ${
-                    isTargetForActive
-                      ? "bg-court-ink text-white ring-4 ring-court-ink/40 scale-125 z-20 animate-pulse"
-                      : playersAtSpot.length > 0
-                      ? "bg-ink text-white ring-2 ring-white z-10"
-                      : "bg-white/90 text-ink/70 ring-1 ring-black/20"
-                  }`}
-                  title={`${spot.name} (#${idx + 1})`}
-                >
-                  {idx + 1}
-                </div>
-
-                {/* Spot Label */}
-                <span className="mt-1 hidden sm:block whitespace-nowrap rounded-md bg-black/60 px-1.5 py-0.2 text-[9px] font-bold text-white shadow-xs">
-                  {spot.short}
-                </span>
-
-                {/* Players stationed at this spot */}
-                {playersAtSpot.length > 0 && (
-                  <div className="absolute -top-7 flex -space-x-1.5 z-30">
-                    {playersAtSpot.map((p) => (
-                      <span
-                        key={p.id}
-                        title={`${p.name} is at Spot #${idx + 1}`}
-                        className="rounded-full ring-1 ring-white shadow-xs"
-                      >
-                        <Avatar name={p.name} size="sm" tone={p.id === activePlayer?.id ? "ink" : "soft"} />
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
+        <Court2DVisual
+          spots={game.spots}
+          activeSpotIndex={activePlayer?.currentSpotIndex}
+          players={game.players}
+          activePlayerId={activePlayer?.id}
+        />
       </div>
 
       {/* Player Leaderboard & Progress Ladder */}

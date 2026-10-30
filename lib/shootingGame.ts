@@ -8,14 +8,14 @@ export type CourtSpot = {
 };
 
 export const DEFAULT_COURT_SPOTS: CourtSpot[] = [
-  { id: "spot-1", name: "Right Corner 3", short: "R-CNR", x: 86, y: 76, type: "corner" },
-  { id: "spot-2", name: "Right Wing", short: "R-WNG", x: 74, y: 48, type: "wing" },
-  { id: "spot-3", name: "Right Elbow", short: "R-ELB", x: 61, y: 34, type: "elbow" },
-  { id: "spot-4", name: "Top of the Key", short: "TOP", x: 50, y: 22, type: "top" },
-  { id: "spot-5", name: "Left Elbow", short: "L-ELB", x: 39, y: 34, type: "elbow" },
-  { id: "spot-6", name: "Left Wing", short: "L-WNG", x: 26, y: 48, type: "wing" },
-  { id: "spot-7", name: "Left Corner 3", short: "L-CNR", x: 14, y: 76, type: "corner" },
-  { id: "spot-8", name: "Free Throw (Money Ball)", short: "FT", x: 50, y: 42, type: "free_throw" },
+  { id: "spot-1", name: "Right Corner 3", short: "R-CNR", x: 91, y: 16, type: "corner" },
+  { id: "spot-2", name: "Right Wing", short: "R-WNG", x: 78, y: 48, type: "wing" },
+  { id: "spot-3", name: "Right Elbow", short: "R-ELB", x: 65, y: 44, type: "elbow" },
+  { id: "spot-4", name: "Top of the Key", short: "TOP", x: 50, y: 81, type: "top" },
+  { id: "spot-5", name: "Left Elbow", short: "L-ELB", x: 35, y: 44, type: "elbow" },
+  { id: "spot-6", name: "Left Wing", short: "L-WNG", x: 22, y: 48, type: "wing" },
+  { id: "spot-7", name: "Left Corner 3", short: "L-CNR", x: 9, y: 16, type: "corner" },
+  { id: "spot-8", name: "Free Throw (Money Ball)", short: "FT", x: 50, y: 46, type: "free_throw" },
 ];
 
 export type ShootingGameMode =
