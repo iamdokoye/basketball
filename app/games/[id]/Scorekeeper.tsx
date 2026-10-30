@@ -32,6 +32,7 @@ import { useScoreMode } from "./scoreMode";
 import { SCORE_MODES, type ScoreMode } from "./scoreModeShared";
 import { CourtAudioControls } from "@/app/components/CourtAudio";
 import { LiveMomentumMeter } from "@/app/components/LiveMomentumMeter";
+import { LiveWinProbability } from "@/app/components/LiveWinProbability";
 import { MiniCourtShotPad } from "@/app/components/MiniCourtShotPad";
 import { playBuzzer, playClang, playOnFireSound, playSwish } from "@/lib/courtAudio";
 import { detectOnFirePlayers } from "@/lib/momentum";
@@ -972,6 +973,17 @@ export default function Scorekeeper({
           />
         </div>
       )}
+
+      {/* Live Win Probability & Draw Tension Meter */}
+      <LiveWinProbability
+        scoreA={score.A}
+        scoreB={score.B}
+        target={target}
+        winBy={winBy}
+        events={events}
+        roster={roster}
+        teamNames={{ A: TEAM_STYLE.A.label, B: TEAM_STYLE.B.label }}
+      />
 
       {/* Live Momentum & On Fire Meter */}
       <LiveMomentumMeter

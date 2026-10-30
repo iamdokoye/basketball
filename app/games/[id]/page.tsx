@@ -10,6 +10,7 @@ import { buildRecap } from "@/lib/recap";
 import { BoxScoreTable, formatDate } from "@/app/components/BoxScore";
 import { Avatar } from "@/app/components/Avatar";
 import { GameMomentumChart } from "@/app/components/GameMomentumChart";
+import { LiveWinProbability } from "@/app/components/LiveWinProbability";
 import { ShareRecap } from "@/app/components/ShareRecap";
 import { buildGameMomentum, detectOnFirePlayers } from "@/lib/momentum";
 import { CourtAudioControls } from "@/app/components/CourtAudio";
@@ -215,6 +216,16 @@ export default async function GamePage({
           </div>
         </div>
       )}
+
+      <LiveWinProbability
+        scoreA={game.score.A}
+        scoreB={game.score.B}
+        target={game.target}
+        winBy={game.winBy}
+        events={game.events}
+        roster={game.roster}
+        teamNames={{ A: "Team A", B: "Team B" }}
+      />
 
       {momentum && <GameMomentumChart momentum={momentum} />}
 
