@@ -11,7 +11,8 @@ import { BoxScoreTable, formatDate } from "@/app/components/BoxScore";
 import { Avatar } from "@/app/components/Avatar";
 import { GameMomentumChart } from "@/app/components/GameMomentumChart";
 import { ShareRecap } from "@/app/components/ShareRecap";
-import { buildGameMomentum } from "@/lib/momentum";
+import { buildGameMomentum, detectOnFirePlayers } from "@/lib/momentum";
+import { CourtAudioControls } from "@/app/components/CourtAudio";
 import GameAdminActions from "./GameAdminActions";
 import Scorekeeper from "./Scorekeeper";
 import { parseScoreMode, SCORE_MODE_COOKIE } from "./scoreModeShared";
@@ -61,6 +62,7 @@ export default async function GamePage({
   const pog = playerOfTheGame(game);
   const svp = gameSvp(game);
   const momentum = buildGameMomentum(game);
+  const onFire = detectOnFirePlayers(game.events, game.roster);
   const recap = buildRecap(game, leagueTimeZone());
   // Total playing time (pauses and timeouts excluded) and the timeouts, with who called each.
   const clock = buildClock(game.events, game.startMs, game.roster);
@@ -77,12 +79,15 @@ export default async function GamePage({
 
   return (
     <div className="space-y-4">
-      <Link
-        href="/games"
-        className="px-1 text-sm font-semibold text-muted hover:underline"
-      >
-        ← All games
-      </Link>
+      <div className="flex items-center justify-between px-1">
+        <Link
+          href="/games"
+          className="text-sm font-semibold text-muted hover:underline"
+        >
+          ← All games
+        </Link>
+        <CourtAudioControls />
+      </div>
       <div className="glass-2 rounded-3xl p-5">
         <div className="label text-muted">
           {formatDate(game.playedAt)} · Final
@@ -192,6 +197,22 @@ export default async function GamePage({
               </div>
             </Link>
           )}
+        </div>
+      )}
+
+      {onFire.length > 0 && (
+        <div className="glass-1 flex items-center justify-between rounded-2xl p-3 px-4 text-xs font-bold">
+          <span className="flex items-center gap-1.5 text-rose-700">
+            <span className="animate-pulse">🔥</span>
+            <span>Hot Hand / On Fire Streaks:</span>
+          </span>
+          <div className="flex flex-wrap gap-2">
+            {onFire.map((p) => (
+              <span key={p.playerId} className="rounded-full bg-rose-500/10 px-2 py-0.5 text-rose-700">
+                {p.playerName} ({p.streak} straight makes · {p.ptsInStreak} pts)
+              </span>
+            ))}
+          </div>
         </div>
       )}
 

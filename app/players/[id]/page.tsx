@@ -28,6 +28,8 @@ import { computePlayerArchetype } from "@/lib/badges";
 import { getPlayerMilestones } from "@/lib/milestones";
 import { PlayerBadges } from "@/app/components/PlayerBadges";
 import { PlayerMilestonesCard } from "@/app/components/PlayerMilestonesCard";
+import { computePlayerShotProfile } from "@/lib/shotZones";
+import { ShotHeatmap } from "@/app/components/ShotHeatmap";
 
 export const dynamic = "force-dynamic";
 
@@ -86,6 +88,7 @@ export default async function PlayerPage({
     ).get(playerId),
   );
   const relations = relationsFor(playerId, pairStats(games));
+  const shotProfile = computePlayerShotProfile(playerId, games);
 
   // Rating trend: the latest 15 rated games, oldest to newest.
   const TREND_GAMES = 15;
@@ -256,6 +259,8 @@ export default async function PlayerPage({
       </div>
 
       <PlayerMilestonesCard milestones={milestones} />
+
+      {shotProfile.totalFga > 0 && <ShotHeatmap profile={shotProfile} />}
 
       <section className="space-y-2">
         <div className="flex items-baseline justify-between px-1">

@@ -131,6 +131,12 @@ After a game session, every stat leader gets a trading card with a title, and th
 - **Recap slideshows:** a finished month or year has a **Watch the recap** button above its cards. It is a full-screen slideshow with music: the period's numbers, then each category winner revealed with a drumroll (the all-rounder last), then **Player of the Month / Year** (whoever won the most cards), then everyone's titles. Tap the right side for next and the left edge for back, or use the pause, mute and close buttons. The **month** show is short and bright (blue, confetti, a bouncy groove). The **year** show is longer and grander (black and gold, turning light rays, fireworks, a month-by-month MVP roll call, a slower anthem with strings, brass and timpani). The music is made on the phone with the Web Audio API, so there are no audio files, and it starts only when you tap **Play with sound**. Nothing is stored; the show is built from the same games as the cards.
 - The weekly digest lists the week's titles.
 - **WhatsApp & Instagram Story Card Exporter:** Any award card (weekly, monthly, or yearly) can be saved or shared as a crisp 1080×1350 PNG (4:5 story aspect ratio) directly into WhatsApp, Instagram, or group chats with full graphical styling.
+- **Shot chart & visual heatmap (`/players/[id]`):** An interactive half-court diagram on every player profile detailing shooting percentages and volume across 6 distinct zones (Paint/Rim, Mid-Range Left, Mid-Range Right, 3PT Left, 3PT Right, and Top of the Arc) with hot (🔥) and cold (❄️) zone efficiency markers.
+- **Live court momentum & "On Fire" heat check:**
+  - **On Fire badge:** When a player makes 2+ consecutive field goals without a miss, a glowing flame badge (`🔥 ON FIRE`) appears on their live card, scorekeeper row, and game recaps.
+  - **Court momentum meter:** A live tug-of-war meter showing which team controls game energy and active scoring runs (e.g. `6-0 run`).
+- **Retro arcade court audio & soundboard:** Synthesized entirely in the browser with the Web Audio API (zero audio files to download or host). Automatically plays snappy swish sounds on makes, metallic rim clanks on misses, flame whooshes on heat checks, and classic arcade buzzers on game-winners. Features a floating soundboard with instant mute toggle.
+- **One-time SQL:** run `supabase/migrations/20261026000000_shot_zones.sql` in the Supabase SQL Editor to store detailed shot locations.
 
 ## Tale of the tape, team builder & tournaments
 

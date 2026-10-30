@@ -64,7 +64,7 @@ const STOP = new Set(
     "rebound rebounds board boards offensive defensive offense defense off def steal steals stole block blocks blocked swat swats reject rejects " +
     "turnover turnovers turns over loses lost ball foul fouls fouled commits deflect deflects deflection tip tips " +
     "sub subs subbing substitution comes come coming checks check into timeout time call calls called team pause stop clock resume play " +
-    "undo scratch cancel remove last one two three free throw throws layup dunk jumper triple pointer three"
+    "undo scratch cancel remove last one two three free throw throws layup dunk jumper triple pointer three paint corner baseline floater arc wing deep"
   ).split(/\s+/),
 );
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { addLatePlayer, finishGame } from "@/lib/actions";
@@ -30,6 +30,11 @@ import { ActionPad, type PadAction } from "./ActionPad";
 import { FollowUp, SavedToast, type ChipGroup } from "./FollowUp";
 import { useScoreMode } from "./scoreMode";
 import { SCORE_MODES, type ScoreMode } from "./scoreModeShared";
+import { CourtAudioControls } from "@/app/components/CourtAudio";
+import { LiveMomentumMeter } from "@/app/components/LiveMomentumMeter";
+import { MiniCourtShotPad } from "@/app/components/MiniCourtShotPad";
+import { playBuzzer, playClang, playOnFireSound, playSwish } from "@/lib/courtAudio";
+import { detectOnFirePlayers } from "@/lib/momentum";
 
 type Ev = { playerId: number; type: EventType; team?: Team };
 
@@ -187,6 +192,35 @@ export default function Scorekeeper({
     clock.timeouts.filter((x) => x.team === t).length;
   const score = teamScores(lines);
   const result = gameResult(score, { target, winBy });
+  const [shotPadShooter, setShotPadShooter] = useState<RosterEntry | null>(null);
+
+  const onFirePlayers = useMemo(
+    () => detectOnFirePlayers(events, roster, 2),
+    [events, roster],
+  );
+  const onFireSet = useMemo(
+    () => new Set(onFirePlayers.map((p) => p.playerId)),
+    [onFirePlayers],
+  );
+
+  // Play buzzer when game ends
+  const prevIsOver = useRef(result.over);
+  useEffect(() => {
+    if (result.over && !prevIsOver.current) {
+      playBuzzer();
+    }
+    prevIsOver.current = result.over;
+  }, [result.over]);
+
+  // Play on fire flame whoosh when a new player catches fire
+  const prevOnFireCount = useRef(onFirePlayers.length);
+  useEffect(() => {
+    if (onFirePlayers.length > prevOnFireCount.current) {
+      playOnFireSound();
+    }
+    prevOnFireCount.current = onFirePlayers.length;
+  }, [onFirePlayers.length]);
+
   const nameOf = (id: number) => roster.find((p) => p.id === id)?.name ?? "?";
 
   const active = (t: Team) =>
@@ -224,6 +258,14 @@ export default function Scorekeeper({
     setLocalError(null);
     setFollow(null);
     setSaved(null);
+
+    // Audio SFX feedback
+    if (evs.some((e) => e.type === "MAKE2" || e.type === "MAKE3")) {
+      playSwish();
+    } else if (evs.some((e) => e.type === "MISS2" || e.type === "MISS3")) {
+      playClang();
+    }
+
     return sync.add(evs);
   }
 
@@ -880,6 +922,64 @@ export default function Scorekeeper({
         </div>
       </div>
 
+      {/* Court Soundboard & Controls */}
+      <div className="flex items-center justify-between px-1">
+        <CourtAudioControls />
+        {!readOnly && (
+          <button
+            type="button"
+            onClick={() => setShotPadShooter(shotPadShooter ? null : active("A")[0] || null)}
+            className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold transition ${
+              shotPadShooter
+                ? "bg-court-ink text-white shadow-xs"
+                : "bg-black/[0.06] text-muted hover:text-ink"
+            }`}
+          >
+            <span>🗺️ Shot Court Tracker</span>
+            <span className="text-[10px]">{shotPadShooter ? "▲" : "▼"}</span>
+          </button>
+        )}
+      </div>
+
+      {/* Mini Court Shot Pad (when open) */}
+      {!readOnly && shotPadShooter && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between px-1 text-xs">
+            <span className="font-bold text-muted">Shooter:</span>
+            <div className="flex gap-1 overflow-x-auto [scrollbar-width:none]">
+              {[...active("A"), ...active("B")].map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => setShotPadShooter(p)}
+                  className={`rounded-full px-2.5 py-0.5 text-xs font-bold transition ${
+                    shotPadShooter.id === p.id
+                      ? "bg-ink text-paper"
+                      : "bg-black/[0.05] text-muted hover:text-ink"
+                  }`}
+                >
+                  {shortName(p.name)}
+                </button>
+              ))}
+            </div>
+          </div>
+          <MiniCourtShotPad
+            shooterName={shotPadShooter.name}
+            onRecordShot={(_zone, made, pts) => {
+              const type = pts === 3 ? (made ? "MAKE3" : "MISS3") : (made ? "MAKE2" : "MISS2");
+              quickShot(shotPadShooter, type);
+            }}
+          />
+        </div>
+      )}
+
+      {/* Live Momentum & On Fire Meter */}
+      <LiveMomentumMeter
+        events={events}
+        roster={roster}
+        teamNames={{ A: TEAM_STYLE.A.label, B: TEAM_STYLE.B.label }}
+      />
+
       {readOnly && (
         <div className="glass-1 flex items-center justify-between gap-3 rounded-2xl p-3.5">
           <div className="min-w-0">
@@ -1001,6 +1101,14 @@ export default function Scorekeeper({
                   <span className="min-w-0 flex-1 truncate font-bold">
                     {shortName(p.name)}
                   </span>
+                  {onFireSet.has(p.id) && (
+                    <span
+                      title="On Fire (hot streak)"
+                      className="inline-flex items-center rounded-full bg-rose-500/15 px-1.5 py-0.5 text-[10px] font-black text-rose-700 animate-pulse"
+                    >
+                      🔥
+                    </span>
+                  )}
                   <span
                     key={l.pts}
                     className="pop tabular text-2xl font-extrabold tracking-tight"

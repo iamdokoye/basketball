@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Game } from "@/lib/queries";
 import { shortName } from "./Avatar";
 import { formatDate } from "./BoxScore";
+import { detectOnFirePlayers } from "@/lib/momentum";
 
 const TEAMS = [
   { t: "A", dot: "bg-court-soft", name: "Team A" },
@@ -62,6 +63,8 @@ export function GameRow({ game }: { game: Game }) {
 export function LiveGameCard({ game, canScore = true }: { game: Game; canScore?: boolean }) {
   const pct = (t: "A" | "B") => Math.min(100, (game.score[t] / game.target) * 100);
   const leader = game.score.A >= game.score.B ? "A" : "B";
+  const onFire = detectOnFirePlayers(game.events, game.roster, 2);
+
   return (
     <div className="glass-1 space-y-3 rounded-2xl p-4">
       {TEAMS.map(({ t, dot, name }, i) => (
@@ -104,6 +107,20 @@ export function LiveGameCard({ game, canScore = true }: { game: Game; canScore?:
           )}
         </div>
       ))}
+      {onFire.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 pt-1">
+          {onFire.map((p) => (
+            <span
+              key={p.playerId}
+              className="inline-flex items-center gap-1 rounded-full bg-rose-500/15 px-2.5 py-0.5 text-xs font-black text-rose-700 animate-pulse"
+            >
+              <span>🔥</span>
+              <span>{shortName(p.playerName)} is ON FIRE ({p.streak} in a row!)</span>
+            </span>
+          ))}
+        </div>
+      )}
+
       <div className="flex justify-end gap-2">
         <Link
           href={`/games/${game.id}?watch=1`}
