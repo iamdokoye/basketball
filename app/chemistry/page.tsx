@@ -90,8 +90,17 @@ export default async function ChemistryPage() {
                     {shortName(r.b.name)}
                   </Link>
                 </div>
-                <div className="tabular text-xs font-semibold text-muted">
-                  {r.against.gp} games
+                <div className="flex items-center gap-2">
+                  <div className="tabular text-xs font-semibold text-muted">
+                    {r.against.gp} games
+                  </div>
+                  <Link
+                    href={`/compare?p1=${r.a.id}&p2=${r.b.id}`}
+                    className="rounded-full bg-court-ink/10 px-2.5 py-1 text-[11px] font-bold text-court-ink hover:bg-court-ink hover:text-white transition"
+                    title="Compare head-to-head"
+                  >
+                    Compare
+                  </Link>
                 </div>
               </li>
             ))}

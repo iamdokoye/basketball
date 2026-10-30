@@ -7,7 +7,15 @@ import NewGameForm from "./NewGameForm";
 
 export const dynamic = "force-dynamic";
 
-export default async function NewGamePage() {
+export default async function NewGamePage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ teamA?: string; teamB?: string }>;
+}) {
+  const params = searchParams ? await searchParams : {};
+  const initialA = params.teamA ? params.teamA.split(",").map(Number).filter(Boolean) : [];
+  const initialB = params.teamB ? params.teamB.split(",").map(Number).filter(Boolean) : [];
+
   const access = await getAccess();
   if (!access.canPlay) {
     return (
@@ -59,6 +67,8 @@ export default async function NewGamePage() {
       <NewGameForm
         players={players.map((p) => ({ id: p.id, name: p.name, injured: p.injured }))}
         strengths={strengths}
+        initialA={initialA}
+        initialB={initialB}
       />
     </div>
   );

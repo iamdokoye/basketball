@@ -430,6 +430,7 @@ export default async function PlayerPage({
             title="Against (opponents)"
             empty="No games against anyone yet."
             rows={relations.opponents}
+            currentPlayerId={playerId}
           />
         </div>
       )}
@@ -442,10 +443,12 @@ function MateList({
   title,
   rows,
   empty,
+  currentPlayerId,
 }: {
   title: string;
   rows: Mate[];
   empty: string;
+  currentPlayerId?: number;
 }) {
   return (
     <section className="space-y-2">
@@ -455,10 +458,10 @@ function MateList({
       ) : (
         <ul className="glass-1 divide-y divide-black/[0.06] rounded-2xl">
           {rows.slice(0, 8).map((m) => (
-            <li key={m.playerId}>
+            <li key={m.playerId} className="flex items-center justify-between gap-2 px-3.5 py-2.5">
               <Link
                 href={`/players/${m.playerId}`}
-                className="flex items-center justify-between gap-3 px-3.5 py-2.5 text-sm"
+                className="flex min-w-0 flex-1 items-center justify-between gap-3 text-sm hover:underline"
               >
                 <span className="truncate font-semibold">{m.name}</span>
                 <span className="tabular shrink-0 text-xs font-semibold text-muted">
@@ -469,6 +472,15 @@ function MateList({
                   {m.gp === 1 ? "game" : "games"}
                 </span>
               </Link>
+              {currentPlayerId && (
+                <Link
+                  href={`/compare?p1=${currentPlayerId}&p2=${m.playerId}`}
+                  className="rounded-full bg-court-ink/10 px-2 py-0.5 text-[10px] font-bold text-court-ink hover:bg-court-ink hover:text-white transition"
+                  title="Compare head-to-head"
+                >
+                  VS
+                </Link>
+              )}
             </li>
           ))}
         </ul>

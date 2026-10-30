@@ -37,13 +37,23 @@ const MODES: {
 export default function NewGameForm({
   players,
   strengths,
+  initialA = [],
+  initialB = [],
 }: {
   players: { id: number; name: string; injured?: boolean }[];
   /** Player id -> strength (rating and win rate, from past games), for balancing. */
   strengths: Record<number, number>;
+  initialA?: number[];
+  initialB?: number[];
 }) {
-  const [assign, setAssign] = useState<Record<number, Assign | undefined>>({});
-  const seq = useRef(0);
+  const [assign, setAssign] = useState<Record<number, Assign | undefined>>(() => {
+    const init: Record<number, Assign | undefined> = {};
+    let count = 0;
+    for (const id of initialA) init[id] = { team: "A", seq: ++count };
+    for (const id of initialB) init[id] = { team: "B", seq: ++count };
+    return init;
+  });
+  const seq = useRef(initialA.length + initialB.length);
   const [target, setTarget] = useState(20);
   const [mode, setMode] = useState<ModeId>("first");
   const winBy = MODES.find((m) => m.id === mode)!.winBy;

@@ -124,3 +124,128 @@ export function balanceTeams(
   B = B.sort(byStrength);
   return { A, B, avgA: avg(A), avgB: avg(B), gap: Math.abs(avg(A) - avg(B)) };
 }
+
+export type TeamSquad = {
+  id: string;
+  name: string;
+  color: string;
+  playerIds: number[];
+  avgStrength: number;
+  synergyScore: number;
+};
+
+export type MultiTeamResult = {
+  teams: TeamSquad[];
+  maxGap: number;
+  fairness: "Very even" | "Even" | "Lopsided";
+};
+
+export const SQUAD_COLORS = [
+  { name: "Team Gold", color: "bg-amber-500/20 text-amber-700 border-amber-300" },
+  { name: "Team Black", color: "bg-zinc-800 text-white border-zinc-700" },
+  { name: "Team Blue", color: "bg-blue-500/20 text-blue-700 border-blue-300" },
+  { name: "Team Red", color: "bg-rose-500/20 text-rose-700 border-rose-300" },
+];
+
+/**
+ * Balances a pool of players into 2, 3, or 4 teams as evenly as possible.
+ * Uses simulated annealing / snake distribution + local swaps to minimize maximum strength gap.
+ */
+export function balanceMultiTeams(
+  ids: number[],
+  numTeams: number,
+  strength: (id: number) => number,
+  pairSynergy?: (id1: number, id2: number) => number,
+  random: () => number = Math.random,
+): MultiTeamResult {
+  const k = Math.max(2, Math.min(4, numTeams));
+  const n = ids.length;
+  if (n < k) {
+    return {
+      teams: [],
+      maxGap: 0,
+      fairness: "Very even",
+    };
+  }
+
+  // Sort descending by strength
+  const sorted = [...ids].sort((a, b) => strength(b) - strength(a));
+
+  // Initial snake draft assignment
+  const teams: number[][] = Array.from({ length: k }, () => []);
+  for (let i = 0; i < sorted.length; i++) {
+    const round = Math.floor(i / k);
+    const pos = round % 2 === 0 ? i % k : k - 1 - (i % k);
+    teams[pos].push(sorted[i]);
+  }
+
+  const teamAvg = (t: number[]) =>
+    t.length > 0 ? t.reduce((sum, id) => sum + strength(id), 0) / t.length : 0;
+
+  // Local optimization: try swapping pairs of players between teams to minimize max gap
+  let bestSpread = Math.max(...teams.map(teamAvg)) - Math.min(...teams.map(teamAvg));
+
+  // Run up to 60 random swap iterations for fairness and variety
+  for (let iter = 0; iter < 60; iter++) {
+    const t1 = Math.floor(random() * k);
+    let t2 = Math.floor(random() * k);
+    if (t1 === t2) t2 = (t1 + 1) % k;
+
+    if (teams[t1].length === 0 || teams[t2].length === 0) continue;
+
+    const idx1 = Math.floor(random() * teams[t1].length);
+    const idx2 = Math.floor(random() * teams[t2].length);
+
+    // Swap
+    const temp = teams[t1][idx1];
+    teams[t1][idx1] = teams[t2][idx2];
+    teams[t2][idx2] = temp;
+
+    const newSpread = Math.max(...teams.map(teamAvg)) - Math.min(...teams.map(teamAvg));
+    if (newSpread <= bestSpread + 0.04) {
+      bestSpread = newSpread;
+    } else {
+      // Revert swap
+      const revert = teams[t1][idx1];
+      teams[t1][idx1] = teams[t2][idx2];
+      teams[t2][idx2] = revert;
+    }
+  }
+
+  // Calculate synergy for each squad if pairSynergy function provided
+  const squads: TeamSquad[] = teams.map((playerList, idx) => {
+    const sortedSquad = [...playerList].sort((a, b) => strength(b) - strength(a));
+    const avg = teamAvg(sortedSquad);
+    let synergy = 0;
+    if (pairSynergy && sortedSquad.length >= 2) {
+      let pairsCount = 0;
+      let totalSyn = 0;
+      for (let i = 0; i < sortedSquad.length; i++) {
+        for (let j = i + 1; j < sortedSquad.length; j++) {
+          totalSyn += pairSynergy(sortedSquad[i], sortedSquad[j]);
+          pairsCount++;
+        }
+      }
+      synergy = pairsCount > 0 ? totalSyn / pairsCount : 0;
+    }
+
+    const conf = SQUAD_COLORS[idx % SQUAD_COLORS.length];
+    return {
+      id: `team-${idx + 1}`,
+      name: conf.name,
+      color: conf.color,
+      playerIds: sortedSquad,
+      avgStrength: avg,
+      synergyScore: synergy,
+    };
+  });
+
+  const maxGap = Math.max(...squads.map((s) => s.avgStrength)) - Math.min(...squads.map((s) => s.avgStrength));
+
+  return {
+    teams: squads,
+    maxGap,
+    fairness: fairness(maxGap),
+  };
+}
+

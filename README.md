@@ -130,6 +130,25 @@ After a game session, every stat leader gets a trading card with a title, and th
 - **When they drop:** on a game day the current week's cards stay face-down until **2 PM** league time (a countdown shows), so nobody gets spoilers mid-session. Set `LEAGUE_CARDS_HOUR` (0 to 23, default 14) to change it. Month and year cards stay face-down until the month or year is **over** (a countdown shows how long is left); the cards tab only lists finished months and years, and a link to an unfinished one just opens the latest finished one. Past periods are always open.
 - **Recap slideshows:** a finished month or year has a **Watch the recap** button above its cards. It is a full-screen slideshow with music: the period's numbers, then each category winner revealed with a drumroll (the all-rounder last), then **Player of the Month / Year** (whoever won the most cards), then everyone's titles. Tap the right side for next and the left edge for back, or use the pause, mute and close buttons. The **month** show is short and bright (blue, confetti, a bouncy groove). The **year** show is longer and grander (black and gold, turning light rays, fireworks, a month-by-month MVP roll call, a slower anthem with strings, brass and timpani). The music is made on the phone with the Web Audio API, so there are no audio files, and it starts only when you tap **Play with sound**. Nothing is stored; the show is built from the same games as the cards.
 - The weekly digest lists the week's titles.
+- **WhatsApp & Instagram Story Card Exporter:** Any award card (weekly, monthly, or yearly) can be saved or shared as a crisp 1080×1350 PNG (4:5 story aspect ratio) directly into WhatsApp, Instagram, or group chats with full graphical styling.
+
+## Tale of the tape, team builder & tournaments
+
+- **Tale of the tape (`/compare`):** Head-to-head rivalry comparison between any two players.
+  - **Direct matchup record:** Wins against each other, head-to-head points per game, score margins, and full direct match history log.
+  - **Teammate synergy:** Record, win percentage, and chemistry when playing together on the same squad.
+  - **Side-by-side stat battle:** Direct category-by-category showdown across PER rating, win rate, PPG, RPG, APG, SPG, BPG, TS%, 3P%, clutch points, and plus/minus with leaders highlighted.
+  - **Trophy shelf face-off:** MVPs, Player of the Game, All-Star Three, Best Trio, DPOY, Clutch, 6MOY, and MIP side-by-side.
+  - **Banter generator:** 1-click button to copy or share formatted group chat trash talk.
+- **Fair team builder & captains live draft (`/builder`):**
+  - **Court check-in:** Tap players present at today's run.
+  - **Auto-balance engine:** Generates balanced 2, 3, or 4 teams using player strength, ratings, and pair chemistry synergy. 1-click sends squads directly into a new game or King of the Court.
+  - **Captains live draft:** Two captains run a real-time snake draft with live projected team ratings and captain chemistry synergy indicators.
+- **Tournament hub & King of the Court (`/tournaments`):**
+  - **King of the Court (Winner Stays On):** Automated court rotation and reign streak tracking (first to 3 wins takes the crown).
+  - **Single-elimination:** Semi-finals into the Championship Gold-Medal Game.
+  - **Round-robin:** Standings table tracking points for, against, differential, and streaks, with top seeds advancing to the Final.
+  - Integrates directly with the app's official scorekeeper and feeds winning teams into tournament awards.
 
 ## Seasons, standings, clutch and the weekly digest
 

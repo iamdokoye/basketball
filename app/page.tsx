@@ -395,6 +395,9 @@ export default async function Home() {
         <h2 className="label px-1">Explore</h2>
         <div className="grid grid-cols-3 gap-2.5">
           {[
+            { href: "/builder", title: "Team builder", sub: "Fair squads & draft" },
+            { href: "/tournaments", title: "Tournaments", sub: "King of the court" },
+            { href: "/compare", title: "Tale of the tape", sub: "Head-to-head" },
             { href: "/standings", title: "Standings", sub: "Season table" },
             { href: "/digest", title: "Weekly digest", sub: "Share the week" },
             { href: "/records#clutch", title: "Clutch", sub: "Game-winners" },
