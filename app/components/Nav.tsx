@@ -223,7 +223,7 @@ export function TopNav() {
 
       {/* Desktop Dropdown Menu */}
       {open && (
-        <div className="glass-2 absolute right-0 top-full mt-2 z-50 w-80 overflow-hidden rounded-3xl p-3 shadow-xl animate-in fade-in zoom-in-95 duration-150">
+        <div className="absolute right-0 top-full mt-2 z-50 w-80 overflow-hidden rounded-3xl p-3 bg-white/98 backdrop-blur-3xl border border-white/80 shadow-[0_24px_60px_rgba(0,0,0,0.25)] ring-1 ring-black/5 animate-in fade-in zoom-in-95 duration-150">
           <div className="space-y-3">
             {MORE_SECTIONS.map((sec) => (
               <div key={sec.heading} className="space-y-1">
@@ -337,7 +337,7 @@ export function BottomNav() {
 
           {/* Sheet Content */}
           <div
-            className="glass-2 relative z-50 max-h-[82vh] overflow-y-auto rounded-t-3xl p-5 pb-24 shadow-2xl animate-in slide-in-from-bottom duration-200"
+            className="relative z-50 max-h-[82vh] overflow-y-auto rounded-t-3xl p-5 pb-24 bg-white/96 backdrop-blur-3xl border-t border-white/80 shadow-[0_-20px_50px_rgba(0,0,0,0.2)] animate-in slide-in-from-bottom duration-200"
             style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 5rem)" }}
           >
             {/* Sheet Handle */}

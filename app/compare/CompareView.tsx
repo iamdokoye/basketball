@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Avatar, shortName } from "@/app/components/Avatar";
@@ -67,18 +67,19 @@ export function CompareView({
         </h1>
         <p className="text-sm text-muted">Select two players to compare head-to-head.</p>
         <div className="glass-1 grid gap-4 rounded-3xl p-6 sm:grid-cols-2">
-          <PlayerSelect
+          <PlayerDropdown
             label="Player 1"
             value={p1Id}
             players={activePlayers}
             exclude={p2Id}
             onChange={(id) => switchPlayers(id, p2Id)}
           />
-          <PlayerSelect
+          <PlayerDropdown
             label="Player 2"
             value={p2Id}
             players={activePlayers}
             exclude={p1Id}
+            align="right"
             onChange={(id) => switchPlayers(p1Id, id)}
           />
         </div>
@@ -133,21 +134,14 @@ export function CompareView({
         </div>
 
         {/* Player Pickers Card */}
-        <div className="glass-1 grid grid-cols-[1fr_auto_1fr] items-center gap-2 rounded-3xl p-4 sm:p-5">
-          <div>
-            <label className="label mb-1.5 block text-xs">Player 1</label>
-            <select
-              value={p1Id}
-              onChange={(e) => switchPlayers(Number(e.target.value), p2Id)}
-              className="w-full rounded-xl border border-black/10 bg-white/80 px-3 py-2 text-sm font-bold shadow-xs focus:ring-2 focus:ring-court-soft focus:outline-hidden"
-            >
-              {activePlayers.map((p) => (
-                <option key={p.id} value={p.id} disabled={p.id === p2Id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          </div>
+        <div className="glass-1 grid grid-cols-[1fr_auto_1fr] items-center gap-2 rounded-3xl p-3.5 sm:p-5">
+          <PlayerDropdown
+            label="Player 1"
+            value={p1Id}
+            players={activePlayers}
+            exclude={p2Id}
+            onChange={(id) => switchPlayers(id, p2Id)}
+          />
 
           <button
             type="button"
@@ -169,20 +163,14 @@ export function CompareView({
             </svg>
           </button>
 
-          <div>
-            <label className="label mb-1.5 block text-xs text-right">Player 2</label>
-            <select
-              value={p2Id}
-              onChange={(e) => switchPlayers(p1Id, Number(e.target.value))}
-              className="w-full rounded-xl border border-black/10 bg-white/80 px-3 py-2 text-sm font-bold shadow-xs focus:ring-2 focus:ring-court-soft focus:outline-hidden"
-            >
-              {activePlayers.map((p) => (
-                <option key={p.id} value={p.id} disabled={p.id === p1Id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          <PlayerDropdown
+            label="Player 2"
+            value={p2Id}
+            players={activePlayers}
+            exclude={p1Id}
+            align="right"
+            onChange={(id) => switchPlayers(p1Id, id)}
+          />
         </div>
       </div>
 
@@ -462,33 +450,203 @@ export function CompareView({
   );
 }
 
-function PlayerSelect({
+function PlayerDropdown({
   label,
   value,
   players,
   exclude,
+  align = "left",
   onChange,
 }: {
   label: string;
   value: number;
   players: Player[];
   exclude: number;
+  align?: "left" | "right";
   onChange: (id: number) => void;
 }) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const selected = players.find((p) => p.id === value);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+    if (open) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setOpen(false);
+      }
+    }
+    if (open) {
+      document.addEventListener("keydown", handleKeyDown);
+    }
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [open]);
+
+  const query = search.trim().toLowerCase();
+  const filtered = query
+    ? players.filter(
+        (p) =>
+          p.name.toLowerCase().includes(query) ||
+          p.nicknames?.some((n) => n.toLowerCase().includes(query))
+      )
+    : players;
+
   return (
-    <div>
+    <div ref={containerRef} className="relative">
       <label className="label mb-1.5 block text-xs">{label}</label>
-      <select
-        value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
-        className="w-full rounded-xl border border-black/10 bg-white/80 px-3 py-2 text-sm font-bold shadow-xs focus:ring-2 focus:ring-court-soft focus:outline-hidden"
+
+      {/* Trigger Button */}
+      <button
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        className={`group flex w-full items-center justify-between gap-2 rounded-2xl border bg-white/90 px-3 py-2 text-left shadow-xs transition hover:border-black/20 hover:bg-white focus:outline-hidden focus:ring-2 focus:ring-court-soft/50 ${
+          open ? "border-court-ink/40 ring-2 ring-court-soft/40" : "border-black/10"
+        }`}
       >
-        {players.map((p) => (
-          <option key={p.id} value={p.id} disabled={p.id === exclude}>
-            {p.name}
-          </option>
-        ))}
-      </select>
+        <div className="flex min-w-0 items-center gap-2.5">
+          {selected ? (
+            <>
+              <Avatar name={selected.name} size="sm" />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5">
+                  <span className="truncate text-sm font-bold text-ink">
+                    {selected.name}
+                  </span>
+                  {selected.injured && <InjuredBadge size="sm" />}
+                </div>
+              </div>
+            </>
+          ) : (
+            <span className="text-sm font-bold text-muted">Select player...</span>
+          )}
+        </div>
+
+        <svg
+          viewBox="0 0 20 20"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={2}
+          className={`h-4 w-4 shrink-0 text-muted transition-transform duration-200 group-hover:text-ink ${
+            open ? "rotate-180 text-court-ink" : ""
+          }`}
+          aria-hidden
+        >
+          <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+
+      {/* Popover Dropdown */}
+      {open && (
+        <div
+          role="listbox"
+          className={`absolute top-full z-50 mt-2 w-72 rounded-2xl border border-white/80 bg-white/96 p-2 shadow-[0_24px_60px_rgba(0,0,0,0.22)] ring-1 ring-black/5 backdrop-blur-3xl animate-in fade-in zoom-in-95 duration-150 sm:w-80 ${
+            align === "right" ? "right-0 origin-top-right" : "left-0 origin-top-left"
+          }`}
+        >
+          {/* Search Bar */}
+          <div className="relative mb-2 px-1">
+            <svg
+              viewBox="0 0 20 20"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+              className="pointer-events-none absolute left-3.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted"
+              aria-hidden
+            >
+              <circle cx="8.5" cy="8.5" r="5" />
+              <line x1="12.5" y1="12.5" x2="16.5" y2="16.5" strokeLinecap="round" />
+            </svg>
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search player..."
+              autoFocus
+              className="w-full rounded-xl border border-black/8 bg-black/[0.03] py-1.5 pl-8 pr-3 text-xs font-semibold placeholder:text-muted/60 focus:border-court-ink/30 focus:bg-white focus:outline-hidden focus:ring-1 focus:ring-court-soft"
+            />
+          </div>
+
+          {/* List of Players */}
+          <div className="max-h-60 space-y-0.5 overflow-y-auto overscroll-contain">
+            {filtered.length === 0 ? (
+              <div className="p-3 text-center text-xs font-medium text-muted">
+                No players found
+              </div>
+            ) : (
+              filtered.map((p) => {
+                const isSelected = p.id === value;
+                const isOpponent = p.id === exclude;
+
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    disabled={isOpponent}
+                    onClick={() => {
+                      onChange(p.id);
+                      setOpen(false);
+                      setSearch("");
+                    }}
+                    className={`flex w-full items-center justify-between gap-2.5 rounded-xl px-2.5 py-2 text-left text-xs transition ${
+                      isSelected
+                        ? "bg-court-soft/20 font-bold text-court-ink"
+                        : isOpponent
+                        ? "cursor-not-allowed opacity-35"
+                        : "font-semibold text-ink hover:bg-black/[0.04]"
+                    }`}
+                  >
+                    <div className="flex min-w-0 items-center gap-2">
+                      <Avatar name={p.name} size="sm" />
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="truncate">{p.name}</span>
+                          {p.injured && <InjuredBadge size="sm" />}
+                        </div>
+                        {p.nicknames?.[0] && (
+                          <div className="truncate text-[10px] font-normal text-muted">
+                            &quot;{p.nicknames[0]}&quot;
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="shrink-0 text-right">
+                      {isSelected ? (
+                        <span className="grid h-5 w-5 place-items-center rounded-full bg-court-ink text-[10px] font-bold text-white">
+                          ✓
+                        </span>
+                      ) : isOpponent ? (
+                        <span className="text-[10px] font-medium text-muted">
+                          Opponent
+                        </span>
+                      ) : null}
+                    </div>
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
