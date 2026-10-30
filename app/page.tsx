@@ -397,6 +397,7 @@ export default async function Home() {
           {[
             { href: "/builder", title: "Team builder", sub: "Fair squads & draft" },
             { href: "/tournaments", title: "Tournaments", sub: "King of the court" },
+            { href: "/around-the-world", title: "Around the world", sub: "Spot shooting contest" },
             { href: "/compare", title: "Tale of the tape", sub: "Head-to-head" },
             { href: "/standings", title: "Standings", sub: "Season table" },
             { href: "/digest", title: "Weekly digest", sub: "Share the week" },

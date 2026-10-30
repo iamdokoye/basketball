@@ -71,6 +71,12 @@ export const MORE_SECTIONS = [
         emoji: "⚖️",
       },
       {
+        href: "/around-the-world",
+        label: "Around the World",
+        sub: "Spot shooting & drill contest",
+        emoji: "🌍",
+      },
+      {
         href: "/compare",
         label: "Tale of the Tape",
         sub: "Head-to-head rivalry",
