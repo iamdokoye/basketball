@@ -61,9 +61,27 @@ export default async function NewGamePage({
 
   return (
     <div className="space-y-4">
-      <h1 className="px-1 text-[32px] font-extrabold leading-[38px] tracking-tight">
-        New game
-      </h1>
+      <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+        <h1 className="text-[32px] font-extrabold leading-[38px] tracking-tight">
+          New game
+        </h1>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/tournaments"
+            className="glass-1 flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold text-ink hover:bg-white active:scale-95 border border-black/5"
+          >
+            <span>👑</span>
+            <span>King of the Court</span>
+          </Link>
+          <Link
+            href="/around-the-world"
+            className="glass-1 flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold text-ink hover:bg-white active:scale-95 border border-black/5"
+          >
+            <span>🌍</span>
+            <span>Around the World</span>
+          </Link>
+        </div>
+      </div>
       <NewGameForm
         players={players.map((p) => ({ id: p.id, name: p.name, injured: p.injured }))}
         strengths={strengths}
