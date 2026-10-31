@@ -248,7 +248,7 @@ export default function Scorekeeper({
   const lastMissTeam = useMemo(() => {
     const g = groups[groups.length - 1];
     const miss = g?.events.find((e) => e.type === "MISS2" || e.type === "MISS3");
-    if (!g || !miss || g.events.some((e) => e.type === "OREB" || e.type === "DREB"))
+    if (!g || !miss || g.events.some((e) => e.type === "OREB" || e.type === "DREB" || e.type === "OOB"))
       return null;
     return roster.find((p) => p.id === miss.playerId)?.team ?? null;
   }, [groups, roster]);
@@ -300,7 +300,11 @@ export default function Scorekeeper({
         {
           cols: 1,
           options: [
-            { label: "No rebound / out of bounds", onPick: () => commit(miss) },
+            {
+              label: "Out of bounds",
+              onPick: () => commit([...miss, { playerId: shooter.id, type: "OOB" }]),
+            },
+            { label: "Skip (not sure)", tone: "neutral" as const, onPick: () => commit(miss) },
           ],
         },
       ],
@@ -645,6 +649,16 @@ export default function Scorekeeper({
           groups: [
             { heading: "Off", chips: chipsFor(active(p.team), "OREB") },
             { heading: "Def", chips: chipsFor(opponents(p), "DREB") },
+            {
+              chips: [
+                {
+                  key: "OOB",
+                  label: "Out of bounds",
+                  tone: "bad" as const,
+                  onPick: () => attach([{ playerId: p.id, type: "OOB" }]),
+                },
+              ],
+            },
           ],
         };
         break;
@@ -1354,6 +1368,7 @@ export default function Scorekeeper({
                 stamp={follow.grp}
                 title={followNow.title}
                 groups={followNow.groups}
+                sticky={follow.kind === "rebound"}
                 onDismiss={dismissFollow}
               />
             )}

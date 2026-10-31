@@ -28,17 +28,21 @@ export function FollowUp({
   stamp,
   title,
   groups,
+  sticky = false,
   onDismiss,
 }: {
   stamp: string;
   title: string;
   groups: ChipGroup[];
+  /** Stays up until a chip is picked, Skip is tapped, or the next play is recorded (no countdown). */
+  sticky?: boolean;
   onDismiss: () => void;
 }) {
   useEffect(() => {
+    if (sticky) return;
     const t = setTimeout(onDismiss, FOLLOW_UP_MS);
     return () => clearTimeout(t);
-  }, [stamp, onDismiss]);
+  }, [stamp, sticky, onDismiss]);
 
   return (
     <div
@@ -82,16 +86,20 @@ export function FollowUp({
           </div>
         ))}
       </div>
-      {/* Time left: shrinks to nothing, then the strip goes away by itself. */}
-      <div className="h-1 bg-black/[0.05]">
-        <div
-          key={stamp}
-          className="h-full origin-left bg-court-soft/70"
-          style={{
-            animation: `follow-up-drain ${FOLLOW_UP_MS}ms linear forwards`,
-          }}
-        />
-      </div>
+      {/* Time left: shrinks to nothing, then the strip goes away by itself. A sticky strip waits for an answer. */}
+      {sticky ? (
+        <div className="h-1 bg-court-soft/40" />
+      ) : (
+        <div className="h-1 bg-black/[0.05]">
+          <div
+            key={stamp}
+            className="h-full origin-left bg-court-soft/70"
+            style={{
+              animation: `follow-up-drain ${FOLLOW_UP_MS}ms linear forwards`,
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 }
