@@ -13,7 +13,7 @@ const EXPLAIN: Record<
   rating: {
     title: "Rating · out of 10",
     body: "Every player starts a game at 6.5 when they take the court, as a starter or when they check in off the bench. Their plays then move it: points, rebounds, assists, steals, blocks and deflections push it up; missed shots, turnovers and fouls pull it down. Scoring in a low-scoring game counts for more, and so does doing a lot in few minutes. How your team did while you were on court nudges it too. Standing on court for a long time without recording anything drags it down (a sub gets a short grace period, and a quick cameo stays at 6.5). A player who never checks in has no rating and shows a dash. It never goes above 10 or below 3, and 10 is nearly impossible. About 7 is a normal game, 8 is strong and 9 is a night to remember. The table shows each player's average across their games.",
-    formula: "6.5 → up or down by points + 0.4·FGM − 0.7·FGA − 0.4·missed FT + 0.7·OREB + 0.3·DREB + STL + 0.7·AST + 0.7·BLK + 0.3·deflections − 0.4·PF − TOV, scaled for pace and minutes, plus a small team plus/minus effect",
+    formula: "6.5 → up or down by points − 0.39·FGM − 0.36·FGA − 0.4·missed FT + 0.36·OREB + 0.38·DREB + 0.74·STL + 0.49·AST + 0.36·BLK + 0.3·deflections − 0.4·PF − 0.74·TOV, scaled for pace and minutes, plus a small team plus/minus effect",
   },
   ppg: {
     title: "PPG · Points per game",
@@ -49,10 +49,9 @@ const EXPLAIN: Record<
   },
 };
 
-function rankingsHref(sort: string, season?: string): string {
-  const q = new URLSearchParams();
+function rankingsHref(sort: string, keep: Record<string, string> = {}): string {
+  const q = new URLSearchParams(keep);
   if (sort !== "rating") q.set("sort", sort);
-  if (season) q.set("season", season);
   const s = q.toString();
   return s ? `/rankings?${s}` : "/rankings";
 }
@@ -65,12 +64,12 @@ function rankingsHref(sort: string, season?: string): string {
 export function SortPills({
   items,
   active,
-  season,
+  keep,
 }: {
   items: Item[];
   active: string;
-  /** The season being viewed, kept in the link when the sort changes. */
-  season?: string;
+  /** Query parameters kept in the link when the sort changes (the period being viewed). */
+  keep?: Record<string, string>;
 }) {
   const [open, setOpen] = useState(false);
   const info = EXPLAIN[active];
@@ -104,7 +103,7 @@ export function SortPills({
           ) : (
             <Link
               key={it.key}
-              href={rankingsHref(it.key, season)}
+              href={rankingsHref(it.key, keep)}
               className="glass-1 shrink-0 rounded-full px-4 py-2 text-xs font-semibold text-muted"
             >
               {it.label}
