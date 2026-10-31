@@ -64,7 +64,9 @@ export function weightsFrom(v: number, q: number) {
   const missCost = v * (1 - q); // a missed shot loses the possession unless the shooting team rebounds it
   const scale = v / NBA_POINTS_PER_POSSESSION;
   return {
-    fgm: 0.4 * scale,
+    // A make is worth its points minus the possession it used (pts - v). Together with the
+    // per-attempt cost below that is fgm = missCost - v = -v * q (Hollinger's +0.4 is not used).
+    fgm: -v * q,
     fga: missCost,
     oreb: missCost, // gives back exactly what the miss cost
     dreb: v * q, // the possession you stopped them from getting back
