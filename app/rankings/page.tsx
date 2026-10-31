@@ -1,10 +1,11 @@
 import { Fragment } from "react";
 import Link from "next/link";
 import { getAccess } from "@/lib/access";
-import { leagueTimeZone } from "@/lib/format";
+import { leagueGameDay, leagueTimeZone } from "@/lib/format";
 import { careerTotals, listGames, listPlayers } from "@/lib/queries";
-import { groupBySeason, pickSeason, seasonKey, seasonMode } from "@/lib/seasons";
-import { SeasonPills } from "@/app/components/SeasonPills";
+import { resolvePeriod } from "@/lib/periods";
+import { PeriodPicker } from "@/app/components/PeriodPicker";
+import { LeagueTabs } from "@/app/components/LeagueTabs";
 import { rankPlayers, SORTS, type Ranked, type SortKey } from "@/lib/rankings";
 import { fmtAvg, fmtPct, fmtSigned } from "@/lib/stats";
 import { Avatar } from "@/app/components/Avatar";
@@ -35,9 +36,9 @@ const COLUMNS: {
 export default async function RankingsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ sort?: string; season?: string }>;
+  searchParams: Promise<{ sort?: string; season?: string; view?: string; p?: string }>;
 }) {
-  const { sort, season: requested } = await searchParams;
+  const { sort, season, view: requestedView, p } = await searchParams;
   const sortKey: SortKey = sort && sort in SORTS ? (sort as SortKey) : "rating";
 
   const [games, players, access] = await Promise.all([
@@ -46,12 +47,19 @@ export default async function RankingsPage({
     getAccess(),
   ]);
   const tz = leagueTimeZone();
-  const mode = seasonMode();
-  const seasons = groupBySeason(games, tz, mode);
-  const view = pickSeason(seasons, games, requested, seasonKey(access.now, tz, mode));
-  const finalGames = view.games.filter((g) => g.status === "final");
+  const period = resolvePeriod({
+    games,
+    timeZone: tz,
+    weekStartDay: leagueGameDay(),
+    now: access.now,
+    view: requestedView,
+    p,
+    season,
+  });
+  const periodParams: Record<string, string> = { view: period.view, ...(period.key && period.view !== "all" ? { p: period.key } : {}) };
+  const finalGames = period.games.filter((g) => g.status === "final");
   const { rows, qualifyAt, totalGames } = rankPlayers(
-    careerTotals(view.games, players),
+    careerTotals(period.games, players),
     sortKey,
     finalGames.length,
   );
@@ -64,25 +72,24 @@ export default async function RankingsPage({
           Rankings
         </h1>
         <p className="text-sm text-muted">
-          {view.key === "all" ? "All time" : `${view.label} season`}, sorted by{" "}
-          {SORTS[sortKey].label}. Tap the selected stat to see what it means.{" "}
-          <Link href="/standings" className="font-semibold text-court-ink hover:underline">
-            Standings
-          </Link>
+          {period.label}
+          {period.view === "week" || period.view === "month" ? ` · ${period.games.length} ${period.games.length === 1 ? "game" : "games"}` : ""}
+          , sorted by {SORTS[sortKey].label}. Tap the selected stat to see what it means.
         </p>
       </div>
 
-      <SeasonPills
+      <LeagueTabs active="rankings" keep={periodParams} />
+
+      <PeriodPicker
         basePath="/rankings"
-        seasons={seasons}
-        active={view.key}
+        period={period}
         extra={sortKey === "rating" ? {} : { sort: sortKey }}
       />
 
       <SortPills
         key={sortKey}
         active={sortKey}
-        season={view.key}
+        keep={periodParams}
         items={(Object.keys(SORTS) as SortKey[]).map((k) => ({
           key: k,
           label: SORTS[k].label,

@@ -1,19 +1,15 @@
 import Link from "next/link";
 import { getAccess } from "@/lib/access";
-import { leagueTimeZone } from "@/lib/format";
+import { leagueGameDay, leagueTimeZone } from "@/lib/format";
 import { listGames, listPlayers } from "@/lib/queries";
-import {
-  groupBySeason,
-  pickSeason,
-  seasonKey,
-  seasonMode,
-} from "@/lib/seasons";
+import { resolvePeriod } from "@/lib/periods";
 import { standings, type StandingRow } from "@/lib/standings";
 import { fmtSigned } from "@/lib/stats";
 import { Avatar } from "@/app/components/Avatar";
 import { InjuredBadge } from "@/app/components/InjuredBadge";
 import { RankBadge } from "@/app/components/RankBadge";
-import { SeasonPills } from "@/app/components/SeasonPills";
+import { PeriodPicker } from "@/app/components/PeriodPicker";
+import { LeagueTabs } from "@/app/components/LeagueTabs";
 
 export const dynamic = "force-dynamic";
 
@@ -38,21 +34,27 @@ function Form({ results }: { results: ("W" | "L")[] }) {
 export default async function StandingsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ season?: string }>;
+  searchParams: Promise<{ season?: string; view?: string; p?: string }>;
 }) {
-  const { season: requested } = await searchParams;
+  const { season, view: requestedView, p } = await searchParams;
   const [games, players, access] = await Promise.all([
     listGames(),
     listPlayers(),
     getAccess(),
   ]);
   const tz = leagueTimeZone();
-  const mode = seasonMode();
-  const seasons = groupBySeason(games, tz, mode);
-  const currentKey = seasonKey(access.now, tz, mode);
-  const view = pickSeason(seasons, games, requested, currentKey);
-  const { rows, qualifyAt } = standings(view.games, players);
-  const over = view.key !== "all" && view.key < currentKey;
+  const period = resolvePeriod({
+    games,
+    timeZone: tz,
+    weekStartDay: leagueGameDay(),
+    now: access.now,
+    view: requestedView,
+    p,
+    season,
+  });
+  const periodParams: Record<string, string> = { view: period.view, ...(period.key && period.view !== "all" ? { p: period.key } : {}) };
+  const { rows, qualifyAt } = standings(period.games, players);
+  const over = period.over;
   const leader: StandingRow | undefined = rows.find((r) => r.rank === 1);
   const hasProvisional = rows.some((r) => r.rank === null);
 
@@ -63,20 +65,14 @@ export default async function StandingsPage({
           Standings
         </h1>
         <p className="text-sm text-muted">
-          {view.key === "all" ? "All time" : `${view.label} season`} ·{" "}
-          {view.games.length} {view.games.length === 1 ? "game" : "games"}.
-          Ranked by win rate, then wins, then rating.{" "}
-          <Link href="/rankings" className="font-semibold text-court-ink hover:underline">
-            Stat rankings
-          </Link>
+          {period.label} · {period.games.length} {period.games.length === 1 ? "game" : "games"}.
+          Ranked by win rate, then wins, then rating.
         </p>
       </div>
 
-      <SeasonPills
-        basePath="/standings"
-        seasons={seasons}
-        active={view.key}
-      />
+      <LeagueTabs active="standings" keep={periodParams} />
+
+      <PeriodPicker basePath="/standings" period={period} />
 
       {leader && (
         <Link
@@ -86,7 +82,11 @@ export default async function StandingsPage({
           <Avatar name={leader.name} tone="ink" size="lg" />
           <div className="min-w-0 flex-1">
             <div className="label text-court-ink">
-              {over ? "🏆 Season champion" : view.key === "all" ? "Best record ever" : "Leading the season"}
+              {period.view === "all"
+                ? "Best record ever"
+                : over
+                  ? period.view === "year" ? "🏆 Season champion" : "🏆 Winner"
+                  : period.view === "year" ? "Leading the season" : "Leading"}
             </div>
             <div className="truncate text-xl font-extrabold leading-6 tracking-tight">
               {leader.name}
