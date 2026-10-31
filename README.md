@@ -210,7 +210,7 @@ Minutes are playing time on the game clock, from the first recorded play to the 
 **Rating** is a score out of 10 (`lib/rating.ts`), used for rankings, MVPs, awards, player of the game and team balancing.
 
 - **Start:** every player who takes the court starts a game at **6.5**, whether they start or check in off the bench. Someone who never plays isn't rated.
-- **Production** moves it up or down: `PTS + 0.4·FGM − 0.7·FGA − 0.4·(missed FT) + 0.7·OREB + 0.3·DREB + STL + 0.7·AST + 0.7·BLK + 0.3·deflections − 0.4·PF − TOV` (Hollinger's Game Score, plus deflections).
+- **Production** moves it up or down: `PTS + 0.28·FGM − 0.36·FGA − 0.4·(missed FT) + 0.36·OREB + 0.38·DREB + 0.74·STL + 0.49·AST + 0.36·BLK + 0.3·deflections − 0.4·PF − 0.74·TOV` (Hollinger's Game Score structure, plus deflections). The weights are derived from this league's own numbers (about 0.74 points per possession, and the shooting team takes about 52% of rebounds), not the NBA's, so rebounds no longer outweigh scoring. They are computed from `LEAGUE` in `lib/rating.ts`; re-measure them as more fully scored games come in. Missed shots and rebounds must be logged for this to be accurate.
 - **Pace:** the same line counts for more in a low-scoring game (scaled against a typical game to 20, about 36 points in total).
 - **Time on the floor:** a lot in few minutes counts for more (and a bad stint hurts more), capped so a 30-second cameo can't explode. Short stints also count for less when averaging games.
 - **Team impact:** plus/minus (how your team did while you were on court) nudges it slightly.
