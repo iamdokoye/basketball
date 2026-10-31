@@ -468,7 +468,6 @@ function PlayerDropdown({
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const containerRef = useRef<HTMLDivElement>(null);
-  const [canAutoFocus, setCanAutoFocus] = useState(false);
 
   const selected = players.find((p) => p.id === value);
 
@@ -485,11 +484,6 @@ function PlayerDropdown({
       document.removeEventListener("pointerdown", handleClickOutside);
     };
   }, [open]);
-
-  useEffect(() => {
-    // Only focus search on devices with a real pointer; on touch it pops the keyboard over the list.
-    setCanAutoFocus(window.matchMedia("(pointer: fine)").matches);
-  }, []);
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -586,7 +580,9 @@ function PlayerDropdown({
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search player..."
-              autoFocus={canAutoFocus}
+              // Only focus on devices with a real pointer; on touch it pops the keyboard over the list.
+              // (The list only renders after a tap, so reading the browser here is safe.)
+              autoFocus={window.matchMedia("(pointer: fine)").matches}
               className="w-full rounded-xl border border-black/8 bg-black/[0.03] py-2 pl-8 pr-3 text-base font-semibold sm:text-xs placeholder:text-muted/60 focus:border-court-ink/30 focus:bg-white focus:outline-hidden focus:ring-1 focus:ring-court-soft"
             />
           </div>
