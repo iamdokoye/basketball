@@ -66,7 +66,7 @@ export function CompareView({
           Tale of the Tape
         </h1>
         <p className="text-sm text-muted">Select two players to compare head-to-head.</p>
-        <div className="glass-1 grid gap-4 rounded-3xl p-6 sm:grid-cols-2">
+        <div className="glass-1 relative z-20 grid gap-4 rounded-3xl p-6 sm:grid-cols-2">
           <PlayerDropdown
             label="Player 1"
             value={p1Id}
@@ -134,7 +134,7 @@ export function CompareView({
         </div>
 
         {/* Player Pickers Card */}
-        <div className="glass-1 grid grid-cols-[1fr_auto_1fr] items-center gap-2 rounded-3xl p-3.5 sm:p-5">
+        <div className="glass-1 relative z-20 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 rounded-3xl p-3.5 sm:p-5">
           <PlayerDropdown
             label="Player 1"
             value={p1Id}
@@ -175,7 +175,7 @@ export function CompareView({
       </div>
 
       {/* Head-to-Head Banner */}
-      <section className="glass-2 relative overflow-hidden rounded-3xl p-5 sm:p-6">
+      <section className="glass-2 relative z-0 overflow-hidden rounded-3xl p-5 sm:p-6">
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4">
           {/* P1 Side */}
           <div className="flex flex-col items-center text-center">
@@ -468,22 +468,28 @@ function PlayerDropdown({
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const containerRef = useRef<HTMLDivElement>(null);
+  const [canAutoFocus, setCanAutoFocus] = useState(false);
 
   const selected = players.find((p) => p.id === value);
 
   useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
+    function handleClickOutside(event: PointerEvent) {
       if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
         setOpen(false);
       }
     }
     if (open) {
-      document.addEventListener("mousedown", handleClickOutside);
+      document.addEventListener("pointerdown", handleClickOutside);
     }
     return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("pointerdown", handleClickOutside);
     };
   }, [open]);
+
+  useEffect(() => {
+    // Only focus search on devices with a real pointer; on touch it pops the keyboard over the list.
+    setCanAutoFocus(window.matchMedia("(pointer: fine)").matches);
+  }, []);
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -509,7 +515,7 @@ function PlayerDropdown({
     : players;
 
   return (
-    <div ref={containerRef} className="relative">
+    <div ref={containerRef} className={`relative min-w-0 ${open ? "z-50" : ""}`}>
       <label className="label mb-1.5 block text-xs">{label}</label>
 
       {/* Trigger Button */}
@@ -558,7 +564,7 @@ function PlayerDropdown({
       {open && (
         <div
           role="listbox"
-          className={`absolute top-full z-50 mt-2 w-72 rounded-2xl border border-white/80 bg-white/96 p-2 shadow-[0_24px_60px_rgba(0,0,0,0.22)] ring-1 ring-black/5 backdrop-blur-3xl animate-in fade-in zoom-in-95 duration-150 sm:w-80 ${
+          className={`absolute top-full z-50 mt-2 w-[min(18rem,calc(100vw-2rem))] rounded-2xl border border-white/80 bg-white/96 p-2 shadow-[0_24px_60px_rgba(0,0,0,0.22)] ring-1 ring-black/5 backdrop-blur-3xl animate-in fade-in zoom-in-95 duration-150 sm:w-80 ${
             align === "right" ? "right-0 origin-top-right" : "left-0 origin-top-left"
           }`}
         >
@@ -580,13 +586,13 @@ function PlayerDropdown({
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search player..."
-              autoFocus
-              className="w-full rounded-xl border border-black/8 bg-black/[0.03] py-1.5 pl-8 pr-3 text-xs font-semibold placeholder:text-muted/60 focus:border-court-ink/30 focus:bg-white focus:outline-hidden focus:ring-1 focus:ring-court-soft"
+              autoFocus={canAutoFocus}
+              className="w-full rounded-xl border border-black/8 bg-black/[0.03] py-2 pl-8 pr-3 text-base font-semibold sm:text-xs placeholder:text-muted/60 focus:border-court-ink/30 focus:bg-white focus:outline-hidden focus:ring-1 focus:ring-court-soft"
             />
           </div>
 
           {/* List of Players */}
-          <div className="max-h-60 space-y-0.5 overflow-y-auto overscroll-contain">
+          <div className="max-h-[min(15rem,40vh)] space-y-0.5 overflow-y-auto overscroll-contain">
             {filtered.length === 0 ? (
               <div className="p-3 text-center text-xs font-medium text-muted">
                 No players found
