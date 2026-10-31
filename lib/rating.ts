@@ -4,9 +4,10 @@ import type { StatLine } from "./stats";
 //
 // Every player who takes the court starts at 6.5 (a starter at tip-off, a sub when they check
 // in). Their plays then push the number up or down:
-//   1. "Production" adds up what they did with weights from Hollinger's Game Score (points,
+//   1. "Production" adds up what they did with Hollinger's Game Score structure (points,
 //      shooting efficiency, rebounds, assists, steals, blocks, turnovers, fouls), plus a small
-//      credit for deflections, which we track.
+//      credit for deflections, which we track. The weights are NOT the NBA's: they are rebuilt
+//      from this league's own possession value and rebound rates (see LEAGUE below).
 //   2. Context scales it: scoring in a low-scoring game counts for more (pace), and doing a lot
 //      in few minutes counts for more (time on the floor).
 //   3. How their team did while they were on court (plus/minus) nudges it a little.
@@ -42,6 +43,42 @@ export const RATING = {
   idleFull: 6,
 } as const;
 
+/**
+ * What a possession and a rebound are worth in OUR games, measured from the league's fully logged
+ * games (Oct 2026): 205 shots at 34.6% FG, 158 points over ~213 possessions, and offensive
+ * rebounds were 52% of all rebounds. Hollinger's NBA weights follow from the same two numbers
+ * (V about 1.05, q about 0.27), so we keep his structure and swap in ours.
+ * Re-measure these as more fully scored games come in.
+ */
+export const LEAGUE = {
+  /** Points per possession (V). NBA is about 1.05. */
+  pointsPerPossession: 0.74,
+  /** Share of rebounds taken by the shooting team (q). NBA is about 0.27. */
+  offRebShare: 0.52,
+} as const;
+
+const NBA_POINTS_PER_POSSESSION = 1.05;
+
+/** Hollinger-style weights derived from LEAGUE. */
+export function weightsFrom(v: number, q: number) {
+  const missCost = v * (1 - q); // a missed shot loses the possession unless the shooting team rebounds it
+  const scale = v / NBA_POINTS_PER_POSSESSION;
+  return {
+    // A make is worth its points minus the possession it used (pts - v). Together with the
+    // per-attempt cost below that is fgm = missCost - v = -v * q (Hollinger's +0.4 is not used).
+    fgm: -v * q,
+    fga: missCost,
+    oreb: missCost, // gives back exactly what the miss cost
+    dreb: v * q, // the possession you stopped them from getting back
+    stl: v,
+    tov: v,
+    ast: 0.7 * scale,
+    blk: missCost,
+  };
+}
+
+export const WEIGHTS = weightsFrom(LEAGUE.pointsPerPossession, LEAGUE.offRebShare);
+
 /** Game-wide numbers a rating is judged against. */
 export type GameContext = { totalPoints: number; maxSec: number };
 
@@ -74,21 +111,21 @@ export function actions(l: StatLine): number {
   return l.fga + l.fta + l.reb + l.ast + l.stl + l.blk + l.tov + l.pf + l.defl;
 }
 
-/** Raw contribution in "points of impact": Game Score plus deflections. */
-export function production(l: StatLine): number {
+/** Raw contribution in "points of impact": Game Score structure with league-derived weights, plus deflections. */
+export function production(l: StatLine, w: typeof WEIGHTS = WEIGHTS): number {
   return (
     l.pts +
-    0.4 * l.fgm -
-    0.7 * l.fga -
+    w.fgm * l.fgm -
+    w.fga * l.fga -
     0.4 * (l.fta - l.ftm) +
-    0.7 * l.oreb +
-    0.3 * l.dreb +
-    l.stl +
-    0.7 * l.ast +
-    0.7 * l.blk +
+    w.oreb * l.oreb +
+    w.dreb * l.dreb +
+    w.stl * l.stl +
+    w.ast * l.ast +
+    w.blk * l.blk +
     0.3 * l.defl -
     0.4 * l.pf -
-    l.tov
+    w.tov * l.tov
   );
 }
 
