@@ -278,6 +278,13 @@ export async function recordGroup(
     }
   }
   const hasClock = events.some((e) => isClock(e.type));
+  // Out of bounds needs the out_of_bounds migration. Until it is run, save the play without that
+  // marker rather than losing the whole miss.
+  const withoutOob = events.filter((e) => e.type !== "OOB");
+  const dropOob =
+    withoutOob.length > 0 && withoutOob.length < events.length
+      ? () => recordGroup(gameId, grp, at, withoutOob)
+      : null;
 
   // Fast path: one database function does every check and the insert in a single round trip.
   const rpc = await db().rpc("record_group", {
@@ -303,6 +310,7 @@ export async function recordGroup(
         return fail(GENERIC);
     }
   }
+  if (dropOob && rpc.error.code === "23514") return dropOob();
   // The table refused a clock play (old CHECK constraints or missing columns): update not run yet.
   if (hasClock && ["23514", "23502", "42703"].includes(rpc.error.code ?? ""))
     return fail(NEEDS_CLOCK_UPDATE);
@@ -351,6 +359,7 @@ export async function recordGroup(
         ...(e.team ? { team: e.team } : {}),
       })),
     );
+  if (error && dropOob && error.code === "23514") return dropOob();
   if (error)
     return fail(
       hasClock && ["23514", "23502", "42703"].includes(error.code ?? "")

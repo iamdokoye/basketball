@@ -18,6 +18,7 @@ export const EVENT_TYPES = [
   "TOV",
   "FOUL",
   "DEFL",
+  "OOB",
   "SUB_IN",
   "SUB_OUT",
   "PAUSE",
@@ -322,6 +323,7 @@ export function describeGroup(events: GameEvent[], nameOf: (id: number) => strin
     let s = `${nameOf(miss.playerId)} missed a ${n}`;
     if (blk) s += `, blocked by ${nameOf(blk.playerId)}`;
     if (reb) s += `, ${reb.type === "OREB" ? "off" : "def"} reb ${nameOf(reb.playerId)}`;
+    else if (find("OOB")) s += ", out of bounds";
     return s;
   }
   if (stl) return `${nameOf(stl.playerId)} steal${tov ? ` from ${nameOf(tov.playerId)}` : ""}`;
@@ -336,6 +338,7 @@ export function describeGroup(events: GameEvent[], nameOf: (id: number) => strin
     TOV: "turnover",
     FOUL: "foul",
     DEFL: "deflection",
+    OOB: "ball out of bounds",
   };
   return `${nameOf(main.playerId)} ${labels[main.type] ?? main.type.toLowerCase()}`;
 }
