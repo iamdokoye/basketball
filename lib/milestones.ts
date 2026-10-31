@@ -125,11 +125,7 @@ export function getUpcomingMilestones(career: CareerLine[]): UpcomingMilestone[]
 
       const remaining = nextTarget - current;
       if (remaining <= def.alertDistance) {
-        const prevTarget =
-          [...def.thresholds].reverse().find((t) => t <= current) ?? 0;
-        const progressRange = nextTarget - prevTarget;
-        const progressCurrent = current - prevTarget;
-        const pct = Math.min(100, Math.max(0, Math.round((progressCurrent / progressRange) * 100)));
+        const pct = Math.min(100, Math.max(0, Math.round((current / nextTarget) * 100)));
 
         upcoming.push({
           playerId: c.playerId,
@@ -158,10 +154,9 @@ export function getPlayerMilestones(c: CareerLine): PlayerMilestoneProgress[] {
     const current = Number(c[def.key] ?? 0);
     const achieved = def.thresholds.filter((t) => t <= current);
     const nextTarget = def.thresholds.find((t) => t > current) ?? def.thresholds[def.thresholds.length - 1];
-    const prevTarget = [...def.thresholds].reverse().find((t) => t <= current) ?? 0;
     const remaining = Math.max(0, nextTarget - current);
-    const range = nextTarget - prevTarget || 1;
-    const pct = Math.min(100, Math.max(0, Math.round(((current - prevTarget) / range) * 100)));
+    // Progress toward the target shown ("150 / 200" = 75%), not just since the previous mark.
+    const pct = Math.min(100, Math.max(0, Math.round((current / nextTarget) * 100)));
 
     return {
       category: def.key,
