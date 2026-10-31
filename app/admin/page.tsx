@@ -3,9 +3,10 @@ import { adminLogout } from "@/lib/actions";
 import { Countdown } from "@/app/components/Countdown";
 import { LoginForm } from "./LoginForm";
 import { AwardVoteForm } from "./AwardVoteForm";
+import { ExportGames } from "./ExportGames";
 import { listGames, listPlayers, listVotedAwards } from "@/lib/queries";
 import { groupByPeriod, quarterKey, yearKey } from "@/lib/mvp";
-import { leagueGameDay, leagueTimeZone } from "@/lib/format";
+import { formatGameDateTime, leagueGameDay, leagueTimeZone } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -80,6 +81,16 @@ export default async function AdminPage() {
             players={players}
             periods={periodList}
             votedAwards={votedAwards}
+          />
+
+          <ExportGames
+            games={[...games]
+              .sort((x, y) => y.startMs - x.startMs || y.id - x.id)
+              .map((g) => ({
+                id: g.id,
+                label: `#${g.id} · ${formatGameDateTime(g.playedAt, tz)}`,
+                score: `${g.score.A}–${g.score.B}${g.status === "live" ? " (live)" : ""}`,
+              }))}
           />
         </div>
       ) : a.adminConfigured ? (
