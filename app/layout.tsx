@@ -1,7 +1,11 @@
 import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 import { GeistSans } from "geist/font/sans";
+import { getMe } from "@/lib/identity";
+import { ME_REFRESH_MS } from "@/lib/identityShared";
 import { AccessBadge } from "./components/AccessBadge";
+import { IdentitySync } from "./components/IdentitySync";
+import { MeChip } from "./components/MeChip";
 import { BottomNav, TopNav } from "./components/Nav";
 import "./globals.css";
 
@@ -32,11 +36,12 @@ export const viewport: Viewport = {
   themeColor: "#f4f1ec",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const me = await getMe();
   return (
     // Browser extensions (reader mode, clippers, translators) add classes and
     // attributes to <html>/<body> before hydration; ignore those mismatches.
@@ -74,16 +79,25 @@ export default function RootLayout({
                   <path d="M3 12h18M12 3v18M5.6 5.6c3 3 3 9.8 0 12.8M18.4 5.6c-3 3-3 9.8 0 12.8" />
                 </svg>
               </span>
-              Pickup League
+              {/* On very narrow phones the badge and your avatar need the room; the icon still links home. */}
+              <span className="max-[379px]:sr-only">Pickup League</span>
             </Link>
             <TopNav />
-            <AccessBadge />
+            <div className="flex items-center gap-2">
+              <AccessBadge />
+              <MeChip />
+            </div>
           </div>
         </header>
         <main className="mx-auto w-full max-w-3xl flex-1 px-4 pb-32 pt-6 md:pb-12">
           {children}
         </main>
         <BottomNav />
+        <IdentitySync
+          playerId={me?.playerId ?? null}
+          issuedAt={me?.issuedAt ?? null}
+          refreshAfterMs={ME_REFRESH_MS}
+        />
       </body>
     </html>
   );

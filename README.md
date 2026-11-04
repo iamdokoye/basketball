@@ -72,6 +72,15 @@ A game that is still running when the window closes can't be saved to by the pub
 
 Run `supabase/migrations/20261014000000_function_hardening.sql` in the Supabase SQL Editor. It clears the security advisor warnings: it pins the search path of `create_game` and `record_group`, and stops the public API from calling Supabase's `rls_auto_enable()` helper. The app talks to the database only from the server with the service key, so nothing changes in how it works.
 
+## Your page (who is this device?)
+
+- **Pick your name once:** tap the person icon in the header (or open `/me`) and choose your name. This device then remembers you: the icon becomes your initials, and **My page** (`/me`) shows your rank and rating, your last game, trophies, milestone progress, rating trend, recent games, badges and scouting report, plus a banner if you're in a live game. **Not you? Switch** at the bottom forgets the choice.
+- **No accounts and no password.** It only personalises what you see. It grants no permissions: scoring and admin still follow the open window and the admin password, and every stat shown is already public. Anyone can pick any name, the same trust model as scoring.
+- **How it stays put:** a signed, HTTP-only cookie (`pl_me`) lasts 400 days (the most Chrome allows) and is renewed whenever it is more than 2 weeks old, so anyone who opens the app now and then never expires. A copy of the player id is also kept in the browser's local storage; if the browser drops the cookie but keeps that, the cookie is restored on the next visit. In an installed app the browser is asked not to evict the site's storage. Archiving a player signs their devices out.
+- **Installed app on iPhone:** the Home Screen app and Safari keep separate cookies and storage, so the installed app starts unclaimed. Pick your name once inside it. Android Chrome and desktop installs share the browser's cookies and need nothing extra.
+- Cookies are signed with a key derived from `SUPABASE_SERVICE_ROLE_KEY` (or `ADMIN_PASSWORD` if that is missing). Rotating that key signs everyone out of their device identity; they just pick their name again. No SQL is needed.
+- The cookie code is in `lib/identity.ts` (server) and `app/components/IdentitySync.tsx` (browser); `getMe()` is how any page asks who this device is.
+
 ## Nicknames
 
 - On the **Players** page, tap **Nicknames** on a player (or open their profile) to add what people call them, e.g. "Chibikes" for Daniel Okoye. Up to 5 per player. They show as "aka …" on the Players page and profile.
@@ -211,7 +220,7 @@ Minutes are playing time on the game clock, from the first recorded play to the 
 **Rating** is a score out of 10 (`lib/rating.ts`), used for rankings, MVPs, awards, player of the game and team balancing.
 
 - **Start:** every player who takes the court starts a game at **6.5**, whether they start or check in off the bench. Someone who never plays isn't rated.
-- **Production** moves it up or down: `PTS + 0.20·FGM − 0.50·FGA − 0.40·(missed FT) + 0.36·OREB + 0.16·DREB + 0.70·STL + 0.45·AST + 0.45·BLK + 0.25·deflections − 0.35·PF − 0.70·TOV` (Hollinger's Game Score structure calibrated for 3v3 half-court pickup). Scoring efficiency is rewarded (+1.7 for a made 2PT, +2.7 for a 3PT, -0.5 for a miss), offensive rebounds are prized over defensive rebounds (~2.25x) without drowning out scoring, and team winning margin is factored in.
+- **Production** moves it up or down: `PTS + 0.30·FGM − 0.70·FGA − 0.40·(missed FT) + 0.55·OREB + 0.30·DREB + 0.80·STL + 0.70·AST + 0.65·BLK + 0.30·deflections − 0.40·PF − 0.95·TOV` (Hollinger's Game Score structure calibrated for 3v3 half-court possession economics). Scoring efficiency is rewarded (+1.6 for a made 2PT, +2.6 for a 3PT, -0.7 for a miss to punish inefficient chucking), playmakers and rim protectors are rewarded (~44% basket credit for assists, +0.65 for blocks), defensive rebounds are elevated (+0.30) to honor possession control, and turnovers (-0.95) penalize giving away possessions.
 - **Pace:** the same line counts for more in a low-scoring game (dynamically scaled against each game's target score, ~1.8x target total points).
 - **Game length:** the weights are tuned for a game to 20, so production, plus/minus and the number of plays needed to avoid the inactivity decay are rescaled by `20 / target` (limited to ×0.25 to ×3). The same relative performance rates the same in a game to 10, 21 or 50, so ratings stay comparable when averaged across games of different lengths.
 - **Time on the floor:** a lot in few minutes counts for more (and a bad stint hurts more), capped so a 30-second cameo can't explode. Cameos under 1 minute are scaled down to 5% game weight when averaging across a season.

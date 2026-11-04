@@ -2,6 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
+    // Same as the start_url the browser would default to, so existing installs keep their identity.
+    id: "/",
     name: "Pickup League",
     short_name: "Pickup",
     description: "3v3 pickup stats for the crew",

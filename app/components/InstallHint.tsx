@@ -88,7 +88,7 @@ export function InstallHint() {
         <p className="text-xs font-medium text-muted">
           {prompt
             ? "Full-screen scoring, one tap from your phone."
-            : "Tap the Share button in Safari, then “Add to Home Screen”, for full-screen scoring."}
+            : "Tap the Share button in Safari, then “Add to Home Screen”, for full-screen scoring. The installed app starts fresh, so pick your name again on your page."}
         </p>
         {prompt && (
           <button
