@@ -4,18 +4,15 @@ import { getAccess } from "@/lib/access";
 import { gameContext, rateLine } from "@/lib/rating";
 import { pairStats, relationsFor, type Mate } from "@/lib/chemistry";
 import { formatShortDay, leagueGameDay, leagueTimeZone } from "@/lib/format";
+import { groupBySeason, seasonKey, seasonLabel, seasonMode } from "@/lib/seasons";
 import { clutchTotals } from "@/lib/clutch";
 import { singleGameRecords, winStreaks } from "@/lib/records";
 import { shelfEntries, trophyShelf } from "@/lib/trophies";
 import { careerTotals, listGames, listPlayers, listVotedAwards } from "@/lib/queries";
 import { rankPlayers } from "@/lib/rankings";
 import {
-  fmtAvg,
-  fmtEfg,
   fmtMinutes,
-  fmtPct,
   fmtSigned,
-  fmtTs,
 } from "@/lib/stats";
 import { formatDate } from "@/app/components/BoxScore";
 import { Avatar } from "@/app/components/Avatar";
@@ -109,10 +106,49 @@ export default async function PlayerPage({
     fg3m: "Threes",
     rating: "Rating",
   };
+  const timeZone = leagueTimeZone();
+  const sMode = seasonMode();
+  const currentSeasonKey = seasonKey(access.now, timeZone, sMode);
+  const sLabel = seasonLabel(currentSeasonKey);
+  const seasons = groupBySeason(games, timeZone, sMode);
+  const currentSeason = seasons.find((s) => s.key === currentSeasonKey);
+  const seasonGames = currentSeason ? currentSeason.games : [];
+
   const bests = singleGameRecords(games, playerId);
   const streak = winStreaks(games).find((x) => x.playerId === playerId);
   const clutch = clutchTotals(games).find((x) => x.playerId === playerId);
-  const archetype = computePlayerArchetype(c, clutch, finalGames.length);
+  const allTimeArchetype = computePlayerArchetype(c, clutch, finalGames.length);
+
+  const seasonCareer = careerTotals(seasonGames, players);
+  const seasonC = seasonCareer.find((x) => x.playerId === playerId) ?? {
+    ...c,
+    gp: 0,
+    pts: 0,
+    reb: 0,
+    ast: 0,
+    stl: 0,
+    blk: 0,
+    defl: 0,
+    fgm: 0,
+    fga: 0,
+    fg3m: 0,
+    fg3a: 0,
+    ftm: 0,
+    fta: 0,
+    oreb: 0,
+    dreb: 0,
+    tov: 0,
+    plusMinus: 0,
+  };
+  const seasonClutch = clutchTotals(seasonGames).find((x) => x.playerId === playerId);
+  const seasonArchetype = computePlayerArchetype(seasonC, seasonClutch, seasonGames.length);
+
+  const archetypeView = {
+    seasonLabel: `${sLabel} Season`,
+    season: seasonArchetype,
+    allTime: allTimeArchetype,
+    defaultView: (seasonC.gp >= 2 ? "season" : c.gp >= 2 ? "allTime" : "season") as "season" | "allTime",
+  };
   const milestones = getPlayerMilestones(c);
   const scoutingReport = generateScoutingReport({
     playerId,
@@ -240,7 +276,7 @@ export default async function PlayerPage({
         </section>
       )}
 
-      <PlayerBadges archetype={archetype} />
+      <PlayerBadges viewData={archetypeView} />
 
       <PlayerStatsView career={c} />
 

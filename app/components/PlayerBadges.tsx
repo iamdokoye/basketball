@@ -1,4 +1,10 @@
-import type { PlayerArchetype } from "@/lib/badges";
+"use client";
+
+import { useState } from "react";
+import {
+  ARCHETYPE_TIER_META,
+  type PlayerArchetype,
+} from "@/lib/badges";
 
 const TIER_STYLES = {
   bronze: {
@@ -19,76 +25,241 @@ const TIER_STYLES = {
   },
 };
 
-export function PlayerBadges({ archetype }: { archetype: PlayerArchetype }) {
+export type ArchetypeViewData = {
+  seasonLabel: string;
+  season: PlayerArchetype;
+  allTime: PlayerArchetype;
+  defaultView?: "season" | "allTime";
+};
+
+export function PlayerBadges({
+  archetype,
+  viewData,
+}: {
+  archetype?: PlayerArchetype;
+  viewData?: ArchetypeViewData;
+}) {
+  const [viewMode, setViewMode] = useState<"season" | "allTime">(
+    viewData?.defaultView ?? "season",
+  );
+
+  const current = viewData
+    ? viewMode === "season"
+      ? viewData.season
+      : viewData.allTime
+    : archetype;
+
+  if (!current) return null;
+
+  const tierMeta = ARCHETYPE_TIER_META[current.tier] ?? ARCHETYPE_TIER_META[0];
+
   return (
-    <section className="space-y-3">
+    <section className="space-y-4">
+      {/* View Switcher Header */}
+      <div className="flex items-center justify-between gap-3 px-1">
+        <div className="label text-court-ink">Playstyle Archetype</div>
+        {viewData && (
+          <div className="flex rounded-xl bg-black/[0.05] p-0.5 text-xs">
+            <button
+              type="button"
+              onClick={() => setViewMode("season")}
+              className={`rounded-lg px-2.5 py-1 font-bold transition-all ${
+                viewMode === "season"
+                  ? "bg-white text-ink shadow-xs ring-1 ring-black/5"
+                  : "text-muted hover:text-ink"
+              }`}
+            >
+              {viewData.seasonLabel}
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("allTime")}
+              className={`rounded-lg px-2.5 py-1 font-bold transition-all ${
+                viewMode === "allTime"
+                  ? "bg-white text-ink shadow-xs ring-1 ring-black/5"
+                  : "text-muted hover:text-ink"
+              }`}
+            >
+              All time
+            </button>
+          </div>
+        )}
+      </div>
+
       {/* Archetype Card */}
       <div className="glass-2 relative overflow-hidden rounded-3xl p-5">
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3">
             <span
-              className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-black/[0.05] text-2xl shadow-inner"
+              className="grid h-13 w-13 shrink-0 place-items-center rounded-2xl bg-black/[0.05] text-2xl shadow-inner"
               aria-hidden
             >
-              {archetype.emoji}
+              {current.emoji}
             </span>
             <div>
-              <div className="label text-court-ink">Playstyle Archetype</div>
-              <h2 className="text-xl font-extrabold tracking-tight text-ink">
-                {archetype.title}
-              </h2>
+              <div className="flex items-center gap-2">
+                <h2 className="text-xl font-extrabold tracking-tight text-ink">
+                  {current.title}
+                </h2>
+                <span
+                  className={`tabular inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-black uppercase tracking-wider ring-1 ${tierMeta.badgeClass}`}
+                >
+                  <span className={`h-1.5 w-1.5 rounded-full ${tierMeta.dotClass}`} />
+                  {tierMeta.label}
+                </span>
+              </div>
+              <div className="mt-0.5 text-xs font-semibold text-muted">
+                {current.gp === 0
+                  ? "No games played in this period yet"
+                  : `Based on ${current.gp} ${current.gp === 1 ? "game" : "games"} ${
+                      viewData
+                        ? viewMode === "season"
+                          ? `in ${viewData.seasonLabel}`
+                          : "across career"
+                        : ""
+                    }`}
+              </div>
             </div>
           </div>
-          {archetype.badges.length > 0 && (
+          {current.badges.length > 0 && (
             <span className="tabular rounded-full bg-court-soft/10 px-3 py-1 text-xs font-bold text-court-ink ring-1 ring-court-soft/25">
-              {archetype.badges.length} {archetype.badges.length === 1 ? "badge" : "badges"}
+              {current.badges.length} {current.badges.length === 1 ? "badge" : "badges"}
             </span>
           )}
         </div>
         <p className="mt-3 text-xs font-medium leading-relaxed text-muted">
-          {archetype.description}
+          {current.description}
         </p>
       </div>
 
-      {/* Badges List */}
-      {archetype.badges.length > 0 ? (
-        <div className="grid gap-2 sm:grid-cols-2">
-          {archetype.badges.map((b) => {
-            const style = TIER_STYLES[b.tier];
-            return (
-              <div
-                key={b.id}
-                className="glass-1 relative flex flex-col justify-between rounded-2xl p-3.5 transition-transform hover:scale-[1.01]"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xl" aria-hidden>
-                      {b.emoji}
-                    </span>
-                    <span className="font-extrabold text-ink">{b.name}</span>
+      {/* Next Archetype Evolution Targets */}
+      {current.nextUpgrades && current.nextUpgrades.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between px-1">
+            <div className="label text-court-ink">Next Archetype Upgrades</div>
+            <span className="text-[11px] font-semibold text-muted">
+              Evolve your playstyle
+            </span>
+          </div>
+
+          <div className="grid gap-2 sm:grid-cols-2">
+            {current.nextUpgrades.map((u) => {
+              const upgradeTier = ARCHETYPE_TIER_META[u.tier] ?? ARCHETYPE_TIER_META[1];
+              return (
+                <div
+                  key={u.title}
+                  className="glass-1 relative flex flex-col justify-between rounded-2xl p-3.5 transition-transform hover:scale-[1.01]"
+                >
+                  <div>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xl" aria-hidden>
+                          {u.emoji}
+                        </span>
+                        <div>
+                          <div className="font-extrabold text-ink leading-tight">
+                            {u.title}
+                          </div>
+                          <span
+                            className={`tabular inline-flex items-center gap-1 rounded-sm px-1.5 py-0.2 text-[9px] font-black uppercase tracking-wider ${upgradeTier.badgeClass}`}
+                          >
+                            {upgradeTier.label}
+                          </span>
+                        </div>
+                      </div>
+                      <span className="tabular font-black text-xs text-court-ink bg-court-soft/10 px-2 py-0.5 rounded-md">
+                        {u.progressPct}%
+                      </span>
+                    </div>
+
+                    {/* Progress Bar */}
+                    <div className="mt-2.5 h-1.5 w-full overflow-hidden rounded-full bg-black/[0.06]">
+                      <div
+                        className="h-full rounded-full bg-court-ink transition-all duration-500"
+                        style={{ width: `${Math.max(4, u.progressPct)}%` }}
+                      />
+                    </div>
+
+                    <div className="mt-2 text-xs font-bold text-court-ink">
+                      🎯 {u.requirement}
+                    </div>
                   </div>
-                  <span
-                    className={`tabular inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-black uppercase tracking-wider ring-1 ${style.badge}`}
-                  >
-                    <span className={`h-1.5 w-1.5 rounded-full ${style.dot}`} />
-                    {b.tierLabel}
-                  </span>
+
+                  <p className="mt-2 text-[11px] font-medium leading-normal text-muted">
+                    {u.description}
+                  </p>
                 </div>
-                <p className="mt-2 text-xs font-medium text-muted">
-                  {b.description}
-                </p>
-                <div className="tabular mt-3 hairline border-t pt-2 text-[11px] font-semibold text-court-ink">
-                  {b.progress}
-                </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
-      ) : (
-        <p className="glass-1 rounded-2xl p-6 text-center text-xs font-semibold text-muted">
-          Play more games to unlock 2K badges.
-        </p>
       )}
+
+      {/* Pinnacle Tier banner if Tier 3 reached */}
+      {current.tier === 3 && (
+        <div className="glass-1 flex items-center gap-3 rounded-2xl p-4 ring-1 ring-purple-500/25 bg-purple-500/5">
+          <span className="text-2xl" aria-hidden>
+            👑
+          </span>
+          <div>
+            <div className="text-xs font-black uppercase tracking-wider text-purple-700">
+              Pinnacle Tier Achieved
+            </div>
+            <p className="mt-0.5 text-xs font-medium text-muted">
+              You&apos;ve reached the highest echelon of playstyle mastery in the league.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* 2K Badges List */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between px-1">
+          <div className="label text-court-ink">2K Badges</div>
+          <span className="text-[11px] font-semibold text-muted">
+            {current.badges.length} {current.badges.length === 1 ? "badge" : "badges"} earned
+          </span>
+        </div>
+
+        {current.badges.length > 0 ? (
+          <div className="grid gap-2 sm:grid-cols-2">
+            {current.badges.map((b) => {
+              const style = TIER_STYLES[b.tier];
+              return (
+                <div
+                  key={b.id}
+                  className="glass-1 relative flex flex-col justify-between rounded-2xl p-3.5 transition-transform hover:scale-[1.01]"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl" aria-hidden>
+                        {b.emoji}
+                      </span>
+                      <span className="font-extrabold text-ink">{b.name}</span>
+                    </div>
+                    <span
+                      className={`tabular inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-black uppercase tracking-wider ring-1 ${style.badge}`}
+                    >
+                      <span className={`h-1.5 w-1.5 rounded-full ${style.dot}`} />
+                      {b.tierLabel}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-xs font-medium text-muted">
+                    {b.description}
+                  </p>
+                  <div className="tabular mt-3 hairline border-t pt-2 text-[11px] font-semibold text-court-ink">
+                    {b.progress}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="glass-1 rounded-2xl p-6 text-center text-xs font-semibold text-muted">
+            Play more games in this period to unlock 2K badges.
+          </p>
+        )}
+      </div>
     </section>
   );
 }

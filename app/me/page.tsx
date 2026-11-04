@@ -4,6 +4,7 @@ import { getMe } from "@/lib/identity";
 import { computePlayerArchetype } from "@/lib/badges";
 import { clutchTotals } from "@/lib/clutch";
 import { formatShortDay, leagueGameDay, leagueTimeZone } from "@/lib/format";
+import { groupBySeason, seasonKey, seasonLabel, seasonMode } from "@/lib/seasons";
 import { getPlayerMilestones } from "@/lib/milestones";
 import { playerOfTheGame, statSummary } from "@/lib/pog";
 import {
@@ -143,8 +144,47 @@ export default async function MePage() {
       playerNames,
     ).get(playerId),
   );
+  const timeZone = leagueTimeZone();
+  const sMode = seasonMode();
+  const currentSeasonKey = seasonKey(access.now, timeZone, sMode);
+  const sLabel = seasonLabel(currentSeasonKey);
+  const seasons = groupBySeason(games, timeZone, sMode);
+  const currentSeason = seasons.find((s) => s.key === currentSeasonKey);
+  const seasonGames = currentSeason ? currentSeason.games : [];
+
   const clutch = clutchTotals(games).find((x) => x.playerId === playerId);
-  const archetype = computePlayerArchetype(c, clutch, finalGames.length);
+  const allTimeArchetype = computePlayerArchetype(c, clutch, finalGames.length);
+
+  const seasonCareer = careerTotals(seasonGames, players);
+  const seasonC = seasonCareer.find((x) => x.playerId === playerId) ?? {
+    ...c,
+    gp: 0,
+    pts: 0,
+    reb: 0,
+    ast: 0,
+    stl: 0,
+    blk: 0,
+    defl: 0,
+    fgm: 0,
+    fga: 0,
+    fg3m: 0,
+    fg3a: 0,
+    ftm: 0,
+    fta: 0,
+    oreb: 0,
+    dreb: 0,
+    tov: 0,
+    plusMinus: 0,
+  };
+  const seasonClutch = clutchTotals(seasonGames).find((x) => x.playerId === playerId);
+  const seasonArchetype = computePlayerArchetype(seasonC, seasonClutch, seasonGames.length);
+
+  const archetypeView = {
+    seasonLabel: `${sLabel} Season`,
+    season: seasonArchetype,
+    allTime: allTimeArchetype,
+    defaultView: (seasonC.gp >= 2 ? "season" : c.gp >= 2 ? "allTime" : "season") as "season" | "allTime",
+  };
   const milestones = getPlayerMilestones(c);
   const scoutingReport = generateScoutingReport({
     playerId,
@@ -329,7 +369,7 @@ export default async function MePage() {
         </section>
       )}
 
-      <PlayerBadges archetype={archetype} />
+      <PlayerBadges viewData={archetypeView} />
 
       <PlayerScoutingReport report={scoutingReport} />
 
