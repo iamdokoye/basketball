@@ -3,6 +3,13 @@ import type { ClutchLine } from "./clutch";
 
 export type BadgeTier = "bronze" | "silver" | "gold" | "hof";
 
+export type BadgeNextTier = {
+  tier: BadgeTier;
+  tierLabel: string;
+  requirement: string;
+  progressPct: number;
+};
+
 export type Badge = {
   id: string;
   name: string;
@@ -11,9 +18,10 @@ export type Badge = {
   tierLabel: string;
   description: string;
   progress: string;
+  nextTier?: BadgeNextTier | null;
 };
 
-export type ArchetypeTier = 0 | 1 | 2 | 3;
+export type ArchetypeTier = 0 | 1 | 2 | 3 | 4;
 
 export type ArchetypeUpgrade = {
   title: string;
@@ -40,6 +48,11 @@ export const ARCHETYPE_TIER_META: Record<
   ArchetypeTier,
   { label: string; badgeClass: string; dotClass: string }
 > = {
+  4: {
+    label: "Tier 4 · The GOAT",
+    badgeClass: "bg-emerald-500/15 text-emerald-800 ring-emerald-500/40 shadow-xs font-black",
+    dotClass: "bg-emerald-600",
+  },
   3: {
     label: "Tier 3 · Pinnacle",
     badgeClass: "bg-purple-600/15 text-purple-700 ring-purple-500/35",
@@ -79,6 +92,7 @@ const TIER_LABELS: Record<BadgeTier, string> = {
 /**
  * Computes all 2K-style badges and the player's playstyle archetype.
  * Uses a tiered priority ladder:
+ * - Tier 4 (Supreme Apex): The GOAT (culmination of all stats)
  * - Tier 3 (Pinnacle): All-Around Threat, Two-Way Force
  * - Tier 2 (Hybrid): Point God, 3-and-D Specialist, Defensive Anchor, Two-Way Slasher
  * - Tier 1 (Specialist): Sharpshooter, Floor General, Paint Beast, Lockdown Specialist, Pure Scorer, Clutch Assassin, Rebound Dynamo, Hustle Engine
@@ -112,6 +126,39 @@ export function computePlayerArchetype(
     else if (career.fg3m >= 20 && fg3Pct >= 0.32) tier = "gold";
     else if (career.fg3m >= 8 && fg3Pct >= 0.28) tier = "silver";
 
+    let nextTier: BadgeNextTier | null = null;
+    if (tier === "bronze") {
+      const neededThrees = Math.max(1, 8 - career.fg3m);
+      const accPct = Math.min(1, fg3Pct / 0.28);
+      const countPct = Math.min(1, career.fg3m / 8);
+      nextTier = {
+        tier: "silver",
+        tierLabel: "Silver",
+        requirement: `${neededThrees} more 3PM (${career.fg3m}/8) and ≥28% 3PT (${Math.round(fg3Pct * 100)}% curr)`,
+        progressPct: Math.min(99, Math.round((countPct * 0.7 + accPct * 0.3) * 100)),
+      };
+    } else if (tier === "silver") {
+      const neededThrees = Math.max(1, 20 - career.fg3m);
+      const accPct = Math.min(1, fg3Pct / 0.32);
+      const countPct = Math.min(1, career.fg3m / 20);
+      nextTier = {
+        tier: "gold",
+        tierLabel: "Gold",
+        requirement: `${neededThrees} more 3PM (${career.fg3m}/20) and ≥32% 3PT (${Math.round(fg3Pct * 100)}% curr)`,
+        progressPct: Math.min(99, Math.round((countPct * 0.7 + accPct * 0.3) * 100)),
+      };
+    } else if (tier === "gold") {
+      const neededThrees = Math.max(1, 40 - career.fg3m);
+      const accPct = Math.min(1, fg3Pct / 0.35);
+      const countPct = Math.min(1, career.fg3m / 40);
+      nextTier = {
+        tier: "hof",
+        tierLabel: "Hall of Fame",
+        requirement: `${neededThrees} more 3PM (${career.fg3m}/40) and ≥35% 3PT (${Math.round(fg3Pct * 100)}% curr)`,
+        progressPct: Math.min(99, Math.round((countPct * 0.7 + accPct * 0.3) * 100)),
+      };
+    }
+
     badges.push({
       id: "sharpshooter",
       name: "Deadeye",
@@ -120,6 +167,7 @@ export function computePlayerArchetype(
       tierLabel: TIER_LABELS[tier],
       description: "Deadly accuracy and confidence from beyond the three-point arc.",
       progress: `${career.fg3m} threes (${Math.round(fg3Pct * 100)}% 3PT)`,
+      nextTier,
     });
   }
 
@@ -130,6 +178,36 @@ export function computePlayerArchetype(
     else if (career.pts >= 120 || ppg >= 10.0) tier = "gold";
     else if (career.pts >= 60 || ppg >= 8.0) tier = "silver";
 
+    let nextTier: BadgeNextTier | null = null;
+    if (tier === "bronze") {
+      const neededPts = Math.max(1, 60 - career.pts);
+      const neededPpg = Math.max(0.1, 8.0 - ppg);
+      nextTier = {
+        tier: "silver",
+        tierLabel: "Silver",
+        requirement: `${neededPts} more pts (${career.pts}/60) or +${neededPpg.toFixed(1)} PPG (${ppg.toFixed(1)}/8.0)`,
+        progressPct: Math.min(99, Math.round(Math.max(career.pts / 60, ppg / 8.0) * 100)),
+      };
+    } else if (tier === "silver") {
+      const neededPts = Math.max(1, 120 - career.pts);
+      const neededPpg = Math.max(0.1, 10.0 - ppg);
+      nextTier = {
+        tier: "gold",
+        tierLabel: "Gold",
+        requirement: `${neededPts} more pts (${career.pts}/120) or +${neededPpg.toFixed(1)} PPG (${ppg.toFixed(1)}/10.0)`,
+        progressPct: Math.min(99, Math.round(Math.max(career.pts / 120, ppg / 10.0) * 100)),
+      };
+    } else if (tier === "gold") {
+      const neededPts = Math.max(1, 250 - career.pts);
+      const neededPpg = Math.max(0.1, 13.0 - ppg);
+      nextTier = {
+        tier: "hof",
+        tierLabel: "Hall of Fame",
+        requirement: `${neededPts} more pts (${career.pts}/250) or +${neededPpg.toFixed(1)} PPG (${ppg.toFixed(1)}/13.0)`,
+        progressPct: Math.min(99, Math.round(Math.max(career.pts / 250, ppg / 13.0) * 100)),
+      };
+    }
+
     badges.push({
       id: "bucket",
       name: "Walking Bucket",
@@ -138,6 +216,7 @@ export function computePlayerArchetype(
       tierLabel: TIER_LABELS[tier],
       description: "Scores in bunches and commands defensive attention at all times.",
       progress: `${ppg.toFixed(1)} PPG (${career.pts} total pts)`,
+      nextTier,
     });
   }
 
@@ -148,6 +227,36 @@ export function computePlayerArchetype(
     else if (career.reb >= 80 || rpg >= 7.0) tier = "gold";
     else if (career.reb >= 40 || rpg >= 5.0) tier = "silver";
 
+    let nextTier: BadgeNextTier | null = null;
+    if (tier === "bronze") {
+      const neededReb = Math.max(1, 40 - career.reb);
+      const neededRpg = Math.max(0.1, 5.0 - rpg);
+      nextTier = {
+        tier: "silver",
+        tierLabel: "Silver",
+        requirement: `${neededReb} more reb (${career.reb}/40) or +${neededRpg.toFixed(1)} RPG (${rpg.toFixed(1)}/5.0)`,
+        progressPct: Math.min(99, Math.round(Math.max(career.reb / 40, rpg / 5.0) * 100)),
+      };
+    } else if (tier === "silver") {
+      const neededReb = Math.max(1, 80 - career.reb);
+      const neededRpg = Math.max(0.1, 7.0 - rpg);
+      nextTier = {
+        tier: "gold",
+        tierLabel: "Gold",
+        requirement: `${neededReb} more reb (${career.reb}/80) or +${neededRpg.toFixed(1)} RPG (${rpg.toFixed(1)}/7.0)`,
+        progressPct: Math.min(99, Math.round(Math.max(career.reb / 80, rpg / 7.0) * 100)),
+      };
+    } else if (tier === "gold") {
+      const neededReb = Math.max(1, 150 - career.reb);
+      const neededRpg = Math.max(0.1, 9.0 - rpg);
+      nextTier = {
+        tier: "hof",
+        tierLabel: "Hall of Fame",
+        requirement: `${neededReb} more reb (${career.reb}/150) or +${neededRpg.toFixed(1)} RPG (${rpg.toFixed(1)}/9.0)`,
+        progressPct: Math.min(99, Math.round(Math.max(career.reb / 150, rpg / 9.0) * 100)),
+      };
+    }
+
     badges.push({
       id: "paint-beast",
       name: "Glass Titan",
@@ -156,6 +265,7 @@ export function computePlayerArchetype(
       tierLabel: TIER_LABELS[tier],
       description: "Relentless on the boards, grabbing put-backs and securing possessions.",
       progress: `${rpg.toFixed(1)} RPG (${career.reb} reb, ${career.oreb} offensive)`,
+      nextTier,
     });
   }
 
@@ -166,6 +276,34 @@ export function computePlayerArchetype(
     else if (career.ast >= 35 || (apg >= 3.5 && astTov >= 1.5)) tier = "gold";
     else if (career.ast >= 18 || apg >= 2.5) tier = "silver";
 
+    let nextTier: BadgeNextTier | null = null;
+    if (tier === "bronze") {
+      const neededAst = Math.max(1, 18 - career.ast);
+      const neededApg = Math.max(0.1, 2.5 - apg);
+      nextTier = {
+        tier: "silver",
+        tierLabel: "Silver",
+        requirement: `${neededAst} more ast (${career.ast}/18) or +${neededApg.toFixed(1)} APG (${apg.toFixed(1)}/2.5)`,
+        progressPct: Math.min(99, Math.round(Math.max(career.ast / 18, apg / 2.5) * 100)),
+      };
+    } else if (tier === "silver") {
+      const neededAst = Math.max(1, 35 - career.ast);
+      nextTier = {
+        tier: "gold",
+        tierLabel: "Gold",
+        requirement: `${neededAst} more ast (${career.ast}/35) or 3.5+ APG & 1.5+ AST/TO`,
+        progressPct: Math.min(99, Math.round(Math.max(career.ast / 35, apg / 3.5) * 100)),
+      };
+    } else if (tier === "gold") {
+      const neededAst = Math.max(1, 70 - career.ast);
+      nextTier = {
+        tier: "hof",
+        tierLabel: "Hall of Fame",
+        requirement: `${neededAst} more ast (${career.ast}/70) or 5.0+ APG & 2.0+ AST/TO`,
+        progressPct: Math.min(99, Math.round(Math.max(career.ast / 70, apg / 5.0) * 100)),
+      };
+    }
+
     badges.push({
       id: "floor-general",
       name: "Floor General",
@@ -174,6 +312,7 @@ export function computePlayerArchetype(
       tierLabel: TIER_LABELS[tier],
       description: "Orchestrates the floor, finds open cutters, and delivers crisp passes.",
       progress: `${apg.toFixed(1)} APG (${career.ast} ast, ${astTov.toFixed(1)} AST/TO)`,
+      nextTier,
     });
   }
 
@@ -184,6 +323,36 @@ export function computePlayerArchetype(
     else if (stocks >= 40 || spg + bpg >= 2.5) tier = "gold";
     else if (stocks >= 20 || spg + bpg >= 1.8) tier = "silver";
 
+    let nextTier: BadgeNextTier | null = null;
+    if (tier === "bronze") {
+      const neededStocks = Math.max(1, 20 - stocks);
+      const neededRate = Math.max(0.1, 1.8 - (spg + bpg));
+      nextTier = {
+        tier: "silver",
+        tierLabel: "Silver",
+        requirement: `${neededStocks} more stocks (${stocks}/20) or +${neededRate.toFixed(1)} stocks/game`,
+        progressPct: Math.min(99, Math.round(Math.max(stocks / 20, (spg + bpg) / 1.8) * 100)),
+      };
+    } else if (tier === "silver") {
+      const neededStocks = Math.max(1, 40 - stocks);
+      const neededRate = Math.max(0.1, 2.5 - (spg + bpg));
+      nextTier = {
+        tier: "gold",
+        tierLabel: "Gold",
+        requirement: `${neededStocks} more stocks (${stocks}/40) or +${neededRate.toFixed(1)} stocks/game`,
+        progressPct: Math.min(99, Math.round(Math.max(stocks / 40, (spg + bpg) / 2.5) * 100)),
+      };
+    } else if (tier === "gold") {
+      const neededStocks = Math.max(1, 80 - stocks);
+      const neededRate = Math.max(0.1, 3.5 - (spg + bpg));
+      nextTier = {
+        tier: "hof",
+        tierLabel: "Hall of Fame",
+        requirement: `${neededStocks} more stocks (${stocks}/80) or +${neededRate.toFixed(1)} stocks/game`,
+        progressPct: Math.min(99, Math.round(Math.max(stocks / 80, (spg + bpg) / 3.5) * 100)),
+      };
+    }
+
     badges.push({
       id: "lockdown",
       name: "Lockdown",
@@ -192,6 +361,7 @@ export function computePlayerArchetype(
       tierLabel: TIER_LABELS[tier],
       description: "Stifles opposing ball handlers with steals, swats, and deflections.",
       progress: `${spg.toFixed(1)} SPG · ${bpg.toFixed(1)} BPG · ${career.defl} deflections`,
+      nextTier,
     });
   }
 
@@ -202,6 +372,35 @@ export function computePlayerArchetype(
     else if (gw >= 2 || clutchPts >= 18) tier = "gold";
     else if (gw >= 1 && clutchPts >= 10) tier = "silver";
 
+    let nextTier: BadgeNextTier | null = null;
+    if (tier === "bronze") {
+      const ptsNeed = Math.max(1, 10 - clutchPts);
+      nextTier = {
+        tier: "silver",
+        tierLabel: "Silver",
+        requirement: `${gw < 1 ? "1 game-winner & " : ""}${ptsNeed} more clutch pts (${clutchPts}/10)`,
+        progressPct: Math.min(99, Math.round((Math.min(gw / 1, 1) * 0.5 + Math.min(clutchPts / 10, 1) * 0.5) * 100)),
+      };
+    } else if (tier === "silver") {
+      const ptsNeed = Math.max(1, 18 - clutchPts);
+      const gwNeed = Math.max(1, 2 - gw);
+      nextTier = {
+        tier: "gold",
+        tierLabel: "Gold",
+        requirement: `${gwNeed} more game-winners (${gw}/2) or ${ptsNeed} clutch pts (${clutchPts}/18)`,
+        progressPct: Math.min(99, Math.round(Math.max(gw / 2, clutchPts / 18) * 100)),
+      };
+    } else if (tier === "gold") {
+      const ptsNeed = Math.max(1, 30 - clutchPts);
+      const gwNeed = Math.max(1, 4 - gw);
+      nextTier = {
+        tier: "hof",
+        tierLabel: "Hall of Fame",
+        requirement: `${gwNeed} more game-winners (${gw}/4) or ${ptsNeed} clutch pts (${clutchPts}/30)`,
+        progressPct: Math.min(99, Math.round(Math.max(gw / 4, clutchPts / 30) * 100)),
+      };
+    }
+
     badges.push({
       id: "clutch-gene",
       name: "Clutch Gene",
@@ -210,6 +409,7 @@ export function computePlayerArchetype(
       tierLabel: TIER_LABELS[tier],
       description: "Unfazed by game pressure; delivers game-winners and late-game stops.",
       progress: `${gw} game-winner${gw === 1 ? "" : "s"} · ${clutchPts} clutch pts`,
+      nextTier,
     });
   }
 
@@ -220,6 +420,36 @@ export function computePlayerArchetype(
     else if (pmPg >= 2.5 && deflPg >= 2.0) tier = "gold";
     else if (pmPg >= 1.5 || deflPg >= 1.8) tier = "silver";
 
+    let nextTier: BadgeNextTier | null = null;
+    if (tier === "bronze") {
+      const pmNeed = Math.max(0.1, 1.5 - pmPg);
+      const deflNeed = Math.max(0.1, 1.8 - deflPg);
+      nextTier = {
+        tier: "silver",
+        tierLabel: "Silver",
+        requirement: `+${pmNeed.toFixed(1)} +/- per game or +${deflNeed.toFixed(1)} defl/gm`,
+        progressPct: Math.min(99, Math.round(Math.max((pmPg + 1) / 2.5, deflPg / 1.8) * 100)),
+      };
+    } else if (tier === "silver") {
+      const pmNeed = Math.max(0.1, 2.5 - pmPg);
+      const deflNeed = Math.max(0.1, 2.0 - deflPg);
+      nextTier = {
+        tier: "gold",
+        tierLabel: "Gold",
+        requirement: `+${pmNeed.toFixed(1)} +/- per game and +${deflNeed.toFixed(1)} defl/gm`,
+        progressPct: Math.min(99, Math.round(((Math.min(Math.max(pmPg, 0) / 2.5, 1) + Math.min(deflPg / 2.0, 1)) / 2) * 100)),
+      };
+    } else if (tier === "gold") {
+      const pmNeed = Math.max(0.1, 4.0 - pmPg);
+      const deflNeed = Math.max(0.1, 2.5 - deflPg);
+      nextTier = {
+        tier: "hof",
+        tierLabel: "Hall of Fame",
+        requirement: `+${pmNeed.toFixed(1)} +/- per game and +${deflNeed.toFixed(1)} defl/gm`,
+        progressPct: Math.min(99, Math.round(((Math.min(Math.max(pmPg, 0) / 4.0, 1) + Math.min(deflPg / 2.5, 1)) / 2) * 100)),
+      };
+    }
+
     badges.push({
       id: "sparkplug",
       name: "Sparkplug",
@@ -228,6 +458,7 @@ export function computePlayerArchetype(
       tierLabel: TIER_LABELS[tier],
       description: "Injects instant hustle, momentum swings, and high positive point differentials.",
       progress: `${pmPg >= 0 ? "+" : ""}${pmPg.toFixed(1)} plus/minus per game`,
+      nextTier,
     });
   }
 
@@ -243,6 +474,30 @@ export function computePlayerArchetype(
     else if (attendancePct >= 0.5) tier = "bronze";
 
     if (tier) {
+      let nextTier: BadgeNextTier | null = null;
+      if (tier === "bronze") {
+        nextTier = {
+          tier: "silver",
+          tierLabel: "Silver",
+          requirement: `≥65% attendance (Currently ${Math.round(attendancePct * 100)}%)`,
+          progressPct: Math.min(99, Math.round((attendancePct / 0.65) * 100)),
+        };
+      } else if (tier === "silver") {
+        nextTier = {
+          tier: "gold",
+          tierLabel: "Gold",
+          requirement: `≥80% attendance (Currently ${Math.round(attendancePct * 100)}%)`,
+          progressPct: Math.min(99, Math.round((attendancePct / 0.8) * 100)),
+        };
+      } else if (tier === "gold") {
+        nextTier = {
+          tier: "hof",
+          tierLabel: "Hall of Fame",
+          requirement: `≥90% attendance (Currently ${Math.round(attendancePct * 100)}%)`,
+          progressPct: Math.min(99, Math.round((attendancePct / 0.9) * 100)),
+        };
+      }
+
       badges.push({
         id: "iron-man",
         name: "Iron Man",
@@ -251,6 +506,7 @@ export function computePlayerArchetype(
         tierLabel: TIER_LABELS[tier],
         description: "Always answers the bell; unmatched attendance and league consistency.",
         progress: `${Math.round(attendancePct * 100)}% attendance (${career.gp}/${totalGames} games)`,
+        nextTier,
       });
     }
   }
@@ -284,7 +540,25 @@ export function computePlayerArchetype(
     archetypeTier = 0;
   }
   // -------------------------------------------------------------
-  // TIER 3: PINNACLE / MASTERCLASS (Evaluated 1st)
+  // TIER 4: SUPREME APEX / THE GOAT (Culmination of All Stats)
+  // Evaluated 1st: The absolute best player on the court
+  // -------------------------------------------------------------
+  else if (
+    career.gp >= 3 &&
+    ppg >= 9.0 &&
+    rpg >= 5.0 &&
+    apg >= 2.5 &&
+    hasSilverLockdown &&
+    pmPg >= 1.0
+  ) {
+    archetypeTitle = "The GOAT";
+    archetypeEmoji = "🐐";
+    archetypeDesc =
+      "The undisputed best player on the court. Complete statistical dominance across scoring, playmaking, rebounding, defense, and winning impact.";
+    archetypeTier = 4;
+  }
+  // -------------------------------------------------------------
+  // TIER 3: PINNACLE / MASTERCLASS (Evaluated 2nd)
   // Multi-category dominance: rewarded over single-badge specialties
   // -------------------------------------------------------------
   else if (ppg >= 9.0 && rpg >= 5.0 && apg >= 2.0) {
@@ -299,7 +573,7 @@ export function computePlayerArchetype(
     archetypeTier = 3;
   }
   // -------------------------------------------------------------
-  // TIER 2: ELITE HYBRIDS (Evaluated 2nd)
+  // TIER 2: ELITE HYBRIDS (Evaluated 3rd)
   // Dual-trait combinations
   // -------------------------------------------------------------
   else if (hasSilverFloorGeneral && ppg >= 8.0) {
@@ -324,7 +598,7 @@ export function computePlayerArchetype(
     archetypeTier = 2;
   }
   // -------------------------------------------------------------
-  // TIER 1: SPECIALIZED DISCIPLINES (Evaluated 3rd)
+  // TIER 1: SPECIALIZED DISCIPLINES (Evaluated 4th)
   // -------------------------------------------------------------
   else if (hasSilverSharpshooter) {
     archetypeTitle = "Sharpshooter";
@@ -446,8 +720,8 @@ type UpgradeContext = {
  * toward higher-tier archetypes. Returns the top closest options.
  */
 function computeArchetypeUpgrades(ctx: UpgradeContext): ArchetypeUpgrade[] {
-  // If player reached Tier 3 (Pinnacle), no higher tier exists
-  if (ctx.currentTier === 3) return [];
+  // If player reached Tier 4 (The GOAT), no higher tier exists
+  if (ctx.currentTier === 4) return [];
 
   const candidates: ArchetypeUpgrade[] = [];
 
@@ -693,9 +967,49 @@ function computeArchetypeUpgrades(ctx: UpgradeContext): ArchetypeUpgrade[] {
     });
   }
 
+  // 13. The GOAT (Tier 4 Supreme Apex)
+  // The absolute culmination of all statistical categories
+  if (ctx.currentTier < 4 && ctx.currentTitle !== "The GOAT") {
+    const pProg = Math.min(1, ctx.ppg / 9.0);
+    const rProg = Math.min(1, ctx.rpg / 5.0);
+    const aProg = Math.min(1, ctx.apg / 2.5);
+    const defProg = ctx.hasSilverLockdown
+      ? 1
+      : Math.min(1, Math.max(ctx.stocks / 20, (ctx.spg + ctx.bpg) / 1.8));
+    const pmProg = Math.min(1, Math.max(0, (ctx.pmPg + 1.0) / 2.0));
+    const pct = Math.min(
+      99,
+      Math.round(((pProg + rProg + aProg + defProg + pmProg) / 5) * 100),
+    );
+
+    const missing: string[] = [];
+    if (ctx.ppg < 9.0) missing.push(`+${(9.0 - ctx.ppg).toFixed(1)} PPG`);
+    if (ctx.rpg < 5.0) missing.push(`+${(5.0 - ctx.rpg).toFixed(1)} RPG`);
+    if (ctx.apg < 2.5) missing.push(`+${(2.5 - ctx.apg).toFixed(1)} APG`);
+    if (!ctx.hasSilverLockdown) missing.push("Silver Lockdown");
+    if (ctx.pmPg < 1.0) missing.push(`+${(1.0 - ctx.pmPg).toFixed(1)} +/-`);
+
+    candidates.push({
+      title: "The GOAT",
+      emoji: "🐐",
+      tier: 4,
+      tierLabel: ARCHETYPE_TIER_META[4].label,
+      progressPct: pct,
+      requirement: `Culmination of all stats: Needs ${missing.join(", ") || "Dominance across all categories"}`,
+      description:
+        "The undisputed best player on the court. Complete statistical dominance across scoring, playmaking, rebounding, defense, and winning impact.",
+    });
+  }
+
   // Filter candidates: must be >= current tier and not the current title
   return candidates
     .filter((c) => c.tier >= ctx.currentTier && c.title !== ctx.currentTitle && c.progressPct < 100)
-    .sort((a, b) => b.progressPct - a.progressPct)
+    .sort((a, b) => {
+      // Prioritize higher tier if close, otherwise highest progress
+      if (b.tier !== a.tier && Math.abs(b.progressPct - a.progressPct) < 15) {
+        return b.tier - a.tier;
+      }
+      return b.progressPct - a.progressPct;
+    })
     .slice(0, 3);
 }

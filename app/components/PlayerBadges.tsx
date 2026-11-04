@@ -195,7 +195,25 @@ export function PlayerBadges({
         </div>
       )}
 
-      {/* Pinnacle Tier banner if Tier 3 reached */}
+      {/* Tier 4: The GOAT Supreme Banner */}
+      {current.tier === 4 && (
+        <div className="glass-1 flex items-center gap-3.5 rounded-2xl p-4.5 ring-2 ring-emerald-500/35 bg-emerald-500/10 shadow-xs">
+          <span className="text-3xl" aria-hidden>
+            🐐
+          </span>
+          <div>
+            <div className="text-xs font-black uppercase tracking-wider text-emerald-800 flex items-center gap-1.5">
+              <span>👑</span>
+              <span>The GOAT · Undisputed #1</span>
+            </div>
+            <p className="mt-0.5 text-xs font-medium text-emerald-950">
+              You have achieved complete statistical dominance across scoring, playmaking, rebounding, defense, and winning impact.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Tier 3: Pinnacle Tier Banner */}
       {current.tier === 3 && (
         <div className="glass-1 flex items-center gap-3 rounded-2xl p-4 ring-1 ring-purple-500/25 bg-purple-500/5">
           <span className="text-2xl" aria-hidden>
@@ -206,7 +224,7 @@ export function PlayerBadges({
               Pinnacle Tier Achieved
             </div>
             <p className="mt-0.5 text-xs font-medium text-muted">
-              You&apos;ve reached the highest echelon of playstyle mastery in the league.
+              You&apos;ve reached the highest echelon of playstyle mastery. One final summit remains: The GOAT 🐐.
             </p>
           </div>
         </div>
@@ -230,25 +248,59 @@ export function PlayerBadges({
                   key={b.id}
                   className="glass-1 relative flex flex-col justify-between rounded-2xl p-3.5 transition-transform hover:scale-[1.01]"
                 >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xl" aria-hidden>
-                        {b.emoji}
+                  <div>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xl" aria-hidden>
+                          {b.emoji}
+                        </span>
+                        <span className="font-extrabold text-ink">{b.name}</span>
+                      </div>
+                      <span
+                        className={`tabular inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-black uppercase tracking-wider ring-1 ${style.badge}`}
+                      >
+                        <span className={`h-1.5 w-1.5 rounded-full ${style.dot}`} />
+                        {b.tierLabel}
                       </span>
-                      <span className="font-extrabold text-ink">{b.name}</span>
                     </div>
-                    <span
-                      className={`tabular inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-black uppercase tracking-wider ring-1 ${style.badge}`}
-                    >
-                      <span className={`h-1.5 w-1.5 rounded-full ${style.dot}`} />
-                      {b.tierLabel}
-                    </span>
+
+                    <p className="mt-2 text-xs font-medium text-muted">
+                      {b.description}
+                    </p>
                   </div>
-                  <p className="mt-2 text-xs font-medium text-muted">
-                    {b.description}
-                  </p>
-                  <div className="tabular mt-3 hairline border-t pt-2 text-[11px] font-semibold text-court-ink">
-                    {b.progress}
+
+                  {/* Level Progress & Next Level Requirements */}
+                  <div className="tabular mt-3 hairline border-t pt-2 space-y-1.5 text-[11px]">
+                    <div className="flex items-center justify-between font-semibold text-court-ink">
+                      <span>{b.progress}</span>
+                      {b.nextTier && (
+                        <span className="text-[10px] font-bold text-muted">
+                          {b.nextTier.progressPct}% to {b.nextTier.tierLabel}
+                        </span>
+                      )}
+                    </div>
+
+                    {b.nextTier ? (
+                      <div className="space-y-1">
+                        <div className="h-1 w-full overflow-hidden rounded-full bg-black/[0.06]">
+                          <div
+                            className="h-full rounded-full bg-court-ink transition-all duration-300"
+                            style={{ width: `${Math.max(4, b.nextTier.progressPct)}%` }}
+                          />
+                        </div>
+                        <div className="text-[11px] font-semibold text-ink/80 flex items-baseline gap-1">
+                          <span className="text-court-ink font-bold">🎯 Next:</span>
+                          <span className="text-muted leading-tight">
+                            {b.nextTier.requirement}
+                          </span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-[10px] font-bold text-purple-700 flex items-center gap-1 pt-0.5">
+                        <span>🏆</span>
+                        <span>Max Level Reached ({b.tierLabel})</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               );
