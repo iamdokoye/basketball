@@ -62,6 +62,7 @@ export function BoxScoreTable({
   team,
   pogId,
   svpId,
+  target,
 }: {
   lines: StatLine[];
   team: Team;
@@ -69,12 +70,14 @@ export function BoxScoreTable({
   pogId?: number;
   /** Second Valuable Player (SVP), marked with a shield. */
   svpId?: number;
+  /** Winning target score for pace normalization. */
+  target?: number;
 }) {
   const rows = lines.filter((l) => l.team === team);
   const total = Object.fromEntries(
     SUM_KEYS.map((k) => [k, rows.reduce((t, l) => t + l[k], 0)]),
   ) as Record<(typeof SUM_KEYS)[number], number>;
-  const ctx = gameContext(lines);
+  const ctx = gameContext(lines, target);
   const accent = team === "A" ? "bg-court-soft" : "bg-away-soft";
 
   const cell = "px-2 py-2 text-right";

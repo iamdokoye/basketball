@@ -83,7 +83,7 @@ export default async function PlayerPage({
   const trend: TrendPoint[] = [...log]
     .sort((a, b) => a.game.startMs - b.game.startMs || a.game.id - b.game.id)
     .flatMap(({ game, line }) => {
-      const r = rateLine(line, gameContext(game.lines));
+      const r = rateLine(line, gameContext(game.lines, game.target));
       if (!r) return [];
       const mine = game.score[line.team];
       const theirs = game.score[line.team === "A" ? "B" : "A"];
@@ -379,7 +379,7 @@ export default async function PlayerPage({
                         <td className={`${td} font-bold`}>
                           {rateLine(
                             line,
-                            gameContext(game.lines),
+                            gameContext(game.lines, game.target),
                           )?.rating.toFixed(1) ?? (
                             <span className="text-muted">DNP</span>
                           )}

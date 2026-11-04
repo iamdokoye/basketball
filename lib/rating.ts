@@ -5,19 +5,18 @@ import type { StatLine } from "./stats";
 // Every player who takes the court starts at 6.5 (a starter at tip-off, a sub when they check
 // in). Their plays then push the number up or down:
 //   1. "Production" adds up what they did with Hollinger's Game Score structure (points,
-//      shooting efficiency, rebounds, assists, steals, blocks, turnovers, fouls), plus a small
-//      credit for deflections, which we track. The weights are NOT the NBA's: they are rebuilt
-//      from this league's own possession value and rebound rates (see LEAGUE below).
-//   2. Context scales it: scoring in a low-scoring game counts for more (pace), and doing a lot
-//      in few minutes counts for more (time on the floor).
-//   3. How their team did while they were on court (plus/minus) nudges it a little.
-//   4. Doing nothing for a long time costs you. A player who records no action at all (no shot,
-//      rebound, assist, steal, block, turnover, foul or deflection) stays at about 6.5 for a short
-//      stint (a sub's grace period, or a late cameo), but the longer they stay on court with zero
-//      involvement the further they sink: roughly 6.0 after a third of the game, around 4.5 for a
-//      whole game. Any recorded action ends the decay.
-//   5. The result is squeezed onto a curve so it stays between 3.0 and 10.0. 10 is almost
-//      unreachable; a perfect scoring game lands around 9.
+//      shooting efficiency, rebounds, assists, steals, blocks, turnovers, fouls), plus credit
+//      for deflections. The weights use FIBA 3x3 standards adapted to our 2s and 3s scoring:
+//      offensive rebounds are prized over defensive rebounds (~2.1x value), and shooting misses
+//      are penalized appropriately so volume chucking is not rewarded.
+//   2. Context scales it: scoring in a low-scoring game counts for more (pace, dynamically scaled
+//      against the game target), and doing a lot in few minutes counts for more (time on the floor).
+//   3. How their team did while they were on court (plus/minus) nudges it, minute-damped so brief
+//      cameos don't inherit outsized team swings.
+//   4. Inactivity decay: a player who stays on court without constructive contributions (shots,
+//      rebounds, assists, steals, blocks, deflections) gradually sinks toward ~5.0. Constructive
+//      plays smoothly dissolve this decay, while negative plays (fouls, turnovers) never reduce it.
+//   5. The result is squeezed onto a curve between 3.0 and 10.0 with balanced negative scaling.
 // Someone who never plays isn't rated.
 // Pickup 3v3 has no positions, so there is no positional benchmarking.
 
@@ -27,45 +26,45 @@ export const RATING = {
   max: 10.0,
   /** Impact needed to cover about three quarters of the way from 6.5 up to 10. */
   upScale: 22,
-  /** Same, going down toward 3.0 (bad games are rarer and shorter, so the curve is steeper). */
-  downScale: 9,
-  /** A typical game to 20 has about this many points in total (both teams). */
-  refTotal: 36,
+  /** Same, going down toward 3.0 (moderated from 9 to 15 to avoid over-punishing single bad games). */
+  downScale: 15,
+  /** Fallback typical game total points when target is unknown (game to 21 has ~38 pts). */
+  refTotal: 38,
   /** Floor on the share of the game played used to scale a short stint. */
   minShare: 0.3,
-  /** Floor on how little a short stint counts when averaging a player's games. */
-  weightFloor: 0.25,
-  /** Rating points per point of on-court margin, before pace scaling. */
+  /** Floor on how little a short stint counts when averaging a player's games (5% for brief sub cameos). */
+  weightFloor: 0.05,
+  /** Rating points per point of on-court margin, before pace and minute scaling. */
   plusMinusWeight: 0.1,
-  /** Share of the game someone can be on court with zero actions before the idle decay starts (a sub's grace period). */
+  /** Share of the game someone can be on court before the inactivity decay starts (a sub's grace period). */
   idleGrace: 0.08,
-  /** Impact lost by being on court a whole game with zero actions (about 4.5 out of 10). */
+  /** Impact lost by being on court a whole game with zero constructive actions (about 5.0 out of 10). */
   idleFull: 6,
 } as const;
 
 /**
- * What a possession and a rebound are worth in OUR games, measured from the league's fully logged
- * games (Oct 2026): 205 shots at 34.6% FG, 158 points over ~213 possessions, and offensive
- * rebounds were 52% of all rebounds. Hollinger's NBA weights follow from the same two numbers
- * (V about 1.05, q about 0.27), so we keep his structure and swap in ours.
- * Re-measure these as more fully scored games come in.
+ * Possession and rebound calibration using FIBA 3x3 standards:
+ * - Points per possession (V): FIBA 3x3 half-court standard is ~0.82 (NBA full-court is ~1.05).
+ * - Offensive rebound share (q): FIBA 3x3 standard is 0.32 (32% offensive, 68% defensive).
+ *   This ensures offensive rebounds are prized over defensive rebounds (~2.1x value)
+ *   and volume shooting misses are appropriately penalized.
  */
 export const LEAGUE = {
-  /** Points per possession (V). NBA is about 1.05. */
-  pointsPerPossession: 0.74,
-  /** Share of rebounds taken by the shooting team (q). NBA is about 0.27. */
-  offRebShare: 0.52,
+  /** Points per possession (V). FIBA 3x3 standard is 0.82. */
+  pointsPerPossession: 0.82,
+  /** Share of rebounds taken by the shooting team (q). FIBA 3x3 standard is 0.32. */
+  offRebShare: 0.32,
 } as const;
 
 const NBA_POINTS_PER_POSSESSION = 1.05;
 
-/** Hollinger-style weights derived from LEAGUE. */
+/** Hollinger-style weights derived from FIBA 3x3 standards (V and q). */
 export function weightsFrom(v: number, q: number) {
   const missCost = v * (1 - q); // a missed shot loses the possession unless the shooting team rebounds it
   const scale = v / NBA_POINTS_PER_POSSESSION;
   return {
     // A make is worth its points minus the possession it used (pts - v). Together with the
-    // per-attempt cost below that is fgm = missCost - v = -v * q (Hollinger's +0.4 is not used).
+    // per-attempt cost below that is fgm = missCost - v = -v * q.
     fgm: -v * q,
     fga: missCost,
     oreb: missCost, // gives back exactly what the miss cost
@@ -74,18 +73,26 @@ export function weightsFrom(v: number, q: number) {
     tov: v,
     ast: 0.7 * scale,
     blk: missCost,
+    defl: 0.35,
+    pf: -0.45,
+    ftMiss: 0.45,
   };
 }
 
 export const WEIGHTS = weightsFrom(LEAGUE.pointsPerPossession, LEAGUE.offRebShare);
 
 /** Game-wide numbers a rating is judged against. */
-export type GameContext = { totalPoints: number; maxSec: number };
+export type GameContext = {
+  totalPoints: number;
+  maxSec: number;
+  target?: number;
+};
 
-export function gameContext(lines: StatLine[]): GameContext {
+export function gameContext(lines: StatLine[], target?: number): GameContext {
   return {
     totalPoints: lines.reduce((t, l) => t + l.pts, 0),
     maxSec: Math.max(0, ...lines.map((l) => l.sec)),
+    target,
   };
 }
 
@@ -111,20 +118,25 @@ export function actions(l: StatLine): number {
   return l.fga + l.fta + l.reb + l.ast + l.stl + l.blk + l.tov + l.pf + l.defl;
 }
 
-/** Raw contribution in "points of impact": Game Score structure with league-derived weights, plus deflections. */
+/** Constructive plays that demonstrate active on-court involvement (excludes turnovers & fouls). */
+export function productivePlays(l: StatLine): number {
+  return l.fga + l.fta + l.reb + l.ast + l.stl + l.blk + l.defl;
+}
+
+/** Raw contribution in "points of impact": Game Score structure with FIBA 3x3-derived weights, plus deflections. */
 export function production(l: StatLine, w: typeof WEIGHTS = WEIGHTS): number {
   return (
     l.pts +
     w.fgm * l.fgm -
     w.fga * l.fga -
-    0.4 * (l.fta - l.ftm) +
+    (w.ftMiss ?? 0.45) * (l.fta - l.ftm) +
     w.oreb * l.oreb +
     w.dreb * l.dreb +
     w.stl * l.stl +
     w.ast * l.ast +
     w.blk * l.blk +
-    0.3 * l.defl -
-    0.4 * l.pf -
+    (w.defl ?? 0.35) * l.defl +
+    (w.pf ?? -0.45) * l.pf -
     w.tov * l.tov
   );
 }
@@ -148,26 +160,45 @@ export function rateLine(
   if (!played(l)) return null;
   const R = RATING;
 
-  const pace = clamp(R.refTotal / Math.max(ctx.totalPoints, 10), 0.6, 1.6);
+  // Expected total points scales dynamically with the game target (default ~38 for a target of 21)
+  const expectedTotal =
+    ctx.target && ctx.target > 0 ? ctx.target * 1.8 : R.refTotal;
+  const minPtsThreshold = Math.max(10, expectedTotal * 0.35);
+  const pace = clamp(
+    expectedTotal / Math.max(ctx.totalPoints, minPtsThreshold),
+    0.65,
+    1.5,
+  );
+
   const share = shareOfGame(l, ctx);
   const time = 1 / Math.sqrt(Math.max(share, R.minShare));
 
-  // On court a long time with nothing recorded: the longer, the lower. Needs real timing to mean anything.
+  // Inactivity decay: penalizes extended court time without constructive plays.
+  // Smoothly decays as positive plays accumulate (3+ constructive plays eliminates it completely).
+  // Negative plays like fouls or turnovers NEVER reduce the idle penalty (prevents the "phantom foul" cliff).
   const idle =
-    actions(l) === 0 && l.sec > 0 && ctx.maxSec > 0
-      ? -R.idleFull * (Math.max(0, share - R.idleGrace) / (1 - R.idleGrace))
+    l.sec > 0 && ctx.maxSec > 0
+      ? -R.idleFull *
+        (Math.max(0, share - R.idleGrace) / (1 - R.idleGrace)) *
+        Math.max(0, 1 - productivePlays(l) / 3)
       : 0;
 
-  const impact =
-    production(l) * pace * time + R.plusMinusWeight * l.plusMinus * pace + idle;
+  // Plus/minus is minute-damped with sqrt(share) so brief cameos don't inherit outsized team run impact
+  const pmImpact = R.plusMinusWeight * l.plusMinus * Math.sqrt(share) * pace;
+
+  const impact = production(l) * pace * time + pmImpact + idle;
   const rating =
     impact >= 0
       ? R.base + (R.max - R.base) * Math.tanh(impact / R.upScale)
       : R.base - (R.base - R.min) * Math.tanh(-impact / R.downScale);
 
+  // Stint weight for career/season averaging:
+  // Brief sub cameos (e.g. 15-30s) scale with their actual floor time rather than locking in at 0.25.
+  const stintWeight = ctx.maxSec > 0 ? clamp(share, R.weightFloor, 1.0) : 1.0;
+
   return {
     rating: clamp(rating, R.min, R.max),
-    weight: Math.max(share, R.weightFloor),
+    weight: stintWeight,
   };
 }
 

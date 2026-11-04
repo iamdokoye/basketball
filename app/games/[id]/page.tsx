@@ -231,8 +231,8 @@ export default async function GamePage({
 
       {recap && <ShareRecap text={recap} path={`/games/${game.id}`} />}
 
-      <BoxScoreTable lines={game.lines} team="A" pogId={pog?.line.playerId} svpId={svp?.line.playerId} />
-      <BoxScoreTable lines={game.lines} team="B" pogId={pog?.line.playerId} svpId={svp?.line.playerId} />
+      <BoxScoreTable lines={game.lines} team="A" pogId={pog?.line.playerId} svpId={svp?.line.playerId} target={game.target} />
+      <BoxScoreTable lines={game.lines} team="B" pogId={pog?.line.playerId} svpId={svp?.line.playerId} target={game.target} />
 
       {access.isAdmin && <GameAdminActions gameId={game.id} />}
     </div>

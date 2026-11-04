@@ -50,7 +50,7 @@ export function singleGameRecords(games: Game[], onlyPlayerId?: number): RecordI
   for (const stat of STATS) {
     let best: { v: number; line: StatLine; game: Game } | null = null;
     for (const game of ordered) {
-      const ctx = gameContext(game.lines);
+      const ctx = gameContext(game.lines, game.target);
       for (const line of game.lines) {
         if (onlyPlayerId !== undefined && line.playerId !== onlyPlayerId) continue;
         const v = stat.get(line, ctx);

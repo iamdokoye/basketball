@@ -262,7 +262,7 @@ export function careerTotals(games: Game[], players: Player[]): CareerLine[] {
 
   for (const g of games) {
     if (g.status !== "final") continue;
-    const ctx = gameContext(g.lines);
+    const ctx = gameContext(g.lines, g.target);
     for (const line of g.lines) {
       if (!played(line)) continue; // on the roster but never took the court
       const c = get(line.playerId, line.name);
