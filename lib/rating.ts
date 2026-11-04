@@ -6,9 +6,9 @@ import type { StatLine } from "./stats";
 // in). Their plays then push the number up or down:
 //   1. "Production" adds up what they did with Hollinger's Game Score structure (points,
 //      shooting efficiency, rebounds, assists, steals, blocks, turnovers, fouls), plus credit
-//      for deflections. The weights are tuned for 3v3 half-court with our 2s and 3s scoring:
-//      offensive rebounds are prized over defensive rebounds (2.25x value), and misses carry a
-//      cost so volume chucking is not rewarded (see WEIGHTS).
+//      for deflections. The weights are balanced for 3v3 half-court possession economics:
+//      rebounds, assists and stops carry substantial value, while misses (-0.70) and turnovers (-0.95)
+//      penalize inefficient chucking and wasted possessions (see WEIGHTS).
 //   2. Context scales it: scoring in a low-scoring game counts for more (pace, dynamically scaled
 //      against the game target), and doing a lot in few minutes counts for more (time on the floor).
 //      All weights are tuned for a game to 20, so production, margin and the inactivity bar are
@@ -51,29 +51,32 @@ export const RATING = {
 } as const;
 
 /**
- * 3v3 half-court weights, in Hollinger's Game Score structure (hand-tuned, not derived from a
- * possession model, so there is no league constant to change):
- * - Scoring is the primary currency of a 20-point game: a made 2PT nets +1.7 and a 3PT +2.7
- *   (points + 0.20 - 0.50), a miss -0.50. Break-even shooting is ~23% on 2s and ~16% on 3s,
- *   far below what this league shoots (~50% on 2s, ~37% on 3s), so volume is only punished
- *   for genuinely poor shooting.
- * - OREB (+0.36) is worth 2.25x DREB (+0.16), rewarding second chances without letting routine
- *   defensive rebounds outweigh scoring.
- * - A steal and a turnover are symmetric (+/-0.70): the scorekeeper logs both sides of a steal.
+ * 3v3 half-court weights, in Hollinger's Game Score structure (hand-tuned, balanced for 3v3
+ * possession economics):
+ * - Scoring is efficient: a made 2PT nets +1.60 and a 3PT +2.60 (points + 0.30 - 0.70), while
+ *   a miss costs -0.70. Break-even shooting is ~30% on 2s and ~21% on 3s, appropriately punishing
+ *   sub-30% volume chuckers from deep (e.g. 1/4 from 3PT yields +0.50 instead of rewarding it).
+ * - Assists (+0.70) are worth 44% of a made 2PT basket, ensuring playmakers are rewarded for
+ *   creating high-percentage looks rather than incentivizing hero-ball.
+ * - Rebounding is properly weighted: DREB (+0.30) rewards securing possessions (~5.3 DREBs equals
+ *   a made basket), while OREB (+0.55) prizes high-leverage second chances.
+ * - Defense carries genuine weight: steals (+0.80) and blocks (+0.65) reward high-leverage stops.
+ * - Turnovers (-0.95) penalize coughing up possessions, canceling out almost a full made field goal.
+ * - Missed free throws (-0.40) avoid double-penalizing drawn fouls.
  */
 export const WEIGHTS = {
   /** Bonus for a made field goal, on top of its points. */
-  fgm: 0.20,
+  fgm: 0.30,
   /** Cost of taking a field goal attempt. */
-  fga: 0.50,
-  oreb: 0.36,
-  dreb: 0.16,
-  stl: 0.70,
-  tov: 0.70,
-  ast: 0.45,
-  blk: 0.45,
-  defl: 0.25,
-  pf: 0.35,
+  fga: 0.70,
+  oreb: 0.55,
+  dreb: 0.30,
+  stl: 0.80,
+  tov: 0.95,
+  ast: 0.70,
+  blk: 0.65,
+  defl: 0.30,
+  pf: 0.40,
   /** Cost of a missed free throw. */
   ftMiss: 0.40,
 };
