@@ -31,6 +31,8 @@ import { PlayerMilestonesCard } from "@/app/components/PlayerMilestonesCard";
 import { PlayerStatsView } from "@/app/components/PlayerStatsView";
 import { computePlayerShotProfile } from "@/lib/shotZones";
 import { ShotHeatmap } from "@/app/components/ShotHeatmap";
+import { generateScoutingReport } from "@/lib/scouting";
+import { PlayerScoutingReport } from "@/app/components/PlayerScoutingReport";
 
 export const dynamic = "force-dynamic";
 
@@ -112,6 +114,13 @@ export default async function PlayerPage({
   const clutch = clutchTotals(games).find((x) => x.playerId === playerId);
   const archetype = computePlayerArchetype(c, clutch, finalGames.length);
   const milestones = getPlayerMilestones(c);
+  const scoutingReport = generateScoutingReport({
+    playerId,
+    playerName: player.name,
+    career: c,
+    games,
+    clutch,
+  });
 
   const th = "px-2 py-2 text-right font-semibold";
   const td = "px-2 py-2 text-right";
@@ -236,6 +245,8 @@ export default async function PlayerPage({
       <PlayerStatsView career={c} />
 
       <PlayerMilestonesCard milestones={milestones} />
+
+      <PlayerScoutingReport report={scoutingReport} />
 
       {shotProfile.totalFga > 0 && <ShotHeatmap profile={shotProfile} />}
 
