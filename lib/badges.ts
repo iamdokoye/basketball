@@ -101,7 +101,7 @@ const TIER_LABELS: Record<BadgeTier, string> = {
  *     1. Playmaking Shot Creator (Shoot + Assist)
  *     2. 3-and-D Specialist (Shoot + Defense)
  *     3. Two-Way Floor General (Assist + Defense)
- * - Tier 2 (Hybrid): Defensive Anchor, Two-Way Slasher, Point God, Two-Way Force
+ * - Tier 2 (Hybrid): Defensive Anchor, Two-Way Slasher, Combo Guard, Two-Way Force
  * - Tier 1 (Specialist): Sharpshooter, Floor General, Paint Beast, Lockdown Specialist, Pure Scorer, Clutch Assassin, Rebound Dynamo, Hustle Engine
  * - Tier 0 (Foundation): Rookie (0-1 GP), Prospect (2-4 GP), Glue Player (5+ GP)
  */
@@ -608,9 +608,10 @@ export function computePlayerArchetype(
     archetypeDesc = "Disrupts on defense and attacks the rim with relentless energy.";
     archetypeTier = 2;
   } else if (hasSilverFloorGeneral && ppg >= 7.5) {
-    archetypeTitle = "Point God";
+    archetypeTitle = "Combo Guard";
     archetypeEmoji = "🪄";
-    archetypeDesc = "Commands the pace of the game while scoring and creating for teammates.";
+    archetypeDesc =
+      "Dynamic backcourt threat who balances scoring instincts with playmaking for teammates.";
     archetypeTier = 2;
   } else if (ppg >= 9.0 && rpg >= 5.0) {
     archetypeTitle = "Two-Way Force";
@@ -882,15 +883,15 @@ function computeArchetypeUpgrades(ctx: UpgradeContext): ArchetypeUpgrade[] {
   // TIER 2: Secondary Hybrids (Evaluated for Tier 0 & 1)
   // -------------------------------------------------------------
   if (ctx.currentTier < 2) {
-    // Point God
-    if (ctx.currentTitle !== "Point God") {
+    // Combo Guard
+    if (ctx.currentTitle !== "Combo Guard") {
       const ptsProgress = Math.min(1, ctx.ppg / 7.5);
       const pct = Math.min(
         99,
         Math.round(((assistProgress + ptsProgress) / 2) * 100),
       );
       candidates.push({
-        title: "Point God",
+        title: "Combo Guard",
         emoji: "🪄",
         tier: 2,
         tierLabel: ARCHETYPE_TIER_META[2].label,
@@ -898,7 +899,8 @@ function computeArchetypeUpgrades(ctx: UpgradeContext): ArchetypeUpgrade[] {
         requirement: ctx.hasSilverFloorGeneral
           ? `Needs +${Math.max(0.1, 7.5 - ctx.ppg).toFixed(1)} PPG to reach 7.5 PPG`
           : `Needs Silver Floor General + 7.5 PPG (${ctx.apg.toFixed(1)} APG, ${ctx.ppg.toFixed(1)} PPG)`,
-        description: "Commands the pace of the game while scoring and creating for teammates.",
+        description:
+          "Dynamic backcourt threat who balances scoring instincts with playmaking for teammates.",
       });
     }
 
