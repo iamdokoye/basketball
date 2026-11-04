@@ -204,16 +204,16 @@ export function PlayerBadges({
           <div>
             <div className="text-xs font-black uppercase tracking-wider text-emerald-800 flex items-center gap-1.5">
               <span>👑</span>
-              <span>The GOAT · Undisputed #1</span>
+              <span>The GOAT · All-Around Threat</span>
             </div>
             <p className="mt-0.5 text-xs font-medium text-emerald-950">
-              You have achieved complete statistical dominance across scoring, playmaking, rebounding, defense, and winning impact.
+              You have combined all 3 core pillars: elite shooting, playmaking, and lockdown defense. The undisputed best player on the court.
             </p>
           </div>
         </div>
       )}
 
-      {/* Tier 3: Pinnacle Tier Banner */}
+      {/* Tier 3: Pinnacle Dual-Pillar Banner */}
       {current.tier === 3 && (
         <div className="glass-1 flex items-center gap-3 rounded-2xl p-4 ring-1 ring-purple-500/25 bg-purple-500/5">
           <span className="text-2xl" aria-hidden>
@@ -221,10 +221,10 @@ export function PlayerBadges({
           </span>
           <div>
             <div className="text-xs font-black uppercase tracking-wider text-purple-700">
-              Pinnacle Tier Achieved
+              Tier 3 Dual-Pillar Master
             </div>
             <p className="mt-0.5 text-xs font-medium text-muted">
-              You&apos;ve reached the highest echelon of playstyle mastery. One final summit remains: The GOAT 🐐.
+              You have mastered two of the three core pillars (Shoot, Assist, Defense). Master the final pillar to unlock Tier 4 · The GOAT 🐐.
             </p>
           </div>
         </div>

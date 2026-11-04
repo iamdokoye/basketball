@@ -91,10 +91,17 @@ const TIER_LABELS: Record<BadgeTier, string> = {
 
 /**
  * Computes all 2K-style badges and the player's playstyle archetype.
- * Uses a tiered priority ladder:
- * - Tier 4 (Supreme Apex): The GOAT (culmination of all stats)
- * - Tier 3 (Pinnacle): All-Around Threat, Two-Way Force
- * - Tier 2 (Hybrid): Point God, 3-and-D Specialist, Defensive Anchor, Two-Way Slasher
+ * Uses a tiered priority ladder based on the 3 core pillars:
+ *   [1] SHOOT (Scoring / 3PT accuracy)
+ *   [2] ASSIST (Playmaking / Floor vision)
+ *   [3] DEFENSE (Lockdown / Defensive stocks)
+ *
+ * - Tier 4 (Supreme Apex): The GOAT / All-Around Threat (Combines ALL 3 Pillars: Shoot + Assist + Defense)
+ * - Tier 3 (Pinnacle Dual-Pillars):
+ *     1. Playmaking Shot Creator (Shoot + Assist)
+ *     2. 3-and-D Specialist (Shoot + Defense)
+ *     3. Two-Way Floor General (Assist + Defense)
+ * - Tier 2 (Hybrid): Defensive Anchor, Two-Way Slasher, Point God, Two-Way Force
  * - Tier 1 (Specialist): Sharpshooter, Floor General, Paint Beast, Lockdown Specialist, Pure Scorer, Clutch Assassin, Rebound Dynamo, Hustle Engine
  * - Tier 0 (Foundation): Rookie (0-1 GP), Prospect (2-4 GP), Glue Player (5+ GP)
  */
@@ -527,6 +534,14 @@ export function computePlayerArchetype(
   const hasSparkplug = hasBadge("sparkplug", "bronze");
   const hasGoldBucket = hasBadge("bucket", "gold");
 
+  // The 3 Core Pillars of Court Dominance:
+  // 1. SHOOT: Silver Deadeye or elite scoring (>= 9.0 PPG or Gold Bucket)
+  const hasShootPillar = hasSilverSharpshooter || ppg >= 9.0 || hasGoldBucket;
+  // 2. ASSIST: Silver Floor General (>= 18 AST or >= 2.5 APG)
+  const hasAssistPillar = hasSilverFloorGeneral;
+  // 3. DEFENSE: Silver Lockdown (>= 20 stocks or >= 1.8 SPG+BPG)
+  const hasDefensePillar = hasSilverLockdown;
+
   // Determine Archetype using the Tier Priority Ladder:
   let archetypeTitle = "Prospect";
   let archetypeEmoji = "🌱";
@@ -540,53 +555,49 @@ export function computePlayerArchetype(
     archetypeTier = 0;
   }
   // -------------------------------------------------------------
-  // TIER 4: SUPREME APEX / THE GOAT (Culmination of All Stats)
-  // Evaluated 1st: The absolute best player on the court
+  // TIER 4: THE GOAT / ALL-AROUND THREAT (Combines ALL 3 Pillars)
+  // Evaluated 1st: Shoot + Assist + Defense
   // -------------------------------------------------------------
-  else if (
-    career.gp >= 3 &&
-    ppg >= 9.0 &&
-    rpg >= 5.0 &&
-    apg >= 2.5 &&
-    hasSilverLockdown &&
-    pmPg >= 1.0
-  ) {
+  else if (career.gp >= 3 && hasShootPillar && hasAssistPillar && hasDefensePillar) {
     archetypeTitle = "The GOAT";
     archetypeEmoji = "🐐";
     archetypeDesc =
-      "The undisputed best player on the court. Complete statistical dominance across scoring, playmaking, rebounding, defense, and winning impact.";
+      "The undisputed best player on the court and ultimate all-around threat. Complete mastery across all three pillars: elite scoring/shooting, playmaking, and lockdown defense.";
     archetypeTier = 4;
   }
   // -------------------------------------------------------------
-  // TIER 3: PINNACLE / MASTERCLASS (Evaluated 2nd)
-  // Multi-category dominance: rewarded over single-badge specialties
+  // TIER 3: PINNACLE DUAL-PILLARS (Combines 2 of the 3 Pillars)
+  // Evaluated 2nd
   // -------------------------------------------------------------
-  else if (ppg >= 9.0 && rpg >= 5.0 && apg >= 2.0) {
-    archetypeTitle = "All-Around Threat";
-    archetypeEmoji = "🌟";
-    archetypeDesc = "Elite weapon who dominates across scoring, rebounding, and playmaking.";
+  // 1. Shoot + Assist
+  else if (hasShootPillar && hasAssistPillar) {
+    archetypeTitle = "Playmaking Shot Creator";
+    archetypeEmoji = "🪄";
+    archetypeDesc =
+      "Deadly perimeter scoring threat who also slices defenses open with elite playmaking and floor vision.";
     archetypeTier = 3;
-  } else if (ppg >= 9.0 && hasSilverLockdown) {
-    archetypeTitle = "Two-Way Force";
-    archetypeEmoji = "👑";
-    archetypeDesc = "Unstoppable two-way juggernaut who dominates on both ends of the floor.";
+  }
+  // 2. Shoot + Defense
+  else if (hasShootPillar && hasDefensePillar) {
+    archetypeTitle = "3-and-D Specialist";
+    archetypeEmoji = "🎯";
+    archetypeDesc =
+      "Spreads the floor with elite perimeter shooting while locking down opposing ball-handlers on defense.";
+    archetypeTier = 3;
+  }
+  // 3. Assist + Defense
+  else if (hasAssistPillar && hasDefensePillar) {
+    archetypeTitle = "Two-Way Floor General";
+    archetypeEmoji = "🛡️";
+    archetypeDesc =
+      "Commands the offense with crisp distribution while anchoring the perimeter with tenacious lockdown defense.";
     archetypeTier = 3;
   }
   // -------------------------------------------------------------
-  // TIER 2: ELITE HYBRIDS (Evaluated 3rd)
-  // Dual-trait combinations
+  // TIER 2: ELITE HYBRIDS (Interior / Slashing / Secondary Combos)
+  // Evaluated 3rd
   // -------------------------------------------------------------
-  else if (hasSilverFloorGeneral && ppg >= 8.0) {
-    archetypeTitle = "Point God";
-    archetypeEmoji = "🪄";
-    archetypeDesc = "Commands the pace of the game while scoring and creating for teammates.";
-    archetypeTier = 2;
-  } else if (hasSilverSharpshooter && hasLockdown) {
-    archetypeTitle = "3-and-D Specialist";
-    archetypeEmoji = "🎯";
-    archetypeDesc = "Spreads the floor with elite three-point shooting and hounds ball-handlers.";
-    archetypeTier = 2;
-  } else if (hasSilverPaintBeast && hasLockdown) {
+  else if (hasSilverPaintBeast && (hasLockdown || spg + bpg >= 1.2)) {
     archetypeTitle = "Defensive Anchor";
     archetypeEmoji = "🏰";
     archetypeDesc = "Controls the paint, dominates the glass, and protects the rim.";
@@ -596,9 +607,20 @@ export function computePlayerArchetype(
     archetypeEmoji = "⚔️";
     archetypeDesc = "Disrupts on defense and attacks the rim with relentless energy.";
     archetypeTier = 2;
+  } else if (hasSilverFloorGeneral && ppg >= 7.5) {
+    archetypeTitle = "Point God";
+    archetypeEmoji = "🪄";
+    archetypeDesc = "Commands the pace of the game while scoring and creating for teammates.";
+    archetypeTier = 2;
+  } else if (ppg >= 9.0 && rpg >= 5.0) {
+    archetypeTitle = "Two-Way Force";
+    archetypeEmoji = "👑";
+    archetypeDesc = "Powerful scoring and rebounding presence on the interior.";
+    archetypeTier = 2;
   }
   // -------------------------------------------------------------
-  // TIER 1: SPECIALIZED DISCIPLINES (Evaluated 4th)
+  // TIER 1: SPECIALIZED DISCIPLINES (Single Pillar / Stat Standout)
+  // Evaluated 4th
   // -------------------------------------------------------------
   else if (hasSilverSharpshooter) {
     archetypeTitle = "Sharpshooter";
@@ -678,6 +700,9 @@ export function computePlayerArchetype(
     hasSilverPaintBeast,
     hasSilverLockdown,
     hasLockdown,
+    hasShootPillar,
+    hasAssistPillar,
+    hasDefensePillar,
   });
 
   return {
@@ -713,11 +738,14 @@ type UpgradeContext = {
   hasSilverPaintBeast: boolean;
   hasSilverLockdown: boolean;
   hasLockdown: boolean;
+  hasShootPillar: boolean;
+  hasAssistPillar: boolean;
+  hasDefensePillar: boolean;
 };
 
 /**
  * Calculates the player's percentage progress and stat requirement deltas
- * toward higher-tier archetypes. Returns the top closest options.
+ * toward higher-tier archetypes.
  */
 function computeArchetypeUpgrades(ctx: UpgradeContext): ArchetypeUpgrade[] {
   // If player reached Tier 4 (The GOAT), no higher tier exists
@@ -725,287 +753,287 @@ function computeArchetypeUpgrades(ctx: UpgradeContext): ArchetypeUpgrade[] {
 
   const candidates: ArchetypeUpgrade[] = [];
 
-  // 1. Pure Scorer (Tier 1)
+  // Pillar completion metrics
+  const shootProgress = ctx.hasShootPillar
+    ? 1
+    : Math.min(1, Math.max(ctx.career.fg3m / 8, ctx.ppg / 9.0));
+  const assistProgress = ctx.hasAssistPillar
+    ? 1
+    : Math.min(1, Math.max(ctx.career.ast / 18, ctx.apg / 2.5));
+  const defProgress = ctx.hasDefensePillar
+    ? 1
+    : Math.min(1, Math.max(ctx.stocks / 20, (ctx.spg + ctx.bpg) / 1.8));
+
+  // -------------------------------------------------------------
+  // TIER 4: The GOAT (Combines ALL 3 Pillars: Shoot + Assist + Defense)
+  // -------------------------------------------------------------
+  const goatPct = Math.min(
+    99,
+    Math.round(((shootProgress + assistProgress + defProgress) / 3) * 100),
+  );
+
+  let goatReq = "";
+  if (ctx.currentTier === 3) {
+    // Already has 2 pillars: show the exact single missing pillar!
+    if (!ctx.hasDefensePillar) {
+      goatReq = `Final Pillar (Defense): Needs ${Math.max(1, 20 - ctx.stocks)} more stocks (${ctx.stocks}/20) for Silver Lockdown`;
+    } else if (!ctx.hasAssistPillar) {
+      goatReq = `Final Pillar (Assist): Needs ${Math.max(1, 18 - ctx.career.ast)} more ast (${ctx.career.ast}/18) for Silver Floor General`;
+    } else if (!ctx.hasShootPillar) {
+      goatReq = `Final Pillar (Shoot): Needs ${Math.max(1, 8 - ctx.career.fg3m)} more 3PM (${ctx.career.fg3m}/8) or +${Math.max(0.1, 9.0 - ctx.ppg).toFixed(1)} PPG`;
+    }
+  } else {
+    const missingPillars: string[] = [];
+    if (!ctx.hasShootPillar) missingPillars.push("Shoot");
+    if (!ctx.hasAssistPillar) missingPillars.push("Assist");
+    if (!ctx.hasDefensePillar) missingPillars.push("Defense");
+    goatReq = `Combine all 3 pillars: Needs ${missingPillars.join(" + ")} mastery`;
+  }
+
+  candidates.push({
+    title: "The GOAT",
+    emoji: "🐐",
+    tier: 4,
+    tierLabel: ARCHETYPE_TIER_META[4].label,
+    progressPct: goatPct,
+    requirement: goatReq,
+    description:
+      "The undisputed best player on the court and ultimate all-around threat. Combines all three pillars: elite scoring/shooting, playmaking, and lockdown defense.",
+  });
+
+  // -------------------------------------------------------------
+  // TIER 3: The 3 Dual-Pillar Archetypes
+  // -------------------------------------------------------------
+  if (ctx.currentTier < 3) {
+    // 1. Playmaking Shot Creator (Shoot + Assist)
+    if (ctx.currentTitle !== "Playmaking Shot Creator") {
+      const pct = Math.min(
+        99,
+        Math.round(((shootProgress + assistProgress) / 2) * 100),
+      );
+      const req = ctx.hasShootPillar
+        ? `Needs Assist pillar: ${Math.max(1, 18 - ctx.career.ast)} more ast (${ctx.career.ast}/18) for Silver Floor General`
+        : ctx.hasAssistPillar
+          ? `Needs Shoot pillar: ${Math.max(1, 8 - ctx.career.fg3m)} more 3PM or +${Math.max(0.1, 9.0 - ctx.ppg).toFixed(1)} PPG`
+          : `Needs Shoot + Assist pillars (Silver Deadeye + Floor General)`;
+
+      candidates.push({
+        title: "Playmaking Shot Creator",
+        emoji: "🪄",
+        tier: 3,
+        tierLabel: ARCHETYPE_TIER_META[3].label,
+        progressPct: pct,
+        requirement: req,
+        description:
+          "Deadly perimeter scoring threat who also slices defenses open with elite playmaking and floor vision.",
+      });
+    }
+
+    // 2. 3-and-D Specialist (Shoot + Defense)
+    if (ctx.currentTitle !== "3-and-D Specialist") {
+      const pct = Math.min(
+        99,
+        Math.round(((shootProgress + defProgress) / 2) * 100),
+      );
+      const req = ctx.hasShootPillar
+        ? `Needs Defense pillar: ${Math.max(1, 20 - ctx.stocks)} more stocks (${ctx.stocks}/20) for Silver Lockdown`
+        : ctx.hasDefensePillar
+          ? `Needs Shoot pillar: ${Math.max(1, 8 - ctx.career.fg3m)} more 3PM or +${Math.max(0.1, 9.0 - ctx.ppg).toFixed(1)} PPG`
+          : `Needs Shoot + Defense pillars (Silver Deadeye + Lockdown)`;
+
+      candidates.push({
+        title: "3-and-D Specialist",
+        emoji: "🎯",
+        tier: 3,
+        tierLabel: ARCHETYPE_TIER_META[3].label,
+        progressPct: pct,
+        requirement: req,
+        description:
+          "Spreads the floor with elite perimeter shooting while locking down opposing ball-handlers on defense.",
+      });
+    }
+
+    // 3. Two-Way Floor General (Assist + Defense)
+    if (ctx.currentTitle !== "Two-Way Floor General") {
+      const pct = Math.min(
+        99,
+        Math.round(((assistProgress + defProgress) / 2) * 100),
+      );
+      const req = ctx.hasAssistPillar
+        ? `Needs Defense pillar: ${Math.max(1, 20 - ctx.stocks)} more stocks (${ctx.stocks}/20) for Silver Lockdown`
+        : ctx.hasDefensePillar
+          ? `Needs Assist pillar: ${Math.max(1, 18 - ctx.career.ast)} more ast (${ctx.career.ast}/18) for Silver Floor General`
+          : `Needs Assist + Defense pillars (Silver Floor General + Lockdown)`;
+
+      candidates.push({
+        title: "Two-Way Floor General",
+        emoji: "🛡️",
+        tier: 3,
+        tierLabel: ARCHETYPE_TIER_META[3].label,
+        progressPct: pct,
+        requirement: req,
+        description:
+          "Commands the offense with crisp distribution while anchoring the perimeter with tenacious lockdown defense.",
+      });
+    }
+  }
+
+  // -------------------------------------------------------------
+  // TIER 2: Secondary Hybrids (Evaluated for Tier 0 & 1)
+  // -------------------------------------------------------------
+  if (ctx.currentTier < 2) {
+    // Point God
+    if (ctx.currentTitle !== "Point God") {
+      const ptsProgress = Math.min(1, ctx.ppg / 7.5);
+      const pct = Math.min(
+        99,
+        Math.round(((assistProgress + ptsProgress) / 2) * 100),
+      );
+      candidates.push({
+        title: "Point God",
+        emoji: "🪄",
+        tier: 2,
+        tierLabel: ARCHETYPE_TIER_META[2].label,
+        progressPct: pct,
+        requirement: ctx.hasSilverFloorGeneral
+          ? `Needs +${Math.max(0.1, 7.5 - ctx.ppg).toFixed(1)} PPG to reach 7.5 PPG`
+          : `Needs Silver Floor General + 7.5 PPG (${ctx.apg.toFixed(1)} APG, ${ctx.ppg.toFixed(1)} PPG)`,
+        description: "Commands the pace of the game while scoring and creating for teammates.",
+      });
+    }
+
+    // Defensive Anchor
+    if (ctx.currentTitle !== "Defensive Anchor") {
+      const rebProg = ctx.hasSilverPaintBeast
+        ? 1
+        : Math.min(1, Math.max(ctx.career.reb / 40, ctx.rpg / 5.0));
+      const pct = Math.min(99, Math.round(((rebProg + defProgress) / 2) * 100));
+      candidates.push({
+        title: "Defensive Anchor",
+        emoji: "🏰",
+        tier: 2,
+        tierLabel: ARCHETYPE_TIER_META[2].label,
+        progressPct: pct,
+        requirement: ctx.hasSilverPaintBeast
+          ? `Needs Lockdown badge (${Math.max(1, 8 - ctx.stocks)} more stocks)`
+          : `Needs Silver Glass Titan + Lockdown badge`,
+        description: "Controls the paint, dominates the glass, and protects the rim.",
+      });
+    }
+
+    // Two-Way Slasher
+    if (ctx.currentTitle !== "Two-Way Slasher") {
+      const ptsProg = Math.min(1, ctx.ppg / 7.0);
+      const pct = Math.min(99, Math.round(((defProgress + ptsProg) / 2) * 100));
+      candidates.push({
+        title: "Two-Way Slasher",
+        emoji: "⚔️",
+        tier: 2,
+        tierLabel: ARCHETYPE_TIER_META[2].label,
+        progressPct: pct,
+        requirement: ctx.hasSilverLockdown
+          ? `Needs +${Math.max(0.1, 7.0 - ctx.ppg).toFixed(1)} PPG to reach 7.0 PPG`
+          : `Needs Silver Lockdown + 7.0 PPG (${ctx.stocks}/20 stocks, ${ctx.ppg.toFixed(1)} PPG)`,
+        description: "Disrupts on defense and attacks the rim with relentless energy.",
+      });
+    }
+  }
+
+  // -------------------------------------------------------------
+  // TIER 1: Single-Discipline Specialists (For Tier 0)
+  // -------------------------------------------------------------
   if (ctx.currentTier === 0) {
-    const pct = Math.min(99, Math.round((ctx.ppg / 9.0) * 100));
+    // Pure Scorer
+    const scorerPct = Math.min(99, Math.round((ctx.ppg / 9.0) * 100));
     candidates.push({
       title: "Pure Scorer",
       emoji: "🔥",
       tier: 1,
       tierLabel: ARCHETYPE_TIER_META[1].label,
-      progressPct: pct,
+      progressPct: scorerPct,
       requirement:
         ctx.ppg < 9.0
-          ? `Needs +${(9.0 - ctx.ppg).toFixed(1)} PPG (Currently ${ctx.ppg.toFixed(1)} / 9.0 PPG)`
+          ? `Needs +${(9.0 - ctx.ppg).toFixed(1)} PPG (${ctx.ppg.toFixed(1)} / 9.0 PPG)`
           : "Score 120 total points",
       description: "Natural scoring instinct capable of heating up in a flash.",
     });
-  }
 
-  // 2. Sharpshooter (Tier 1)
-  if (ctx.currentTier === 0 && !ctx.hasSilverSharpshooter) {
-    const countPct = Math.min(1, ctx.career.fg3m / 8);
-    const accuracyPct = Math.min(1, ctx.fg3Pct / 0.28);
-    const pct = Math.min(99, Math.round((countPct * 0.7 + accuracyPct * 0.3) * 100));
-    candidates.push({
-      title: "Sharpshooter",
-      emoji: "🎯",
-      tier: 1,
-      tierLabel: ARCHETYPE_TIER_META[1].label,
-      progressPct: pct,
-      requirement:
-        ctx.career.fg3m < 8
-          ? `Needs ${8 - ctx.career.fg3m} more 3PM (${ctx.career.fg3m}/8 at ${Math.round(ctx.fg3Pct * 100)}% 3PT)`
-          : `Needs ≥28% 3PT accuracy (${Math.round(ctx.fg3Pct * 100)}% currently)`,
-      description: "Lethal shooting threat from anywhere behind the arc.",
-    });
-  }
+    // Sharpshooter
+    if (!ctx.hasSilverSharpshooter) {
+      const countPct = Math.min(1, ctx.career.fg3m / 8);
+      const accuracyPct = Math.min(1, ctx.fg3Pct / 0.28);
+      const pct = Math.min(99, Math.round((countPct * 0.7 + accuracyPct * 0.3) * 100));
+      candidates.push({
+        title: "Sharpshooter",
+        emoji: "🎯",
+        tier: 1,
+        tierLabel: ARCHETYPE_TIER_META[1].label,
+        progressPct: pct,
+        requirement:
+          ctx.career.fg3m < 8
+            ? `Needs ${8 - ctx.career.fg3m} more 3PM (${ctx.career.fg3m}/8) and ≥28% 3PT`
+            : `Needs ≥28% 3PT (${Math.round(ctx.fg3Pct * 100)}% curr)`,
+        description: "Lethal shooting threat from anywhere behind the arc.",
+      });
+    }
 
-  // 3. Floor General (Tier 1)
-  if (ctx.currentTier === 0 && !ctx.hasSilverFloorGeneral) {
-    const pct = Math.min(
-      99,
-      Math.round(Math.max(ctx.career.ast / 18, ctx.apg / 2.5) * 100),
-    );
-    candidates.push({
-      title: "Floor General",
-      emoji: "🪄",
-      tier: 1,
-      tierLabel: ARCHETYPE_TIER_META[1].label,
-      progressPct: pct,
-      requirement: `Needs ${Math.max(1, 18 - ctx.career.ast)} more assists or +${Math.max(0.1, 2.5 - ctx.apg).toFixed(1)} APG (${ctx.apg.toFixed(1)} APG currently)`,
-      description: "Pure playmaker who elevates everyone around them.",
-    });
-  }
+    // Floor General
+    if (!ctx.hasSilverFloorGeneral) {
+      const pct = Math.min(
+        99,
+        Math.round(Math.max(ctx.career.ast / 18, ctx.apg / 2.5) * 100),
+      );
+      candidates.push({
+        title: "Floor General",
+        emoji: "🪄",
+        tier: 1,
+        tierLabel: ARCHETYPE_TIER_META[1].label,
+        progressPct: pct,
+        requirement: `Needs ${Math.max(1, 18 - ctx.career.ast)} more ast or +${Math.max(0.1, 2.5 - ctx.apg).toFixed(1)} APG (${ctx.apg.toFixed(1)} APG)`,
+        description: "Pure playmaker who elevates everyone around them.",
+      });
+    }
 
-  // 4. Paint Beast (Tier 1)
-  if (ctx.currentTier === 0 && !ctx.hasSilverPaintBeast) {
-    const pct = Math.min(
-      99,
-      Math.round(Math.max(ctx.career.reb / 40, ctx.rpg / 5.0) * 100),
-    );
-    candidates.push({
-      title: "Paint Beast",
-      emoji: "🦏",
-      tier: 1,
-      tierLabel: ARCHETYPE_TIER_META[1].label,
-      progressPct: pct,
-      requirement: `Needs ${Math.max(1, 40 - ctx.career.reb)} more rebounds or +${Math.max(0.1, 5.0 - ctx.rpg).toFixed(1)} RPG (${ctx.rpg.toFixed(1)} RPG currently)`,
-      description: "Physical force on the interior who owns the boards and finishes through contact.",
-    });
-  }
+    // Paint Beast
+    if (!ctx.hasSilverPaintBeast) {
+      const pct = Math.min(
+        99,
+        Math.round(Math.max(ctx.career.reb / 40, ctx.rpg / 5.0) * 100),
+      );
+      candidates.push({
+        title: "Paint Beast",
+        emoji: "🦏",
+        tier: 1,
+        tierLabel: ARCHETYPE_TIER_META[1].label,
+        progressPct: pct,
+        requirement: `Needs ${Math.max(1, 40 - ctx.career.reb)} more reb or +${Math.max(0.1, 5.0 - ctx.rpg).toFixed(1)} RPG (${ctx.rpg.toFixed(1)} RPG)`,
+        description: "Physical force on the interior who owns the boards and finishes through contact.",
+      });
+    }
 
-  // 5. Lockdown Specialist (Tier 1)
-  if (ctx.currentTier === 0 && !ctx.hasSilverLockdown) {
-    const pct = Math.min(
-      99,
-      Math.round(Math.max(ctx.stocks / 20, (ctx.spg + ctx.bpg) / 1.8) * 100),
-    );
-    candidates.push({
-      title: "Lockdown Specialist",
-      emoji: "🔒",
-      tier: 1,
-      tierLabel: ARCHETYPE_TIER_META[1].label,
-      progressPct: pct,
-      requirement: `Needs ${Math.max(1, 20 - ctx.stocks)} more defensive stocks (${ctx.stocks}/20 currently)`,
-      description: "Defensive stopper who takes on the opponent's toughest matchup.",
-    });
-  }
-
-  // 6. Hustle Engine (Tier 1)
-  if (ctx.currentTier === 0 && ctx.currentTitle !== "Hustle Engine") {
-    const pct = Math.min(
-      99,
-      Math.round(Math.max((ctx.pmPg + 1.0) / 2.0, ctx.deflPg / 1.5) * 100),
-    );
-    candidates.push({
-      title: "Hustle Engine",
-      emoji: "⚡",
-      tier: 1,
-      tierLabel: ARCHETYPE_TIER_META[1].label,
-      progressPct: pct,
-      requirement:
-        ctx.pmPg < 1.0
-          ? `Needs +${(1.0 - ctx.pmPg).toFixed(1)} +/- per game (Currently ${ctx.pmPg >= 0 ? "+" : ""}${ctx.pmPg.toFixed(1)})`
-          : `Needs ${(1.5 - ctx.deflPg).toFixed(1)} more deflections/game`,
-      description: "Brings continuous effort, winning plays, and game-changing momentum.",
-    });
-  }
-
-  // 7. 3-and-D Specialist (Tier 2)
-  if (ctx.currentTier < 2 && ctx.currentTitle !== "3-and-D Specialist") {
-    const shootProgress = ctx.hasSilverSharpshooter
-      ? 1
-      : Math.min(1, ctx.career.fg3m / 8);
-    const defProgress = ctx.hasLockdown
-      ? 1
-      : Math.min(1, Math.max(ctx.stocks / 8, (ctx.spg + ctx.bpg) / 1.2));
-    const pct = Math.min(99, Math.round((shootProgress * 0.5 + defProgress * 0.5) * 100));
-
-    candidates.push({
-      title: "3-and-D Specialist",
-      emoji: "🎯",
-      tier: 2,
-      tierLabel: ARCHETYPE_TIER_META[2].label,
-      progressPct: pct,
-      requirement: ctx.hasSilverSharpshooter
-        ? `Needs ${Math.max(1, 8 - ctx.stocks)} more stocks for Lockdown badge (Silver Deadeye active)`
-        : `Needs Silver Deadeye + Lockdown badge (${ctx.career.fg3m}/8 3PM, ${ctx.stocks}/8 stocks)`,
-      description: "Spreads the floor with elite three-point shooting and hounds ball-handlers.",
-    });
-  }
-
-  // 8. Point God (Tier 2)
-  if (ctx.currentTier < 2 && ctx.currentTitle !== "Point God") {
-    const astProgress = ctx.hasSilverFloorGeneral
-      ? 1
-      : Math.min(1, Math.max(ctx.career.ast / 18, ctx.apg / 2.5));
-    const ptsProgress = Math.min(1, ctx.ppg / 8.0);
-    const pct = Math.min(99, Math.round((astProgress * 0.5 + ptsProgress * 0.5) * 100));
-
-    candidates.push({
-      title: "Point God",
-      emoji: "🪄",
-      tier: 2,
-      tierLabel: ARCHETYPE_TIER_META[2].label,
-      progressPct: pct,
-      requirement: ctx.hasSilverFloorGeneral
-        ? `Needs +${Math.max(0.1, 8.0 - ctx.ppg).toFixed(1)} PPG to reach 8.0 PPG (Silver Floor General active)`
-        : `Needs Silver Floor General + 8.0 PPG (${ctx.apg.toFixed(1)} APG, ${ctx.ppg.toFixed(1)} PPG)`,
-      description: "Commands the pace of the game while scoring and creating for teammates.",
-    });
-  }
-
-  // 9. Defensive Anchor (Tier 2)
-  if (ctx.currentTier < 2 && ctx.currentTitle !== "Defensive Anchor") {
-    const rebProgress = ctx.hasSilverPaintBeast
-      ? 1
-      : Math.min(1, Math.max(ctx.career.reb / 40, ctx.rpg / 5.0));
-    const defProgress = ctx.hasLockdown
-      ? 1
-      : Math.min(1, Math.max(ctx.stocks / 8, (ctx.spg + ctx.bpg) / 1.2));
-    const pct = Math.min(99, Math.round((rebProgress * 0.5 + defProgress * 0.5) * 100));
-
-    candidates.push({
-      title: "Defensive Anchor",
-      emoji: "🏰",
-      tier: 2,
-      tierLabel: ARCHETYPE_TIER_META[2].label,
-      progressPct: pct,
-      requirement: ctx.hasSilverPaintBeast
-        ? `Needs ${Math.max(1, 8 - ctx.stocks)} more stocks for Lockdown badge (Glass Titan active)`
-        : `Needs Silver Glass Titan + Lockdown badge (${ctx.rpg.toFixed(1)} RPG, ${ctx.stocks}/8 stocks)`,
-      description: "Controls the paint, dominates the glass, and protects the rim.",
-    });
-  }
-
-  // 10. Two-Way Slasher (Tier 2)
-  if (ctx.currentTier < 2 && ctx.currentTitle !== "Two-Way Slasher") {
-    const defProgress = ctx.hasSilverLockdown
-      ? 1
-      : Math.min(1, Math.max(ctx.stocks / 20, (ctx.spg + ctx.bpg) / 1.8));
-    const ptsProgress = Math.min(1, ctx.ppg / 7.0);
-    const pct = Math.min(99, Math.round((defProgress * 0.5 + ptsProgress * 0.5) * 100));
-
-    candidates.push({
-      title: "Two-Way Slasher",
-      emoji: "⚔️",
-      tier: 2,
-      tierLabel: ARCHETYPE_TIER_META[2].label,
-      progressPct: pct,
-      requirement: ctx.hasSilverLockdown
-        ? `Needs +${Math.max(0.1, 7.0 - ctx.ppg).toFixed(1)} PPG to reach 7.0 PPG (Silver Lockdown active)`
-        : `Needs Silver Lockdown + 7.0 PPG (${ctx.stocks}/20 stocks, ${ctx.ppg.toFixed(1)} PPG)`,
-      description: "Disrupts on defense and attacks the rim with relentless energy.",
-    });
-  }
-
-  // 11. All-Around Threat (Tier 3)
-  if (ctx.currentTier < 3 && ctx.currentTitle !== "All-Around Threat") {
-    const pProgress = Math.min(1, ctx.ppg / 9.0);
-    const rProgress = Math.min(1, ctx.rpg / 5.0);
-    const aProgress = Math.min(1, ctx.apg / 2.0);
-    const pct = Math.min(99, Math.round(((pProgress + rProgress + aProgress) / 3) * 100));
-
-    const needs: string[] = [];
-    if (ctx.ppg < 9.0) needs.push(`+${(9.0 - ctx.ppg).toFixed(1)} PPG`);
-    if (ctx.rpg < 5.0) needs.push(`+${(5.0 - ctx.rpg).toFixed(1)} RPG`);
-    if (ctx.apg < 2.0) needs.push(`+${(2.0 - ctx.apg).toFixed(1)} APG`);
-
-    candidates.push({
-      title: "All-Around Threat",
-      emoji: "🌟",
-      tier: 3,
-      tierLabel: ARCHETYPE_TIER_META[3].label,
-      progressPct: pct,
-      requirement: `Needs: ${needs.join(", ") || "Maintain current stats"}`,
-      description: "Elite weapon who dominates across scoring, rebounding, and playmaking.",
-    });
-  }
-
-  // 12. Two-Way Force (Tier 3)
-  if (ctx.currentTier < 3 && ctx.currentTitle !== "Two-Way Force") {
-    const pProgress = Math.min(1, ctx.ppg / 9.0);
-    const defProgress = ctx.hasSilverLockdown
-      ? 1
-      : Math.min(1, Math.max(ctx.stocks / 20, (ctx.spg + ctx.bpg) / 1.8));
-    const pct = Math.min(99, Math.round((pProgress * 0.5 + defProgress * 0.5) * 100));
-
-    candidates.push({
-      title: "Two-Way Force",
-      emoji: "👑",
-      tier: 3,
-      tierLabel: ARCHETYPE_TIER_META[3].label,
-      progressPct: pct,
-      requirement:
-        ctx.ppg < 9.0 && !ctx.hasSilverLockdown
-          ? `Needs +${(9.0 - ctx.ppg).toFixed(1)} PPG and Silver Lockdown`
-          : ctx.ppg < 9.0
-            ? `Needs +${(9.0 - ctx.ppg).toFixed(1)} PPG (Silver Lockdown active)`
-            : `Needs Silver Lockdown (${ctx.stocks}/20 stocks)`,
-      description: "Unstoppable two-way juggernaut who dominates on both ends of the floor.",
-    });
-  }
-
-  // 13. The GOAT (Tier 4 Supreme Apex)
-  // The absolute culmination of all statistical categories
-  if (ctx.currentTier < 4 && ctx.currentTitle !== "The GOAT") {
-    const pProg = Math.min(1, ctx.ppg / 9.0);
-    const rProg = Math.min(1, ctx.rpg / 5.0);
-    const aProg = Math.min(1, ctx.apg / 2.5);
-    const defProg = ctx.hasSilverLockdown
-      ? 1
-      : Math.min(1, Math.max(ctx.stocks / 20, (ctx.spg + ctx.bpg) / 1.8));
-    const pmProg = Math.min(1, Math.max(0, (ctx.pmPg + 1.0) / 2.0));
-    const pct = Math.min(
-      99,
-      Math.round(((pProg + rProg + aProg + defProg + pmProg) / 5) * 100),
-    );
-
-    const missing: string[] = [];
-    if (ctx.ppg < 9.0) missing.push(`+${(9.0 - ctx.ppg).toFixed(1)} PPG`);
-    if (ctx.rpg < 5.0) missing.push(`+${(5.0 - ctx.rpg).toFixed(1)} RPG`);
-    if (ctx.apg < 2.5) missing.push(`+${(2.5 - ctx.apg).toFixed(1)} APG`);
-    if (!ctx.hasSilverLockdown) missing.push("Silver Lockdown");
-    if (ctx.pmPg < 1.0) missing.push(`+${(1.0 - ctx.pmPg).toFixed(1)} +/-`);
-
-    candidates.push({
-      title: "The GOAT",
-      emoji: "🐐",
-      tier: 4,
-      tierLabel: ARCHETYPE_TIER_META[4].label,
-      progressPct: pct,
-      requirement: `Culmination of all stats: Needs ${missing.join(", ") || "Dominance across all categories"}`,
-      description:
-        "The undisputed best player on the court. Complete statistical dominance across scoring, playmaking, rebounding, defense, and winning impact.",
-    });
+    // Lockdown Specialist
+    if (!ctx.hasSilverLockdown) {
+      const pct = Math.min(
+        99,
+        Math.round(Math.max(ctx.stocks / 20, (ctx.spg + ctx.bpg) / 1.8) * 100),
+      );
+      candidates.push({
+        title: "Lockdown Specialist",
+        emoji: "🔒",
+        tier: 1,
+        tierLabel: ARCHETYPE_TIER_META[1].label,
+        progressPct: pct,
+        requirement: `Needs ${Math.max(1, 20 - ctx.stocks)} more defensive stocks (${ctx.stocks}/20)`,
+        description: "Defensive stopper who takes on the opponent's toughest matchup.",
+      });
+    }
   }
 
   // Filter candidates: must be >= current tier and not the current title
   return candidates
     .filter((c) => c.tier >= ctx.currentTier && c.title !== ctx.currentTitle && c.progressPct < 100)
     .sort((a, b) => {
-      // Prioritize higher tier if close, otherwise highest progress
+      // Prioritize higher tier if close (within 15%), otherwise highest progress
       if (b.tier !== a.tier && Math.abs(b.progressPct - a.progressPct) < 15) {
         return b.tier - a.tier;
       }
