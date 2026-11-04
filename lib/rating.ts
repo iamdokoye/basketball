@@ -53,14 +53,18 @@ export const RATING = {
 /**
  * 3v3 half-court weights, in Hollinger's Game Score structure (hand-tuned, balanced for 3v3
  * possession economics):
- * - Scoring is efficient: a made 2PT nets +1.60 and a 3PT +2.60 (points + 0.30 - 0.70), while
- *   a miss costs -0.70. Break-even shooting is ~30% on 2s and ~21% on 3s, appropriately punishing
- *   sub-30% volume chuckers from deep (e.g. 1/4 from 3PT yields +0.50 instead of rewarding it).
+ * - Scoring is efficient: a made 2PT nets +1.60 and a 3PT +2.60 (points + 0.30 - 0.70, the attempt
+ *   already counted), while a miss costs -0.70. That matches the league's possession economics
+ *   (about 1.05 points per possession, ~28% of misses rebounded by the shooters, so a miss costs
+ *   ~0.75). Break-even is ~30% on 2s and ~21% on 3s, well under what the crew shoots, so every
+ *   decent shot is a small plus (1/4 from 3PT nets +0.50); chuckers lose out to efficient
+ *   shooters through the make/miss spread, not through a negative-sum miss penalty.
  * - Assists (+0.70) are worth 44% of a made 2PT basket, ensuring playmakers are rewarded for
  *   creating high-percentage looks rather than incentivizing hero-ball.
  * - Rebounding is properly weighted: DREB (+0.30) rewards securing possessions (~5.3 DREBs equals
  *   a made basket), while OREB (+0.55) prizes high-leverage second chances.
  * - Defense carries genuine weight: steals (+0.80) and blocks (+0.65) reward high-leverage stops.
+ *   Deflections (+0.15, half a defensive board) are hustle credit: they don't change possession.
  * - Turnovers (-0.95) penalize coughing up possessions, canceling out almost a full made field goal.
  * - Missed free throws (-0.40) avoid double-penalizing drawn fouls.
  */
@@ -75,7 +79,7 @@ export const WEIGHTS = {
   tov: 0.95,
   ast: 0.70,
   blk: 0.65,
-  defl: 0.30,
+  defl: 0.15,
   pf: 0.40,
   /** Cost of a missed free throw. */
   ftMiss: 0.40,
