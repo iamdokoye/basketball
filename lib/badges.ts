@@ -49,7 +49,7 @@ export const ARCHETYPE_TIER_META: Record<
   { label: string; badgeClass: string; dotClass: string }
 > = {
   4: {
-    label: "Tier 4 · The GOAT",
+    label: "Tier 4 · All-Around Threat",
     badgeClass: "bg-emerald-500/15 text-emerald-800 ring-emerald-500/40 shadow-xs font-black",
     dotClass: "bg-emerald-600",
   },
@@ -96,7 +96,7 @@ const TIER_LABELS: Record<BadgeTier, string> = {
  *   [2] ASSIST (Playmaking / Floor vision)
  *   [3] DEFENSE (Lockdown / Defensive stocks)
  *
- * - Tier 4 (Supreme Apex): The GOAT / All-Around Threat (Combines ALL 3 Pillars: Shoot + Assist + Defense)
+ * - Tier 4 (Supreme Apex): The All-Around Threat (Combines ALL 3 Pillars: Shoot + Assist + Defense)
  * - Tier 3 (Pinnacle Dual-Pillars):
  *     1. Playmaking Shot Creator (Shoot + Assist)
  *     2. 3-and-D Specialist (Shoot + Defense)
@@ -555,14 +555,14 @@ export function computePlayerArchetype(
     archetypeTier = 0;
   }
   // -------------------------------------------------------------
-  // TIER 4: THE GOAT / ALL-AROUND THREAT (Combines ALL 3 Pillars)
+  // TIER 4: THE ALL-AROUND THREAT (Combines ALL 3 Pillars)
   // Evaluated 1st: Shoot + Assist + Defense
   // -------------------------------------------------------------
   else if (career.gp >= 3 && hasShootPillar && hasAssistPillar && hasDefensePillar) {
-    archetypeTitle = "The GOAT";
-    archetypeEmoji = "🐐";
+    archetypeTitle = "The All-Around Threat";
+    archetypeEmoji = "🌟";
     archetypeDesc =
-      "The undisputed best player on the court and ultimate all-around threat. Complete mastery across all three pillars: elite scoring/shooting, playmaking, and lockdown defense.";
+      "The undisputed master on the court. Complete statistical dominance across all three core pillars: elite scoring/shooting, playmaking, and lockdown defense.";
     archetypeTier = 4;
   }
   // -------------------------------------------------------------
@@ -749,7 +749,7 @@ type UpgradeContext = {
  * toward higher-tier archetypes.
  */
 function computeArchetypeUpgrades(ctx: UpgradeContext): ArchetypeUpgrade[] {
-  // If player reached Tier 4 (The GOAT), no higher tier exists
+  // If player reached Tier 4 (The All-Around Threat), no higher tier exists
   if (ctx.currentTier === 4) return [];
 
   const candidates: ArchetypeUpgrade[] = [];
@@ -766,40 +766,40 @@ function computeArchetypeUpgrades(ctx: UpgradeContext): ArchetypeUpgrade[] {
     : Math.min(1, Math.max(ctx.stocks / 20, (ctx.spg + ctx.bpg) / 1.8));
 
   // -------------------------------------------------------------
-  // TIER 4: The GOAT (Combines ALL 3 Pillars: Shoot + Assist + Defense)
+  // TIER 4: The All-Around Threat (Combines ALL 3 Pillars: Shoot + Assist + Defense)
   // -------------------------------------------------------------
-  const goatPct = Math.min(
+  const allAroundPct = Math.min(
     99,
     Math.round(((shootProgress + assistProgress + defProgress) / 3) * 100),
   );
 
-  let goatReq = "";
+  let allAroundReq = "";
   if (ctx.currentTier === 3) {
     // Already has 2 pillars: show the exact single missing pillar!
     if (!ctx.hasDefensePillar) {
-      goatReq = `Final Pillar (Defense): Needs ${Math.max(1, 20 - ctx.stocks)} more stocks (${ctx.stocks}/20) for Silver Lockdown`;
+      allAroundReq = `Final Pillar (Defense): Needs ${Math.max(1, 20 - ctx.stocks)} more stocks (${ctx.stocks}/20) for Silver Lockdown`;
     } else if (!ctx.hasAssistPillar) {
-      goatReq = `Final Pillar (Assist): Needs ${Math.max(1, 18 - ctx.career.ast)} more ast (${ctx.career.ast}/18) for Silver Floor General`;
+      allAroundReq = `Final Pillar (Assist): Needs ${Math.max(1, 18 - ctx.career.ast)} more ast (${ctx.career.ast}/18) for Silver Floor General`;
     } else if (!ctx.hasShootPillar) {
-      goatReq = `Final Pillar (Shoot): Needs ${Math.max(1, 8 - ctx.career.fg3m)} more 3PM (${ctx.career.fg3m}/8) or +${Math.max(0.1, 9.0 - ctx.ppg).toFixed(1)} PPG`;
+      allAroundReq = `Final Pillar (Shoot): Needs ${Math.max(1, 8 - ctx.career.fg3m)} more 3PM (${ctx.career.fg3m}/8) or +${Math.max(0.1, 9.0 - ctx.ppg).toFixed(1)} PPG`;
     }
   } else {
     const missingPillars: string[] = [];
     if (!ctx.hasShootPillar) missingPillars.push("Shoot");
     if (!ctx.hasAssistPillar) missingPillars.push("Assist");
     if (!ctx.hasDefensePillar) missingPillars.push("Defense");
-    goatReq = `Combine all 3 pillars: Needs ${missingPillars.join(" + ")} mastery`;
+    allAroundReq = `Combine all 3 pillars: Needs ${missingPillars.join(" + ")} mastery`;
   }
 
   candidates.push({
-    title: "The GOAT",
-    emoji: "🐐",
+    title: "The All-Around Threat",
+    emoji: "🌟",
     tier: 4,
     tierLabel: ARCHETYPE_TIER_META[4].label,
-    progressPct: goatPct,
-    requirement: goatReq,
+    progressPct: allAroundPct,
+    requirement: allAroundReq,
     description:
-      "The undisputed best player on the court and ultimate all-around threat. Combines all three pillars: elite scoring/shooting, playmaking, and lockdown defense.",
+      "The undisputed master on the court. Complete statistical dominance across all three core pillars: elite scoring/shooting, playmaking, and lockdown defense.",
   });
 
   // -------------------------------------------------------------

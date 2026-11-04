@@ -195,19 +195,19 @@ export function PlayerBadges({
         </div>
       )}
 
-      {/* Tier 4: The GOAT Supreme Banner */}
+      {/* Tier 4: The All-Around Threat Supreme Banner */}
       {current.tier === 4 && (
         <div className="glass-1 flex items-center gap-3.5 rounded-2xl p-4.5 ring-2 ring-emerald-500/35 bg-emerald-500/10 shadow-xs">
           <span className="text-3xl" aria-hidden>
-            🐐
+            🌟
           </span>
           <div>
             <div className="text-xs font-black uppercase tracking-wider text-emerald-800 flex items-center gap-1.5">
               <span>👑</span>
-              <span>The GOAT · All-Around Threat</span>
+              <span>The All-Around Threat · Supreme Apex</span>
             </div>
             <p className="mt-0.5 text-xs font-medium text-emerald-950">
-              You have combined all 3 core pillars: elite shooting, playmaking, and lockdown defense. The undisputed best player on the court.
+              You have combined all 3 core pillars: elite shooting, playmaking, and lockdown defense. The undisputed master on the court.
             </p>
           </div>
         </div>
@@ -224,7 +224,7 @@ export function PlayerBadges({
               Tier 3 Dual-Pillar Master
             </div>
             <p className="mt-0.5 text-xs font-medium text-muted">
-              You have mastered two of the three core pillars (Shoot, Assist, Defense). Master the final pillar to unlock Tier 4 · The GOAT 🐐.
+              You have mastered two of the three core pillars (Shoot, Assist, Defense). Master the final pillar to unlock Tier 4 · The All-Around Threat 🌟.
             </p>
           </div>
         </div>
