@@ -24,18 +24,18 @@ export const RATING = {
   base: 6.5,
   min: 3.0,
   max: 10.0,
-  /** Impact needed to cover about three quarters of the way from 6.5 up to 10. */
-  upScale: 22,
-  /** Same, going down toward 3.0 (moderated from 9 to 15 to avoid over-punishing single bad games). */
-  downScale: 15,
+  /** Impact needed to cover about three quarters of the way from 6.5 up to 10 (tuned to 16 for responsive spread). */
+  upScale: 16,
+  /** Same, going down toward 3.0 (moderated to 14 to avoid over-punishing single bad games). */
+  downScale: 14,
   /** Fallback typical game total points when target is unknown (game to 21 has ~38 pts). */
   refTotal: 38,
   /** Floor on the share of the game played used to scale a short stint. */
   minShare: 0.3,
   /** Floor on how little a short stint counts when averaging a player's games (5% for brief sub cameos). */
   weightFloor: 0.05,
-  /** Rating points per point of on-court margin, before pace and minute scaling. */
-  plusMinusWeight: 0.1,
+  /** Rating points per point of on-court margin, before pace and minute scaling (tuned to 0.15 for team success). */
+  plusMinusWeight: 0.15,
   /** Share of the game someone can be on court before the inactivity decay starts (a sub's grace period). */
   idleGrace: 0.08,
   /** Impact lost by being on court a whole game with zero constructive actions (about 5.0 out of 10). */
@@ -43,14 +43,13 @@ export const RATING = {
 } as const;
 
 /**
- * Possession and rebound calibration using FIBA 3x3 standards:
- * - Points per possession (V): FIBA 3x3 half-court standard is ~0.82 (NBA full-court is ~1.05).
- * - Offensive rebound share (q): FIBA 3x3 standard is 0.32 (32% offensive, 68% defensive).
- *   This ensures offensive rebounds are prized over defensive rebounds (~2.1x value)
- *   and volume shooting misses are appropriately penalized.
+ * 3v3 half-court possession and efficiency calibration:
+ * - Scoring is the primary currency of a 21-point game (+1.7 net for a made 2PT, +2.7 for a 3PT).
+ * - Rebounds are calibrated for 3v3 half-court density: OREB (+0.36) is worth 2.25x DREB (+0.16),
+ *   rewarding second chances without allowing routine defensive rebounds to outweigh scoring.
  */
 export const LEAGUE = {
-  /** Points per possession (V). FIBA 3x3 standard is 0.82. */
+  /** Points per possession baseline (V). FIBA 3x3 standard is ~0.82. */
   pointsPerPossession: 0.82,
   /** Share of rebounds taken by the shooting team (q). FIBA 3x3 standard is 0.32. */
   offRebShare: 0.32,
@@ -58,24 +57,31 @@ export const LEAGUE = {
 
 const NBA_POINTS_PER_POSSESSION = 1.05;
 
-/** Hollinger-style weights derived from FIBA 3x3 standards (V and q). */
-export function weightsFrom(v: number, q: number) {
-  const missCost = v * (1 - q); // a missed shot loses the possession unless the shooting team rebounds it
-  const scale = v / NBA_POINTS_PER_POSSESSION;
+/** 3v3 half-court weights adapted from Hollinger's Game Score structure. */
+export function weightsFrom(v = 0.82, q = 0.32) {
   return {
-    // A make is worth its points minus the possession it used (pts - v). Together with the
-    // per-attempt cost below that is fgm = missCost - v = -v * q.
-    fgm: -v * q,
-    fga: missCost,
-    oreb: missCost, // gives back exactly what the miss cost
-    dreb: v * q, // the possession you stopped them from getting back
-    stl: v,
-    tov: v,
-    ast: 0.7 * scale,
-    blk: missCost,
-    defl: 0.35,
-    pf: -0.45,
-    ftMiss: 0.45,
+    /** Positive bonus for a made field goal (+0.20), restoring Hollinger's true reward for buckets. */
+    fgm: 0.20,
+    /** Penalty for taking a field goal attempt (-0.50). */
+    fga: 0.50,
+    /** Offensive rebound (+0.36): valuable second-chance creation without drowning out scoring. */
+    oreb: 0.36,
+    /** Defensive rebound (+0.16): finishing the stop (~2.25x less than OREB). */
+    dreb: 0.16,
+    /** Steal (+0.70): decisive turnover creation. */
+    stl: 0.70,
+    /** Turnover (-0.70): losing a possession in 3v3. */
+    tov: 0.70,
+    /** Assist (+0.45): passing to a scoring teammate. */
+    ast: 0.45,
+    /** Block (+0.45): denying an opponent's shot. */
+    blk: 0.45,
+    /** Deflection (+0.25): disruptive touch on the ball. */
+    defl: 0.25,
+    /** Personal foul (-0.35). */
+    pf: 0.35,
+    /** Missed free throw (-0.40). */
+    ftMiss: 0.40,
   };
 }
 
@@ -123,20 +129,20 @@ export function productivePlays(l: StatLine): number {
   return l.fga + l.fta + l.reb + l.ast + l.stl + l.blk + l.defl;
 }
 
-/** Raw contribution in "points of impact": Game Score structure with FIBA 3x3-derived weights, plus deflections. */
+/** Raw contribution in "points of impact": Game Score structure with 3v3-calibrated weights, plus deflections. */
 export function production(l: StatLine, w: typeof WEIGHTS = WEIGHTS): number {
   return (
     l.pts +
     w.fgm * l.fgm -
     w.fga * l.fga -
-    (w.ftMiss ?? 0.45) * (l.fta - l.ftm) +
+    (w.ftMiss ?? 0.40) * (l.fta - l.ftm) +
     w.oreb * l.oreb +
     w.dreb * l.dreb +
     w.stl * l.stl +
     w.ast * l.ast +
     w.blk * l.blk +
-    (w.defl ?? 0.35) * l.defl +
-    (w.pf ?? -0.45) * l.pf -
+    (w.defl ?? 0.25) * l.defl -
+    (w.pf ?? 0.35) * l.pf -
     w.tov * l.tov
   );
 }
