@@ -11,6 +11,8 @@ import type { StatLine } from "./stats";
 //      cost so volume chucking is not rewarded (see WEIGHTS).
 //   2. Context scales it: scoring in a low-scoring game counts for more (pace, dynamically scaled
 //      against the game target), and doing a lot in few minutes counts for more (time on the floor).
+//      All weights are tuned for a game to 20, so production, margin and the inactivity bar are
+//      rescaled by 20 / target: the same relative performance rates the same in a game to 10 or 50.
 //   3. How their team did while they were on court (plus/minus) nudges it, minute-damped so brief
 //      cameos don't inherit outsized team swings.
 //   4. Inactivity decay: a player who stays on court without constructive contributions (makes,
@@ -31,6 +33,11 @@ export const RATING = {
   downScale: 14,
   /** Fallback typical game total points when target is unknown (game to 21 has ~38 pts). */
   refTotal: 38,
+  /** The game target every weight in this file is tuned for; other targets are scaled to it. */
+  refTarget: 20,
+  /** Bounds on the game-length scale so extreme targets (1 or 100) can't blow the rating up or flatten it. */
+  minLengthScale: 0.25,
+  maxLengthScale: 3,
   /** Floor on the share of the game played used to scale a short stint. */
   minShare: 0.3,
   /** Floor on how little a short stint counts when averaging a player's games (5% for brief sub cameos). */
@@ -138,6 +145,20 @@ export function production(l: StatLine, w: typeof WEIGHTS = WEIGHTS): number {
 const clamp = (n: number, lo: number, hi: number) =>
   Math.min(hi, Math.max(lo, n));
 
+/**
+ * How much to shrink (or grow) raw per-game numbers so a game to any target rates like a game to
+ * RATING.refTarget: 1 at the reference target, 0.5 for a game to 40, 2 for a game to 10. An unknown
+ * target is treated as the reference.
+ */
+export function lengthScale(target?: number): number {
+  if (!target || target <= 0) return 1;
+  return clamp(
+    RATING.refTarget / target,
+    RATING.minLengthScale,
+    RATING.maxLengthScale,
+  );
+}
+
 /** Fraction of the game this player was on court, measured against the longest-playing player. */
 export function shareOfGame(l: StatLine, ctx: GameContext): number {
   return ctx.maxSec > 0 ? clamp(l.sec / ctx.maxSec, 0, 1) : 1;
@@ -164,23 +185,29 @@ export function rateLine(
     1.5,
   );
 
+  // Every weight is tuned for a game to refTarget, so a longer game produces proportionally bigger
+  // raw numbers (production, margin) for the same relative performance. Scale them back down.
+  const length = lengthScale(ctx.target);
+
   const share = shareOfGame(l, ctx);
   const time = 1 / Math.sqrt(Math.max(share, R.minShare));
 
   // Inactivity decay: penalizes extended court time without constructive plays.
-  // Smoothly decays as positive plays accumulate (3+ constructive plays eliminates it completely).
+  // Smoothly decays as positive plays accumulate (3 constructive plays in a game to refTarget
+  // eliminates it completely; the bar scales with the game length).
   // Negative plays like fouls or turnovers NEVER reduce the idle penalty (prevents the "phantom foul" cliff).
   const idle =
     l.sec > 0 && ctx.maxSec > 0
       ? -R.idleFull *
         (Math.max(0, share - R.idleGrace) / (1 - R.idleGrace)) *
-        Math.max(0, 1 - productivePlays(l) / 3)
+        Math.max(0, 1 - (productivePlays(l) * length) / 3)
       : 0;
 
   // Plus/minus is minute-damped with sqrt(share) so brief cameos don't inherit outsized team run impact
-  const pmImpact = R.plusMinusWeight * l.plusMinus * Math.sqrt(share) * pace;
+  const pmImpact =
+    R.plusMinusWeight * l.plusMinus * Math.sqrt(share) * pace * length;
 
-  const impact = production(l) * pace * time + pmImpact + idle;
+  const impact = production(l) * pace * time * length + pmImpact + idle;
   const rating =
     impact >= 0
       ? R.base + (R.max - R.base) * Math.tanh(impact / R.upScale)
