@@ -6,16 +6,17 @@ import type { StatLine } from "./stats";
 // in). Their plays then push the number up or down:
 //   1. "Production" adds up what they did with Hollinger's Game Score structure (points,
 //      shooting efficiency, rebounds, assists, steals, blocks, turnovers, fouls), plus credit
-//      for deflections. The weights use FIBA 3x3 standards adapted to our 2s and 3s scoring:
-//      offensive rebounds are prized over defensive rebounds (~2.1x value), and shooting misses
-//      are penalized appropriately so volume chucking is not rewarded.
+//      for deflections. The weights are tuned for 3v3 half-court with our 2s and 3s scoring:
+//      offensive rebounds are prized over defensive rebounds (2.25x value), and misses carry a
+//      cost so volume chucking is not rewarded (see WEIGHTS).
 //   2. Context scales it: scoring in a low-scoring game counts for more (pace, dynamically scaled
 //      against the game target), and doing a lot in few minutes counts for more (time on the floor).
 //   3. How their team did while they were on court (plus/minus) nudges it, minute-damped so brief
 //      cameos don't inherit outsized team swings.
-//   4. Inactivity decay: a player who stays on court without constructive contributions (shots,
+//   4. Inactivity decay: a player who stays on court without constructive contributions (makes,
 //      rebounds, assists, steals, blocks, deflections) gradually sinks toward ~5.0. Constructive
-//      plays smoothly dissolve this decay, while negative plays (fouls, turnovers) never reduce it.
+//      plays smoothly dissolve this decay, while negative plays (misses, fouls, turnovers) never
+//      reduce it, so no play that costs rating can ever raise it.
 //   5. The result is squeezed onto a curve between 3.0 and 10.0 with balanced negative scaling.
 // Someone who never plays isn't rated.
 // Pickup 3v3 has no positions, so there is no positional benchmarking.
@@ -43,49 +44,32 @@ export const RATING = {
 } as const;
 
 /**
- * 3v3 half-court possession and efficiency calibration:
- * - Scoring is the primary currency of a 21-point game (+1.7 net for a made 2PT, +2.7 for a 3PT).
- * - Rebounds are calibrated for 3v3 half-court density: OREB (+0.36) is worth 2.25x DREB (+0.16),
- *   rewarding second chances without allowing routine defensive rebounds to outweigh scoring.
+ * 3v3 half-court weights, in Hollinger's Game Score structure (hand-tuned, not derived from a
+ * possession model, so there is no league constant to change):
+ * - Scoring is the primary currency of a 20-point game: a made 2PT nets +1.7 and a 3PT +2.7
+ *   (points + 0.20 - 0.50), a miss -0.50. Break-even shooting is ~23% on 2s and ~16% on 3s,
+ *   far below what this league shoots (~50% on 2s, ~37% on 3s), so volume is only punished
+ *   for genuinely poor shooting.
+ * - OREB (+0.36) is worth 2.25x DREB (+0.16), rewarding second chances without letting routine
+ *   defensive rebounds outweigh scoring.
+ * - A steal and a turnover are symmetric (+/-0.70): the scorekeeper logs both sides of a steal.
  */
-export const LEAGUE = {
-  /** Points per possession baseline (V). FIBA 3x3 standard is ~0.82. */
-  pointsPerPossession: 0.82,
-  /** Share of rebounds taken by the shooting team (q). FIBA 3x3 standard is 0.32. */
-  offRebShare: 0.32,
-} as const;
-
-const NBA_POINTS_PER_POSSESSION = 1.05;
-
-/** 3v3 half-court weights adapted from Hollinger's Game Score structure. */
-export function weightsFrom(v = 0.82, q = 0.32) {
-  return {
-    /** Positive bonus for a made field goal (+0.20), restoring Hollinger's true reward for buckets. */
-    fgm: 0.20,
-    /** Penalty for taking a field goal attempt (-0.50). */
-    fga: 0.50,
-    /** Offensive rebound (+0.36): valuable second-chance creation without drowning out scoring. */
-    oreb: 0.36,
-    /** Defensive rebound (+0.16): finishing the stop (~2.25x less than OREB). */
-    dreb: 0.16,
-    /** Steal (+0.70): decisive turnover creation. */
-    stl: 0.70,
-    /** Turnover (-0.70): losing a possession in 3v3. */
-    tov: 0.70,
-    /** Assist (+0.45): passing to a scoring teammate. */
-    ast: 0.45,
-    /** Block (+0.45): denying an opponent's shot. */
-    blk: 0.45,
-    /** Deflection (+0.25): disruptive touch on the ball. */
-    defl: 0.25,
-    /** Personal foul (-0.35). */
-    pf: 0.35,
-    /** Missed free throw (-0.40). */
-    ftMiss: 0.40,
-  };
-}
-
-export const WEIGHTS = weightsFrom(LEAGUE.pointsPerPossession, LEAGUE.offRebShare);
+export const WEIGHTS = {
+  /** Bonus for a made field goal, on top of its points. */
+  fgm: 0.20,
+  /** Cost of taking a field goal attempt. */
+  fga: 0.50,
+  oreb: 0.36,
+  dreb: 0.16,
+  stl: 0.70,
+  tov: 0.70,
+  ast: 0.45,
+  blk: 0.45,
+  defl: 0.25,
+  pf: 0.35,
+  /** Cost of a missed free throw. */
+  ftMiss: 0.40,
+};
 
 /** Game-wide numbers a rating is judged against. */
 export type GameContext = {
@@ -124,9 +108,13 @@ export function actions(l: StatLine): number {
   return l.fga + l.fta + l.reb + l.ast + l.stl + l.blk + l.tov + l.pf + l.defl;
 }
 
-/** Constructive plays that demonstrate active on-court involvement (excludes turnovers & fouls). */
+/**
+ * Plays that add value and so excuse a player from the inactivity decay: makes, rebounds,
+ * assists, steals, blocks and deflections. Turnovers, fouls and misses are excluded because
+ * they cost rating, and a play that costs rating must never earn some back.
+ */
 export function productivePlays(l: StatLine): number {
-  return l.fga + l.fta + l.reb + l.ast + l.stl + l.blk + l.defl;
+  return l.fgm + l.ftm + l.reb + l.ast + l.stl + l.blk + l.defl;
 }
 
 /** Raw contribution in "points of impact": Game Score structure with 3v3-calibrated weights, plus deflections. */
@@ -135,14 +123,14 @@ export function production(l: StatLine, w: typeof WEIGHTS = WEIGHTS): number {
     l.pts +
     w.fgm * l.fgm -
     w.fga * l.fga -
-    (w.ftMiss ?? 0.40) * (l.fta - l.ftm) +
+    w.ftMiss * (l.fta - l.ftm) +
     w.oreb * l.oreb +
     w.dreb * l.dreb +
     w.stl * l.stl +
     w.ast * l.ast +
     w.blk * l.blk +
-    (w.defl ?? 0.25) * l.defl -
-    (w.pf ?? 0.35) * l.pf -
+    w.defl * l.defl -
+    w.pf * l.pf -
     w.tov * l.tov
   );
 }

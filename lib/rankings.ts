@@ -2,7 +2,7 @@ import type { CareerLine } from "./queries";
 import { averageRating } from "./rating";
 
 export type Ranked = CareerLine & {
-  /** Average Hollinger Game Score per game. */
+  /** Average per-game rating out of 10 (see lib/rating.ts). */
   rating: number;
   /** 1-based rank, or null if the player hasn't played enough games to qualify. */
   rank: number | null;
