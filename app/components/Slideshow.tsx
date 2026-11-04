@@ -28,7 +28,14 @@ export function Slideshow({ show, backHref }: { show: Show; backHref: string }) 
   const [burst, setBurst] = useState<Burst | null>(null);
 
   const music = useMemo(() => createShowMusic(tier), [tier]);
-  const clock = useRef({ i: 0, t: 0, build: false, reveal: false });
+  const clock = useRef({
+    i: 0,
+    t: 0,
+    build: false,
+    reveal: false,
+    nameSting: false,
+    statTickIdx: 0,
+  });
   const burstId = useRef(0);
   const last = slides.length - 1;
 
@@ -36,11 +43,25 @@ export function Slideshow({ show, backHref }: { show: Show; backHref: string }) 
 
   const enter = useCallback(
     (n: number) => {
-      clock.current = { i: n, t: 0, build: false, reveal: false };
+      clock.current = {
+        i: n,
+        t: 0,
+        build: false,
+        reveal: false,
+        nameSting: false,
+        statTickIdx: 0,
+      };
       setI(n);
       setT(0);
-      if (slides[n].kind === "intro") music.accent("title");
-      if (slides[n].kind === "outro" && year) fire("finale");
+      if (slides[n].kind === "intro") {
+        music.accent("title");
+      } else {
+        music.accent("transition");
+      }
+      if (slides[n].kind === "outro") {
+        music.accent("finale");
+        if (year) fire("finale");
+      }
     },
     [slides, music, year, fire],
   );
@@ -56,16 +77,37 @@ export function Slideshow({ show, backHref }: { show: Show; backHref: string }) 
       c.t += Math.min(now - prev, 250);
       prev = now;
       const slide = slides[c.i];
+
+      // Numbers count-up ticks
+      if (slide.kind === "numbers") {
+        const ticks = [400, 750, 1100, 1450];
+        if (c.statTickIdx < ticks.length && c.t >= ticks[c.statTickIdx]) {
+          c.statTickIdx++;
+          music.accent("statTick");
+        }
+      }
+
+      // Pre-reveal suspense cue (heartbeat & tension riser)
       const hasReveal = slide.kind === "award" || slide.kind === "star";
       if (hasReveal && !c.build && c.t >= BUILD_AT) {
         c.build = true;
-        music.accent("build");
+        music.accent("suspense");
       }
+
+      // The reveal impact
       if (hasReveal && !c.reveal && from < timing.revealMs && c.t >= timing.revealMs) {
         c.reveal = true;
         music.accent(slide.kind === "star" ? "finale" : "reveal");
         fire(slide.kind === "star" ? "finale" : "reveal");
       }
+
+      // Winner name pop sting (synchronized right when player name appears)
+      const nameDelay = slide.kind === "star" ? 600 : 700;
+      if (hasReveal && c.reveal && !c.nameSting && c.t >= timing.revealMs + nameDelay) {
+        c.nameSting = true;
+        music.accent("name");
+      }
+
       if (c.t >= timing.slideMs[slide.kind] && c.i < last) enter(c.i + 1);
       else setT(c.t);
     }, 100);
@@ -363,8 +405,11 @@ function SlideView({
               <p className="show-in text-base font-semibold text-white/80" style={d(400)}>
                 {c.tagline}
               </p>
-              <div className="show-pulse text-6xl" aria-hidden>
-                {year ? "🥁" : "🎁"}
+              <div className="show-heartbeat text-6xl" aria-hidden>
+                {year ? "🥁" : "⚡"}
+              </div>
+              <div className="show-in text-xs font-bold uppercase tracking-[0.25em] text-white/50" style={d(550)}>
+                Locked in · Revealing...
               </div>
             </div>
           ) : (
@@ -378,13 +423,13 @@ function SlideView({
               <div className={`show-in text-[clamp(30px,9.5vw,48px)] font-black uppercase leading-tight tracking-wide ${gold}`} style={d(350)}>
                 {c.title}
               </div>
-              <div className="show-pop text-[clamp(30px,10vw,52px)] font-black leading-tight" style={d(800)}>
+              <div className="show-pop text-[clamp(30px,10vw,52px)] font-black leading-tight text-white drop-shadow-md" style={d(700)}>
                 {c.name}
               </div>
-              <div className="show-in tabular text-[clamp(28px,8vw,40px)] font-black text-amber-200" style={d(1200)}>
+              <div className="show-in tabular text-[clamp(28px,8vw,40px)] font-black text-amber-200" style={d(1100)}>
                 {c.value}
               </div>
-              <div className="show-in tabular text-sm font-semibold text-white/75" style={d(1500)}>
+              <div className="show-in tabular text-sm font-semibold text-white/75" style={d(1400)}>
                 {c.detail}
               </div>
             </div>
@@ -402,11 +447,14 @@ function SlideView({
               <div className="show-in label text-white/70" style={d(0)}>
                 And now
               </div>
-              <div className="show-in text-[clamp(30px,9vw,46px)] font-black uppercase leading-tight" style={d(200)}>
+              <div className="show-in text-[clamp(30px,9vw,46px)] font-black uppercase leading-tight tracking-wide" style={d(200)}>
                 Player of the {noun}
               </div>
-              <div className="show-pulse text-6xl" aria-hidden>
-                {year ? "👑" : "⭐"}
+              <div className="show-heartbeat text-6xl" aria-hidden>
+                {year ? "👑" : "🏆"}
+              </div>
+              <div className="show-in text-xs font-bold uppercase tracking-[0.25em] text-amber-200/70" style={d(550)}>
+                The Crown Awaits
               </div>
             </div>
           ) : (

@@ -5,6 +5,7 @@ import {
   computeMvp,
   featuredPeriod,
   groupByPeriod,
+  localDate,
   monthKey,
   weekKey,
 } from "@/lib/mvp";
@@ -71,9 +72,34 @@ export default async function Home() {
   const weekCards =
     cardPeriod && !cardsHidden ? buildCards(cardPeriod.games, "week", cardPeriod) : [];
 
+  // Month card & slideshow for the last month, shown on the homepage for the first week of the current month.
+  // For example, the monthly card and slideshow for October show during the 1st week of November (days 1-7).
+  const { y, m, d } = localDate(access.now, tz);
+  const isFirstWeekOfMonth = d >= 1 && d <= 7;
+  const lastMonthYear = m === 1 ? y - 1 : y;
+  const lastMonthNum = m === 1 ? 12 : m - 1;
+  const lastMonthKey = `${lastMonthYear}-${String(lastMonthNum).padStart(2, "0")}`;
+
+  const monthPeriods = groupByPeriod(games, "month", tz, day);
+  const lastMonthPeriod =
+    monthPeriods.find((p) => p.key === lastMonthKey) ??
+    (isFirstWeekOfMonth ? monthPeriods.find((p) => p.key < thisMonth) : undefined);
+
+  const lastMonthFinals = lastMonthPeriod
+    ? lastMonthPeriod.games.filter((g) => g.status === "final")
+    : [];
+  const lastMonthCards =
+    lastMonthPeriod && lastMonthFinals.length > 0
+      ? buildCards(lastMonthFinals, "month", lastMonthPeriod)
+      : [];
+  const showLastMonthRecap =
+    (isFirstWeekOfMonth || access.isAdmin) &&
+    lastMonthPeriod !== undefined &&
+    lastMonthFinals.length > 0;
+
   // Awards are handed out when a month is over: show the latest completed month.
   const thisMonth = monthKey(access.now, tz);
-  const lastDone = groupByPeriod(games, "month", tz, day).find(
+  const lastDone = monthPeriods.find(
     (p) => p.key < thisMonth,
   );
   const lastAwards = lastDone ? monthAwards(lastDone.games) : [];
@@ -223,6 +249,84 @@ export default async function Home() {
           </div>
         )}
       </section>
+
+      {/* Last Month Recap & Cards (Shown during the first week of the current month) */}
+      {showLastMonthRecap && lastMonthPeriod && (
+        <section className="space-y-3">
+          <div className="flex items-center justify-between px-1">
+            <div className="flex items-center gap-2">
+              <span className="rounded-full bg-court-soft/15 px-2.5 py-0.5 text-[11px] font-bold text-court-ink">
+                {isFirstWeekOfMonth ? "First week of the month" : "Admin Preview"}
+              </span>
+              <h2 className="label">{lastMonthPeriod.label} · Recap & Cards</h2>
+            </div>
+            <Link
+              href={`/cards?tier=month&period=${lastMonthPeriod.key}`}
+              className="text-xs font-semibold text-court-ink hover:underline"
+            >
+              All month cards
+            </Link>
+          </div>
+
+          {/* Slideshow Hero Card */}
+          <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#0b1226] via-[#172554] to-[#1e40af] p-5 text-white shadow-lg">
+            <div
+              className="pointer-events-none absolute -right-10 -top-10 h-44 w-44 rounded-full bg-blue-400/20 blur-3xl"
+              aria-hidden
+            />
+            <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-2 w-2 rounded-full bg-blue-400" />
+                  <span className="text-[11px] font-extrabold uppercase tracking-[0.2em] text-blue-200">
+                    Monthly Showcase
+                  </span>
+                </div>
+                <h3 className="text-2xl font-black tracking-tight text-white sm:text-3xl">
+                  {lastMonthPeriod.label.split(" ")[0]} Recap
+                </h3>
+                <p className="max-w-md text-xs font-medium text-white/80">
+                  Experience the title cards, MVPs, and stat leaders in a cinematic recap slideshow with sound.
+                </p>
+                <div className="flex flex-wrap items-center gap-2 pt-1 text-[11px] font-semibold text-white/70">
+                  <span className="rounded-full bg-white/10 px-2.5 py-0.5 backdrop-blur-sm">
+                    {lastMonthFinals.length} {lastMonthFinals.length === 1 ? "game" : "games"}
+                  </span>
+                  <span className="rounded-full bg-white/10 px-2.5 py-0.5 backdrop-blur-sm">
+                    {lastMonthCards.length} {lastMonthCards.length === 1 ? "title card" : "title cards"}
+                  </span>
+                </div>
+              </div>
+
+              <Link
+                href={`/cards/show?tier=month&period=${lastMonthPeriod.key}&from=home`}
+                className="group flex shrink-0 items-center justify-center gap-3 rounded-2xl bg-white px-5 py-3.5 text-sm font-black text-ink shadow-md transition-all hover:bg-white/95 active:scale-[0.98] sm:self-center"
+              >
+                <span
+                  className="grid h-8 w-8 place-items-center rounded-full bg-ink text-white transition-transform group-hover:scale-105"
+                  aria-hidden
+                >
+                  <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor">
+                    <path d="M8 5v14l11-7z" />
+                  </svg>
+                </span>
+                <span>Watch slideshow</span>
+              </Link>
+            </div>
+          </div>
+
+          {/* Month Title Cards Carousel */}
+          {lastMonthCards.length > 0 && (
+            <div className="-mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {lastMonthCards.map((c) => (
+                <div key={c.key} className="w-44 shrink-0 snap-start">
+                  <AwardCard card={c} sharePath={`/cards?tier=month&period=${c.periodKey}`} />
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
 
       {/* Title cards */}
       {cardPeriod && (cardsHidden || weekCards.length > 0) && (

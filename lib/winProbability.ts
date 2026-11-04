@@ -62,7 +62,6 @@ export function calculateWinProbability({
 
   const remA = Math.max(1, target - scoreA);
   const remB = Math.max(1, target - scoreB);
-  const totalRemaining = remA + remB;
 
   // Base probability per possession based on momentum
   // momentumPctA is 0-100 (50 is neutral)
@@ -76,8 +75,8 @@ export function calculateWinProbability({
   const weightB = Math.pow(pB / remB, 1.4);
   const sumWeights = weightA + weightB;
 
-  let rawProbA = weightA / sumWeights;
-  let rawProbB = weightB / sumWeights;
+  const rawProbA = weightA / sumWeights;
+  const rawProbB = weightB / sumWeights;
 
   // Draw / Overtime Tie probability calculation
   // Draw is highest when:

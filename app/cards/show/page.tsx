@@ -16,11 +16,14 @@ export const metadata = { title: "Recap · Pickup League" };
 export default async function ShowPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tier?: string; period?: string; confirmed?: string }>;
+  searchParams: Promise<{ tier?: string; period?: string; confirmed?: string; from?: string }>;
 }) {
-  const { tier: t, period, confirmed } = await searchParams;
+  const { tier: t, period, confirmed, from } = await searchParams;
   const tier: ShowTier = t === "year" ? "year" : "month";
-  const back = `/cards?tier=${tier}${period ? `&period=${encodeURIComponent(period)}` : ""}`;
+  const back =
+    from === "home"
+      ? "/"
+      : `/cards?tier=${tier}${period ? `&period=${encodeURIComponent(period)}` : ""}`;
 
   const [games, access] = await Promise.all([listGames(), getAccess()]);
   const tz = leagueTimeZone();
