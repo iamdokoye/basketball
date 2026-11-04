@@ -47,6 +47,34 @@ const EXPLAIN: Record<
     title: "+/- · Plus/minus per game",
     body: "How much better the player's team did while they were on the court, averaged per game: points their team scored minus points the other team scored. Positive is good. It only changes when someone checks in or out, so subbing matters.",
   },
+  pts: {
+    title: "Total PTS · Cumulative Career Points",
+    body: "Total points scored across all games (counting 2s, 3s and free throws).",
+  },
+  reb: {
+    title: "Total REB · Cumulative Career Rebounds",
+    body: "Total rebounds grabbed across all games, combining offensive and defensive boards.",
+  },
+  ast: {
+    title: "Total AST · Cumulative Career Assists",
+    body: "Total assists recorded leading directly to made teammate field goals.",
+  },
+  stl: {
+    title: "Total STL · Cumulative Career Steals",
+    body: "Total steals taken away from opponents on defense.",
+  },
+  blk: {
+    title: "Total BLK · Cumulative Career Blocks",
+    body: "Total opponent field goal attempts blocked and swatted away.",
+  },
+  fg3m: {
+    title: "Total 3PM · Cumulative Career 3-Pointers",
+    body: "Total shots made from beyond the 3-point arc across all games.",
+  },
+  totalPm: {
+    title: "Total +/- · Cumulative Point Differential",
+    body: "Total cumulative team net scoring margin while on the floor across all appearances.",
+  },
 };
 
 function rankingsHref(sort: string, keep: Record<string, string> = {}): string {

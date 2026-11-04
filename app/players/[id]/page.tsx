@@ -28,6 +28,7 @@ import { computePlayerArchetype } from "@/lib/badges";
 import { getPlayerMilestones } from "@/lib/milestones";
 import { PlayerBadges } from "@/app/components/PlayerBadges";
 import { PlayerMilestonesCard } from "@/app/components/PlayerMilestonesCard";
+import { PlayerStatsView } from "@/app/components/PlayerStatsView";
 import { computePlayerShotProfile } from "@/lib/shotZones";
 import { ShotHeatmap } from "@/app/components/ShotHeatmap";
 
@@ -60,21 +61,6 @@ export default async function PlayerPage({
       const line = g.lines.find((l) => l.playerId === playerId);
       return line ? [{ game: g, line }] : [];
     });
-
-  const cards: [string, string][] = [
-    ["PPG", fmtAvg(c.pts, c.gp)],
-    ["RPG", fmtAvg(c.reb, c.gp)],
-    ["APG", fmtAvg(c.ast, c.gp)],
-    ["SPG", fmtAvg(c.stl, c.gp)],
-    ["BPG", fmtAvg(c.blk, c.gp)],
-    ["TOPG", fmtAvg(c.tov, c.gp)],
-    ["FG%", fmtPct(c.fgm, c.fga)],
-    ["3P%", fmtPct(c.fg3m, c.fg3a)],
-    ["FT%", fmtPct(c.ftm, c.fta)],
-    ["eFG%", fmtEfg(c)],
-    ["TS%", fmtTs(c)],
-    ["+/-", c.gp ? fmtSigned(c.plusMinus / c.gp, 1) : "–"],
-  ];
 
   const playerNames = new Map<number, string>(players.map((p) => [p.id, p.name]));
   const shelf = shelfEntries(
@@ -247,16 +233,7 @@ export default async function PlayerPage({
 
       <PlayerBadges archetype={archetype} />
 
-      <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-        {cards.map(([label, value]) => (
-          <div key={label} className="glass-1 rounded-2xl p-3 text-center">
-            <div className="tabular text-2xl font-extrabold tracking-tight">
-              {value}
-            </div>
-            <div className="label text-muted">{label}</div>
-          </div>
-        ))}
-      </div>
+      <PlayerStatsView career={c} />
 
       <PlayerMilestonesCard milestones={milestones} />
 

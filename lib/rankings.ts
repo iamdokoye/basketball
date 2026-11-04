@@ -20,6 +20,14 @@ export const SORTS = {
   fg: { label: "FG%", value: (c: Ranked) => (c.fga ? c.fgm / c.fga : -1) },
   win: { label: "Win%", value: (c: Ranked) => c.wins / c.gp },
   pm: { label: "+/-", value: (c: Ranked) => c.plusMinus / c.gp },
+  // Total stats for each field
+  pts: { label: "Total PTS", value: (c: Ranked) => c.pts },
+  reb: { label: "Total REB", value: (c: Ranked) => c.reb },
+  ast: { label: "Total AST", value: (c: Ranked) => c.ast },
+  stl: { label: "Total STL", value: (c: Ranked) => c.stl },
+  blk: { label: "Total BLK", value: (c: Ranked) => c.blk },
+  fg3m: { label: "Total 3PM", value: (c: Ranked) => c.fg3m },
+  totalPm: { label: "Total +/-", value: (c: Ranked) => c.plusMinus },
 } as const;
 
 export type SortKey = keyof typeof SORTS;

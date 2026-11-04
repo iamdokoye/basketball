@@ -15,7 +15,7 @@ import { SortPills } from "./SortPills";
 
 export const dynamic = "force-dynamic";
 
-const COLUMNS: {
+const AVERAGE_COLUMNS: {
   key: SortKey | null;
   label: string;
   cell: (c: Ranked) => string;
@@ -33,13 +33,44 @@ const COLUMNS: {
   { key: "pm", label: "+/-", cell: (c) => fmtSigned(c.plusMinus / c.gp, 1) },
 ];
 
+const TOTAL_COLUMNS: {
+  key: SortKey | null;
+  label: string;
+  cell: (c: Ranked) => string;
+}[] = [
+  { key: "rating", label: "RTG", cell: (c) => c.rating.toFixed(1) },
+  { key: null, label: "GP", cell: (c) => String(c.gp) },
+  { key: "win", label: "W-L", cell: (c) => `${c.wins}-${c.losses}` },
+  { key: "pts", label: "PTS", cell: (c) => String(c.pts) },
+  { key: "reb", label: "REB", cell: (c) => String(c.reb) },
+  { key: "ast", label: "AST", cell: (c) => String(c.ast) },
+  { key: "stl", label: "STL", cell: (c) => String(c.stl) },
+  { key: "blk", label: "BLK", cell: (c) => String(c.blk) },
+  { key: "fg3m", label: "3PM", cell: (c) => `${c.fg3m}/${c.fg3a}` },
+  { key: null, label: "FGM", cell: (c) => `${c.fgm}/${c.fga}` },
+  { key: "totalPm", label: "+/-", cell: (c) => fmtSigned(c.plusMinus) },
+];
+
+const TOTALS_SORT_KEYS: SortKey[] = [
+  "pts",
+  "reb",
+  "ast",
+  "stl",
+  "blk",
+  "fg3m",
+  "totalPm",
+];
+
 export default async function RankingsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ sort?: string; season?: string; view?: string; p?: string }>;
+  searchParams: Promise<{ sort?: string; season?: string; view?: string; p?: string; statMode?: string }>;
 }) {
-  const { sort, season, view: requestedView, p } = await searchParams;
+  const { sort, season, view: requestedView, p, statMode } = await searchParams;
   const sortKey: SortKey = sort && sort in SORTS ? (sort as SortKey) : "rating";
+  const isTotalsSort = TOTALS_SORT_KEYS.includes(sortKey);
+  const isTotalsMode = statMode === "totals" || isTotalsSort;
+  const activeColumns = isTotalsMode ? TOTAL_COLUMNS : AVERAGE_COLUMNS;
 
   const [games, players, access] = await Promise.all([
     listGames(),
@@ -78,19 +109,63 @@ export default async function RankingsPage({
         </p>
       </div>
 
-      <LeagueTabs active="rankings" keep={periodParams} />
+      <LeagueTabs active="rankings" keep={{ ...periodParams, ...(isTotalsMode ? { statMode: "totals" } : {}) }} />
 
       <PeriodPicker
         basePath="/rankings"
         period={period}
-        extra={sortKey === "rating" ? {} : { sort: sortKey }}
+        extra={{
+          ...(sortKey === "rating" ? {} : { sort: sortKey }),
+          ...(isTotalsMode ? { statMode: "totals" } : {}),
+        }}
       />
 
+      {/* Stat Mode Switcher */}
+      <div className="flex items-center justify-between px-1">
+        <div className="label text-xs">Stat Display Mode</div>
+        <div className="flex rounded-full bg-black/[0.06] p-1 text-xs font-bold">
+          <Link
+            href={`/rankings?${new URLSearchParams({
+              ...periodParams,
+              ...(!isTotalsSort && sortKey !== "rating" ? { sort: sortKey } : {}),
+            }).toString()}`}
+            className={`rounded-full px-3 py-1 transition ${
+              !isTotalsMode
+                ? "bg-ink text-paper shadow-xs"
+                : "text-muted hover:text-ink"
+            }`}
+          >
+            Per Game (Avg)
+          </Link>
+          <Link
+            href={`/rankings?${new URLSearchParams({
+              ...periodParams,
+              sort: isTotalsSort ? sortKey : "pts",
+              statMode: "totals",
+            }).toString()}`}
+            className={`rounded-full px-3 py-1 transition ${
+              isTotalsMode
+                ? "bg-court-ink text-white shadow-xs"
+                : "text-muted hover:text-ink"
+            }`}
+          >
+            Totals (Each Field)
+          </Link>
+        </div>
+      </div>
+
       <SortPills
-        key={sortKey}
+        key={`${sortKey}-${isTotalsMode}`}
         active={sortKey}
-        keep={periodParams}
-        items={(Object.keys(SORTS) as SortKey[]).map((k) => ({
+        keep={{
+          ...periodParams,
+          ...(isTotalsMode ? { statMode: "totals" } : {}),
+        }}
+        items={(
+          isTotalsMode
+            ? (["pts", "reb", "ast", "stl", "blk", "fg3m", "totalPm", "win", "rating"] as SortKey[])
+            : (["rating", "ppg", "rpg", "apg", "spg", "bpg", "fg", "win", "pm"] as SortKey[])
+        ).map((k) => ({
           key: k,
           label: SORTS[k].label,
         }))}
@@ -109,7 +184,7 @@ export default async function RankingsPage({
                   <th className="sticky-cell px-3 py-3 text-left font-semibold">
                     # Player
                   </th>
-                  {COLUMNS.map((c) => (
+                  {activeColumns.map((c) => (
                     <th
                       key={c.label}
                       className={`px-2.5 py-3 text-right font-semibold ${c.key === sortKey ? "text-court-ink" : ""}`}
@@ -128,7 +203,7 @@ export default async function RankingsPage({
                       {isFirstUnranked && (
                         <tr className="bg-black/[0.03]">
                           <td
-                            colSpan={COLUMNS.length + 1}
+                            colSpan={activeColumns.length + 1}
                             className="px-3 py-2 text-xs font-bold uppercase tracking-wider text-muted"
                           >
                             Inactive / Under 40% Threshold ({qualifyAt} GP needed · averages frozen)
@@ -151,7 +226,7 @@ export default async function RankingsPage({
                             </div>
                           </Link>
                         </td>
-                        {COLUMNS.map((c) => {
+                        {activeColumns.map((c) => {
                           const v = c.cell(r);
                           const signed = c.label === "+/-";
                           return (
