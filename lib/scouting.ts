@@ -63,7 +63,7 @@ export function generateScoutingReport({
     nemesis = {
       mate: opp,
       winPct: pct,
-      label: "Kryptonite / Nemesis",
+      label: "Nemesis",
       badge: "Tough Matchup",
       color: "loss",
       description: `Only ${opp.wins}W – ${opp.losses}L (${pct}% win rate) against ${opp.name}.`,

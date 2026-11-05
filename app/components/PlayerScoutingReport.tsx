@@ -53,7 +53,7 @@ export function PlayerScoutingReport({ report }: { report: ScoutingReport }) {
         <div className="space-y-2">
           <div className="label text-[11px] text-muted">Key Personnel Matchups</div>
 
-          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
             {/* 1. Nemesis / Kryptonite */}
             {nemesis ? (
               <MatchupCard insight={nemesis} currentPlayerId={playerId} type="nemesis" />
@@ -101,24 +101,32 @@ export function PlayerScoutingReport({ report }: { report: ScoutingReport }) {
       {tendencies.length > 0 && (
         <div className="space-y-2 pt-1">
           <div className="label text-[11px] text-muted">Signature Tendencies &amp; Habits</div>
-          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 md:grid-cols-3">
-            {tendencies.map((t) => (
+          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+            {tendencies.map((t, idx) => (
               <div
                 key={t.id}
-                className="rounded-2xl border border-black/5 bg-white/70 p-3 shadow-2xs transition hover:bg-white"
+                className={`rounded-2xl border border-black/5 bg-white/70 p-3.5 shadow-2xs transition hover:bg-white flex flex-col justify-between ${
+                  tendencies.length % 2 !== 0 && idx === tendencies.length - 1
+                    ? "sm:col-span-2"
+                    : ""
+                }`}
               >
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <span className="shrink-0 text-base">{t.emoji}</span>
-                    <span className="truncate text-xs font-extrabold text-ink">{t.title}</span>
+                <div>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="shrink-0 text-base">{t.emoji}</span>
+                      <span className="text-xs font-extrabold text-ink leading-tight">
+                        {t.title}
+                      </span>
+                    </div>
+                    <span className="shrink-0 whitespace-nowrap rounded-full border border-court-ink/15 bg-court-soft/10 px-2.5 py-0.5 text-[10px] font-bold text-court-ink tabular">
+                      {t.stat}
+                    </span>
                   </div>
-                  <span className="shrink-0 whitespace-nowrap rounded-full border border-court-ink/15 bg-court-soft/10 px-2.5 py-0.5 text-[10px] font-bold text-court-ink tabular">
-                    {t.stat}
-                  </span>
+                  <p className="mt-2 text-[11px] font-medium leading-normal text-muted">
+                    {t.detail}
+                  </p>
                 </div>
-                <p className="mt-1.5 text-[11px] font-medium leading-normal text-muted">
-                  {t.detail}
-                </p>
               </div>
             ))}
           </div>
@@ -172,7 +180,7 @@ function MatchupCard({
     <div className={`relative flex flex-col justify-between rounded-2xl border p-3.5 shadow-2xs transition-all ${style.bg}`}>
       <div>
         <div className="flex items-center justify-between gap-1.5 pb-2">
-          <span className="label text-[10px] font-bold uppercase tracking-wider opacity-75">
+          <span className="label text-[10px] font-bold uppercase tracking-wider opacity-75 whitespace-nowrap">
             {label}
           </span>
           <span
@@ -223,8 +231,10 @@ function EmptyMatchupCard({ label, detail }: { label: string; detail: string }) 
   return (
     <div className="flex flex-col justify-between rounded-2xl border border-black/5 bg-black/[0.02] p-3.5 opacity-60">
       <div>
-        <div className="label text-[10px] text-muted">{label}</div>
-        <p className="mt-1 text-xs text-muted font-medium">{detail}</p>
+        <div className="label text-[10px] font-bold uppercase tracking-wider text-muted">
+          {label}
+        </div>
+        <p className="mt-2 text-xs text-muted font-medium leading-relaxed">{detail}</p>
       </div>
     </div>
   );
