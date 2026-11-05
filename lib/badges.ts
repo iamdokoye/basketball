@@ -69,7 +69,7 @@ export const ARCHETYPE_TIER_META: Record<
     dotClass: "bg-sky-500",
   },
   0: {
-    label: "Foundation",
+    label: "Tier 0 · Foundation",
     badgeClass: "bg-slate-200/60 text-slate-700 ring-1 ring-inset ring-slate-400/25 font-bold",
     dotClass: "bg-slate-500",
   },
@@ -596,33 +596,27 @@ export function computePlayerArchetype(
 
   // -------------------------------------------------------------
   // PILLAR MASTERY DEFINITIONS (Shoot, Assist, Defense)
-  // Accommodates early-season qualification (Games 1-25) and full-year thresholds
+  // Strictly requires earned Silver+ and Gold+ badges
   // -------------------------------------------------------------
-  // Shoot Pillar: Silver badge OR Early-season proven scoring (min 8 GP, 50 pts, >= 5.5 PPG or 8 3PM)
-  const isEarlyShootProven = gp >= 8 && (ppg >= 5.5 || (career.fg3m >= 8 && fg3Pct >= 0.28));
-  const hasSilverShoot = hasBadge("sharpshooter", "silver") || hasBadge("bucket", "silver") || isEarlyShootProven;
+  const hasSilverShoot = hasBadge("sharpshooter", "silver") || hasBadge("bucket", "silver");
   const hasGoldShoot = hasBadge("sharpshooter", "gold") || hasBadge("bucket", "gold");
   const hasHofShoot = hasBadge("sharpshooter", "hof") || hasBadge("bucket", "hof");
 
-  // Assist Pillar: Silver badge OR Early-season proven playmaking (min 8 GP, 14 ast, >= 1.4 APG)
-  const isEarlyAssistProven = gp >= 8 && career.ast >= 14 && apg >= 1.4;
-  const hasSilverAssist = hasBadge("floor-general", "silver") || isEarlyAssistProven;
+  const hasSilverAssist = hasBadge("floor-general", "silver");
   const hasGoldAssist = hasBadge("floor-general", "gold");
   const hasHofAssist = hasBadge("floor-general", "hof");
 
-  // Defense Pillar: Silver badge OR Early-season proven defense (min 8 GP, 12 stocks, >= 1.3 stocks/gm)
-  const isEarlyDefenseProven = gp >= 8 && stocks >= 12 && stockPg >= 1.3;
-  const hasSilverDefense = hasBadge("lockdown", "silver") || isEarlyDefenseProven;
+  const hasSilverDefense = hasBadge("lockdown", "silver");
   const hasGoldDefense = hasBadge("lockdown", "gold");
   const hasHofDefense = hasBadge("lockdown", "hof");
 
-  const hasSilverPaint = hasBadge("paint-beast", "silver") || (gp >= 8 && rpg >= 3.4);
+  const hasSilverPaint = hasBadge("paint-beast", "silver");
   const hasGoldPaint = hasBadge("paint-beast", "gold");
 
   // Secondary Skills (Bronze level threshold)
-  const hasSecondaryShoot = hasBadge("sharpshooter", "bronze") || hasBadge("bucket", "bronze") || career.fg3m >= 4 || ppg >= 4.0;
-  const hasSecondaryAssist = hasBadge("floor-general", "bronze") || career.ast >= 8 || apg >= 1.0;
-  const hasSecondaryDefense = hasBadge("lockdown", "bronze") || stocks >= 10 || stockPg >= 1.0;
+  const hasSecondaryShoot = hasBadge("sharpshooter", "bronze") || hasBadge("bucket", "bronze") || career.fg3m >= 5 || ppg >= 4.0;
+  const hasSecondaryAssist = hasBadge("floor-general", "bronze") || career.ast >= 10 || apg >= 1.0;
+  const hasSecondaryDefense = hasBadge("lockdown", "bronze") || stocks >= 12 || stockPg >= 1.0;
 
   // Count Gold+ and Silver+ pillars
   let goldPillars = 0;
@@ -641,17 +635,21 @@ export function computePlayerArchetype(
   let archetypeDesc = "Developing their game and carving out an identity on the court.";
   let archetypeTier: ArchetypeTier = 0;
 
-  if (career.gp < 2) {
+  // -------------------------------------------------------------
+  // TIER 0: ROOKIE (Games 0 to 9)
+  // In a 200-game season, every newcomer is a Rookie for their first 9 games
+  // -------------------------------------------------------------
+  if (career.gp < 10) {
     archetypeTitle = "Rookie";
     archetypeEmoji = "🏀";
-    archetypeDesc = "Fresh to the league, making their initial mark on the court.";
+    archetypeDesc = "Fresh to the league; finding their rhythm, learning team tendencies, and earning their stripes.";
     archetypeTier = 0;
   }
   // -------------------------------------------------------------
   // TIER 4: THE ALL-AROUND THREAT (Supreme Apex)
-  // Requires: All 3 Pillars at Silver+ AND at least 2 Gold+ pillars (or 1 HOF + 2 Silvers)
+  // Requires: All 3 Pillars at Silver+ AND at least 2 Gold+ pillars (or 1 HOF + 2 Silvers, min 50 GP)
   // -------------------------------------------------------------
-  else if (career.gp >= 25 && hasAllThreeSilvers && (goldPillars >= 2 || hasAnyHof)) {
+  else if (career.gp >= 50 && hasAllThreeSilvers && (goldPillars >= 2 || hasAnyHof)) {
     archetypeTitle = "The All-Around Threat";
     archetypeEmoji = "🌟";
     archetypeDesc =
@@ -660,10 +658,10 @@ export function computePlayerArchetype(
   }
   // -------------------------------------------------------------
   // TIER 3: PINNACLE DUAL-PILLARS
-  // Requires: 1 Gold+ Pillar AND 1 Silver+ Pillar (Shoot, Assist, Defense)
+  // Requires: 1 Gold+ Pillar AND 1 Silver+ Pillar (min 25 GP)
   // -------------------------------------------------------------
   // 1. Shoot + Assist (1 Gold, 1 Silver)
-  else if ((hasGoldShoot && hasSilverAssist) || (hasGoldAssist && hasSilverShoot)) {
+  else if (career.gp >= 25 && ((hasGoldShoot && hasSilverAssist) || (hasGoldAssist && hasSilverShoot))) {
     archetypeTitle = "Playmaking Shot Creator";
     archetypeEmoji = "🪄";
     archetypeDesc =
@@ -671,7 +669,7 @@ export function computePlayerArchetype(
     archetypeTier = 3;
   }
   // 2. Shoot + Defense (1 Gold, 1 Silver)
-  else if ((hasGoldShoot && hasSilverDefense) || (hasGoldDefense && hasSilverShoot)) {
+  else if (career.gp >= 25 && ((hasGoldShoot && hasSilverDefense) || (hasGoldDefense && hasSilverShoot))) {
     archetypeTitle = "3-and-D Specialist";
     archetypeEmoji = "🎯";
     archetypeDesc =
@@ -679,7 +677,7 @@ export function computePlayerArchetype(
     archetypeTier = 3;
   }
   // 3. Assist + Defense (1 Gold, 1 Silver)
-  else if ((hasGoldAssist && hasSilverDefense) || (hasGoldDefense && hasSilverAssist)) {
+  else if (career.gp >= 25 && ((hasGoldAssist && hasSilverDefense) || (hasGoldDefense && hasSilverAssist))) {
     archetypeTitle = "Two-Way Floor General";
     archetypeEmoji = "🛡️";
     archetypeDesc =
@@ -787,7 +785,7 @@ export function computePlayerArchetype(
     archetypeEmoji = "🏰";
     archetypeDesc = "Controls the paint, dominates the glass, and protects the rim.";
     archetypeTier = 2;
-  } else if ((hasBadge("bucket", "silver") || ppg >= 5.5) && (hasSilverPaint || rpg >= 3.4)) {
+  } else if (hasBadge("bucket", "silver") && (hasSilverPaint || rpg >= 3.4)) {
     archetypeTitle = "Two-Way Force";
     archetypeEmoji = "👑";
     archetypeDesc = "Powerful scoring and rebounding presence on the interior.";
@@ -796,7 +794,7 @@ export function computePlayerArchetype(
   // -------------------------------------------------------------
   // TIER 1: SPECIALIZED DISCIPLINES (Single Discipline at Silver+)
   // -------------------------------------------------------------
-  else if (hasBadge("sharpshooter", "silver") || (gp >= 8 && career.fg3m >= 8 && fg3Pct >= 0.28)) {
+  else if (hasBadge("sharpshooter", "silver")) {
     archetypeTitle = "Sharpshooter";
     archetypeEmoji = "🎯";
     archetypeDesc = "Lethal shooting threat from anywhere behind the arc.";
@@ -811,7 +809,7 @@ export function computePlayerArchetype(
     archetypeEmoji = "🔒";
     archetypeDesc = "Defensive stopper who takes on the opponent's toughest matchup.";
     archetypeTier = 1;
-  } else if (hasBadge("bucket", "silver") || (gp >= 8 && ppg >= 5.5)) {
+  } else if (hasBadge("bucket", "silver")) {
     archetypeTitle = "Pure Scorer";
     archetypeEmoji = "🔥";
     archetypeDesc = "Natural scoring instinct capable of heating up in a flash.";
@@ -826,7 +824,7 @@ export function computePlayerArchetype(
     archetypeEmoji = "🧊";
     archetypeDesc = "Ice in their veins; delivers game-winners and decisive late-game plays.";
     archetypeTier = 1;
-  } else if (rpg >= 3.4 && career.reb >= 30) {
+  } else if (hasBadge("paint-beast", "silver") || (rpg >= 3.4 && career.reb >= 100)) {
     archetypeTitle = "Rebound Dynamo";
     archetypeEmoji = "🦍";
     archetypeDesc = "High-motor rebounder who guarantees extra possessions.";
@@ -838,17 +836,19 @@ export function computePlayerArchetype(
     archetypeTier = 1;
   }
   // -------------------------------------------------------------
-  // TIER 0: FOUNDATIONS
+  // TIER 0: FOUNDATIONS (When no Silver skill pillar is unlocked)
+  // - GP 10 to 24: Prospect (flashing potential, building signature weapon)
+  // - GP 25+: Glue Player (reliable veteran connector doing the dirty work)
   // -------------------------------------------------------------
-  else if (career.gp < 5) {
+  else if (career.gp < 25) {
     archetypeTitle = "Prospect";
     archetypeEmoji = "🌱";
-    archetypeDesc = "Developing their game and carving out an identity on the court.";
+    archetypeDesc = "Flashing high potential and carving out an identity; working toward their first signature weapon.";
     archetypeTier = 0;
   } else {
     archetypeTitle = "Glue Player";
     archetypeEmoji = "🧩";
-    archetypeDesc = "Reliable teammate who does the little things that lead to winning.";
+    archetypeDesc = "Reliable teammate who does the dirty work—screens, hustle, ball movement, and team chemistry.";
     archetypeTier = 0;
   }
 
