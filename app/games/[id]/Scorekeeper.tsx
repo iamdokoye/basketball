@@ -8,11 +8,13 @@ import { useGameSync } from "./useGameSync";
 import {
   buildClock,
   elapsedNow,
+  FIBA,
   formatClock,
   formatCountdown,
   getQuarterInfo,
   isBuzzerBeater,
   timeoutRemaining,
+  timeoutStatus,
 } from "@/lib/clock";
 import {
   boxScore,
@@ -55,7 +57,13 @@ type Option = {
   tone?: "good" | "bad" | "neutral" | "sub";
   onPick: () => void;
 };
-type Section = { heading?: string; cols: 1 | 2 | 3; options: Option[] };
+type Section = {
+  heading?: string;
+  /** Shown instead of the options when none can be picked (e.g. a team out of timeouts). */
+  note?: string;
+  cols: 1 | 2 | 3;
+  options: Option[];
+};
 type Sheet = {
   title: string;
   subtitle?: string;
@@ -236,6 +244,27 @@ export default function Scorekeeper({
     ],
   );
   const [shotPadShooter, setShotPadShooter] = useState<RosterEntry | null>(null);
+  /** FIBA timeout allowance for a team right now (timed games only). */
+  const timeoutFor = (t: Team) =>
+    gameType === "timed" && quarterInfo
+      ? timeoutStatus(clock, t, quarterInfo, quarterMinutes, quarterCount)
+      : null;
+
+  // Keep the break countdown ticking while a break is on, and blow the whistle when it runs out.
+  const breakOn = (quarterInfo?.breakMs ?? 0) > 0 && !result.over;
+  const breakLeftMs = quarterInfo?.breakRemainingMs ?? 0;
+  const [, redrawBreak] = useState(0);
+  useEffect(() => {
+    if (!breakOn || breakLeftMs <= 0) return;
+    const id = setInterval(() => redrawBreak((n) => n + 1), 500);
+    return () => clearInterval(id);
+  }, [breakOn, breakLeftMs]);
+  const breakWasOn = useRef(false);
+  useEffect(() => {
+    if (breakOn && breakLeftMs === 0 && breakWasOn.current && !readOnly) playWhistle();
+    breakWasOn.current = breakOn && breakLeftMs > 0;
+  }, [breakOn, breakLeftMs, readOnly]);
+
   const [buzzerBeaterAlert, setBuzzerBeaterAlert] = useState<string | null>(null);
   const [showShotClock, setShowShotClock] = useState(false);
   const [shotClockSec, setShotClockSec] = useState(24);
@@ -352,6 +381,17 @@ export default function Scorekeeper({
   }, [groups, roster]);
 
   function commit(evs: Ev[]): string {
+    // Timed games follow the FIBA timeout allowances (also for timeouts said by voice).
+    for (const e of evs) {
+      if (e.type !== "TIMEOUT") continue;
+      const team = e.team ?? roster.find((p) => p.id === e.playerId)?.team;
+      const status = team ? timeoutFor(team) : null;
+      if (status && !status.allowed) {
+        setSheet(null);
+        setLocalError(`Team ${team}: ${status.reason}.`);
+        return "";
+      }
+    }
     navigator.vibrate?.(12);
     setSheet(null);
     setLocalError(null);
@@ -599,10 +639,15 @@ export default function Scorekeeper({
 
   function timeoutStep() {
     playWhistle();
-    const side = (t: Team) => ({
-      heading: TEAM_STYLE[t].label,
+    const side = (t: Team) => {
+      const status = timeoutFor(t);
+      return {
+      heading: status
+        ? `${TEAM_STYLE[t].label} · ${status.left} of ${status.limit} left (${status.scope})`
+        : TEAM_STYLE[t].label,
+      note: status && !status.allowed ? (status.reason ?? undefined) : undefined,
       cols: 2 as const,
-      options: [
+      options: status && !status.allowed ? [] : [
         {
           label: `${TEAM_STYLE[t].label} called it`,
           tone: "sub" as const,
@@ -614,7 +659,8 @@ export default function Scorekeeper({
             commit([{ playerId: p.id, type: "TIMEOUT" as const, team: t }]),
         })),
       ],
-    });
+      };
+    };
     setSheet({
       title: "Timeout",
       subtitle: "Who called it?",
@@ -1134,10 +1180,16 @@ export default function Scorekeeper({
             )}
 
             <div className="flex items-center gap-1.5">
-              {(timeoutsBy("A") > 0 || timeoutsBy("B") > 0) && (
+              {gameType === "timed" && quarterInfo ? (
                 <span className="tabular mr-0.5 whitespace-nowrap text-[10px] font-bold uppercase tracking-wide text-muted">
-                  TO {timeoutsBy("A")}–{timeoutsBy("B")}
+                  TO left {timeoutFor("A")?.left ?? 0}–{timeoutFor("B")?.left ?? 0}
                 </span>
+              ) : (
+                (timeoutsBy("A") > 0 || timeoutsBy("B") > 0) && (
+                  <span className="tabular mr-0.5 whitespace-nowrap text-[10px] font-bold uppercase tracking-wide text-muted">
+                    TO {timeoutsBy("A")}–{timeoutsBy("B")}
+                  </span>
+                )
               )}
               {!readOnly &&
                 (clock.activeTimeout ? (
@@ -1189,6 +1241,16 @@ export default function Scorekeeper({
                         ? "Regulation tied! Overtime ready"
                         : "Regulation finished!"}
                   </div>
+                  {quarterInfo.breakMs > 0 && (
+                    <div className="tabular text-[11px] font-bold text-amber-900">
+                      {quarterInfo.breakMs === FIBA.halftimeBreakMs
+                        ? "Halftime"
+                        : "Break"}{" "}
+                      {quarterInfo.breakRemainingMs > 0
+                        ? formatClock(quarterInfo.breakRemainingMs)
+                        : "over"}
+                    </div>
+                  )}
                 </div>
                 <button
                   type="button"
@@ -1766,6 +1828,11 @@ export default function Scorekeeper({
               <div key={i}>
                 {s.heading && (
                   <div className="label mb-1.5 text-muted">{s.heading}</div>
+                )}
+                {s.note && (
+                  <div className="rounded-xl bg-black/[0.04] px-3 py-3 text-sm font-semibold text-muted">
+                    {s.note}
+                  </div>
                 )}
                 <div className={`grid gap-2 ${COLS[s.cols]}`}>
                   {s.options.map((o) => (
