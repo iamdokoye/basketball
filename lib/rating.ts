@@ -36,7 +36,7 @@ export const RATING = {
   /** The game target every weight in this file is tuned for; other targets are scaled to it. */
   refTarget: 20,
   /** Bounds on the game-length scale so extreme targets (1 or 200) can't blow the rating up or flatten it. */
-  minLengthScale: 0.15,
+  minLengthScale: 0.1,
   maxLengthScale: 3,
   /** Floor on the share of the game played used to scale a short stint. */
   minShare: 0.3,

@@ -59,8 +59,10 @@ function pointsPmf(meanMakes: number, maxPts: number): number[] {
 /** Seconds left in the period that decides the game: the rest of regulation, or of the current overtime. */
 export function timedRemainingSec(elapsedSec: number, totalRegSec: number): number {
   const otSec = OVERTIME_MINUTES * 60;
-  if (elapsedSec < totalRegSec) return totalRegSec - elapsedSec;
-  return otSec - ((elapsedSec - totalRegSec) % otSec);
+  if (elapsedSec <= totalRegSec) return Math.max(0, totalRegSec - elapsedSec);
+  const otElapsed = elapsedSec - totalRegSec;
+  const rem = otSec - (otElapsed % otSec);
+  return rem === otSec ? 0 : rem;
 }
 
 function timedWinProbability({
@@ -77,9 +79,41 @@ function timedWinProbability({
   totalRegSec: number;
 }): WinProbabilityState {
   const totalTime = Math.max(60, totalRegSec);
-  const inOvertime = elapsedSec >= totalTime;
+  const inOvertime = elapsedSec > totalTime;
   const remaining = timedRemainingSec(Math.max(0, elapsedSec), totalTime);
   const lead = scoreA - scoreB;
+
+  // If the period has reached 0:00, outcome is decided or tied into overtime
+  if (remaining <= 0) {
+    if (lead > 0) {
+      return {
+        probA: 100,
+        probB: 0,
+        probDraw: 0,
+        favored: "A",
+        leverageIndex: 1.0,
+        description: "Team A has clinched victory",
+      };
+    }
+    if (lead < 0) {
+      return {
+        probA: 0,
+        probB: 100,
+        probDraw: 0,
+        favored: "B",
+        leverageIndex: 1.0,
+        description: "Team B has clinched victory",
+      };
+    }
+    return {
+      probA: 50,
+      probB: 50,
+      probDraw: 100,
+      favored: "even",
+      leverageIndex: 1.0,
+      description: inOvertime ? "Overtime tied · Next OT" : "Regulation tied · Overtime",
+    };
+  }
 
   // Scoring pace: the typical pace, firmed up by what this game has actually produced.
   const pace =
