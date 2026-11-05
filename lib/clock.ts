@@ -62,6 +62,9 @@ export function buildClock(events: GameEvent[], startMs: number, roster: RosterE
       if (on) on.endedAt = e.at;
     }
 
+    // Setting who has the ball is not play: it neither starts nor stops the clock.
+    if (e.type === "POSS") continue;
+
     if (!started) {
       if (isStop(e.type)) continue; // nothing to pause yet
       started = true;

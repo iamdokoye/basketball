@@ -48,6 +48,7 @@ import {
   playWhistle,
 } from "@/lib/courtAudio";
 import { detectOnFirePlayers } from "@/lib/momentum";
+import { buildPossession, readShotClock, type Possession } from "@/lib/possession";
 
 type Ev = { playerId: number; type: EventType; team?: Team };
 
@@ -105,6 +106,14 @@ const TEAM_STYLE = {
     label: "Team B",
   },
 } as const;
+
+/** One line under the shot clock saying who has the ball (or why nobody does). */
+function possessionLabel(team: Team | null, phase: Possession["phase"], clockCutOff: boolean): string {
+  if (team) return `${TEAM_STYLE[team].label} ball${clockCutOff ? " · clock off" : ""}`;
+  if (phase === "loose") return "Loose ball · awaiting rebound";
+  if (phase === "freeThrows") return "Free throws";
+  return "Tap who has the ball";
+}
 
 export default function Scorekeeper({
   gameId,
@@ -266,8 +275,25 @@ export default function Scorekeeper({
   }, [breakOn, breakLeftMs, readOnly]);
 
   const [buzzerBeaterAlert, setBuzzerBeaterAlert] = useState<string | null>(null);
-  const [showShotClock, setShowShotClock] = useState(false);
-  const [shotClockSec, setShotClockSec] = useState(24);
+  // Who has the ball and the shot clock come from the saved plays, so they survive a reload and
+  // spectators see them too. The toggle is just whether this phone shows the panel.
+  const [showShotClock, setShowShotClock] = useState(gameType === "timed");
+  const possession = useMemo(
+    () =>
+      buildPossession(
+        events,
+        roster,
+        clock,
+        gameType === "timed" ? { quarterMinutes, quarterCount } : undefined,
+      ),
+    [events, roster, clock, gameType, quarterMinutes, quarterCount],
+  );
+  const shot = readShotClock(
+    possession,
+    clock,
+    nowMs,
+    gameType === "timed" ? quarterInfo?.quarterRemainingMs : undefined,
+  );
 
   const onFirePlayers = useMemo(
     () => detectOnFirePlayers(events, roster, 2),
@@ -325,20 +351,18 @@ export default function Scorekeeper({
     }
   }, [clock.activeTimeout, nowMs]);
 
-  // Shot clock decrement when game clock is running
+  // Buzz once when the shot clock runs out (not for every redraw, and not again until the next reset).
+  const violationKey = shot.violation ? `${possession.atGameMs}:${possession.team}` : null;
+  const buzzedFor = useRef<string | null>(null);
   useEffect(() => {
-    if (!showShotClock || !clock.running) return;
-    const interval = setInterval(() => {
-      setShotClockSec((s) => {
-        if (s <= 1) {
-          playBuzzer();
-          return 0;
-        }
-        return s - 1;
-      });
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [showShotClock, clock.running]);
+    if (!violationKey) {
+      buzzedFor.current = null;
+      return;
+    }
+    if (buzzedFor.current === violationKey) return;
+    buzzedFor.current = violationKey;
+    if (showShotClock && !readOnly) playBuzzer();
+  }, [violationKey, showShotClock, readOnly]);
 
   // Play on fire flame whoosh when a new player catches fire
   const prevOnFireCount = useRef(onFirePlayers.length);
@@ -418,22 +442,6 @@ export default function Scorekeeper({
       }
     } else if (evs.some((e) => e.type === "MISS2" || e.type === "MISS3")) {
       playClang();
-    }
-
-    // Shot clock resets (FIBA 24s / 14s rules)
-    if (evs.some((e) => e.type === "OREB")) {
-      setShotClockSec(14);
-    } else if (
-      evs.some(
-        (e) =>
-          e.type === "DREB" ||
-          e.type === "STL" ||
-          e.type === "TOV" ||
-          e.type === "MAKE2" ||
-          e.type === "MAKE3",
-      )
-    ) {
-      setShotClockSec(24);
     }
 
     return sync.add(evs);
@@ -634,6 +642,25 @@ export default function Scorekeeper({
           ],
         },
       ],
+    });
+  }
+
+  /** Shot clock ran out: charge the turnover to a player on the team that had the ball. */
+  function violationStep() {
+    const side = (t: Team) => ({
+      heading: `${TEAM_STYLE[t].label} had the ball`,
+      cols: 2 as const,
+      options: active(t).map((p) => ({
+        label: shortName(p.name),
+        tone: "bad" as const,
+        onPick: () => commit([{ playerId: p.id, type: "TOV" }]),
+      })),
+    });
+    const team = possession.team;
+    setSheet({
+      title: "Shot clock violation",
+      subtitle: team ? "Who had it? (Turnover)" : "Which team had the ball? (Turnover)",
+      sections: team ? [side(team)] : [side("A"), side("B")],
     });
   }
 
@@ -1303,58 +1330,66 @@ export default function Scorekeeper({
         </div>
       </div>
 
-      {/* 24s Shot Clock Assistant */}
+      {/* Shot clock and possession (worked out from the plays) */}
       {showShotClock && (
         <div className="glass-2 space-y-2 rounded-2xl p-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-muted">Shot Clock:</span>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="text-xs font-bold text-muted">Shot clock</span>
               <span
                 className={`tabular text-2xl font-black ${
-                  shotClockSec <= 5 ? "animate-pulse text-loss" : "text-ink"
+                  shot.violation
+                    ? "text-loss"
+                    : shot.sec !== null && shot.sec <= 5
+                      ? "animate-pulse text-loss"
+                      : shot.sec === null
+                        ? "text-muted"
+                        : "text-ink"
                 }`}
               >
-                {shotClockSec}s
+                {shot.sec === null ? "--" : `${shot.sec}s`}
               </span>
-              {shotClockSec === 0 && (
+              {shot.violation && (
                 <span className="text-xs font-bold text-loss">VIOLATION!</span>
               )}
             </div>
-            {!readOnly && (
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => setShotClockSec(24)}
-                  className="rounded-full bg-black/[0.06] px-2.5 py-1 text-xs font-bold text-ink active:scale-95"
-                >
-                  24s
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShotClockSec(14)}
-                  className="rounded-full bg-court-soft/60 px-2.5 py-1 text-xs font-bold text-court-ink active:scale-95"
-                  title="FIBA Offensive Rebound reset to 14s"
-                >
-                  14s (O-Reb)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    playBuzzer();
-                    const activePlayer = active("A")[0] || roster[0];
-                    if (activePlayer) {
-                      commit([{ playerId: activePlayer.id, type: "TOV" }]);
-                    }
-                  }}
-                  className="rounded-full bg-loss/10 px-2.5 py-1 text-xs font-bold text-loss ring-1 ring-loss/20 active:scale-95"
-                >
-                  Violation (TO)
-                </button>
-              </div>
-            )}
+            <div className="min-w-0 truncate text-right text-xs font-bold text-ink">
+              {possessionLabel(possession.team, possession.phase, shot.sec === null && possession.startSec !== null)}
+            </div>
           </div>
+          {!readOnly && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              {(["A", "B"] as const).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => commit([{ playerId: 0, type: "POSS", team: t }])}
+                  className={`rounded-full px-2.5 py-1 text-xs font-bold active:scale-95 ${
+                    possession.team === t
+                      ? "bg-court-ink text-white"
+                      : "bg-black/[0.06] text-ink"
+                  }`}
+                  title="Give this team the ball with a fresh 24s"
+                >
+                  Ball: {TEAM_STYLE[t].label}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={violationStep}
+                className={`rounded-full px-2.5 py-1 text-xs font-bold ring-1 active:scale-95 ${
+                  shot.violation
+                    ? "animate-pulse bg-loss text-white ring-loss"
+                    : "bg-loss/10 text-loss ring-loss/20"
+                }`}
+              >
+                Violation (TO)
+              </button>
+            </div>
+          )}
           <p className="text-[11px] leading-tight text-muted">
-            FIBA rules: 24s to attempt a shot hitting the rim. Resets to 14s on offensive rebound. Ticks when game clock runs.
+            FIBA: 24s to shoot, 14s after an offensive rebound or a defensive foul. It follows the plays
+            you log, stops with the game clock, and switches off when less than 24s is left in the period.
           </p>
         </div>
       )}

@@ -24,10 +24,14 @@ export const EVENT_TYPES = [
   "PAUSE",
   "RESUME",
   "TIMEOUT",
+  "POSS",
 ] as const;
 
-/** Plays that are about the clock, not a player stat. They can carry no player (playerId 0). */
-export const CLOCK_TYPES = ["PAUSE", "RESUME", "TIMEOUT"] as const;
+/**
+ * Plays that are about the clock, not a player stat. They can carry no player (playerId 0).
+ * POSS says which team (`team`) has the ball with a fresh shot clock (see lib/possession.ts).
+ */
+export const CLOCK_TYPES = ["PAUSE", "RESUME", "TIMEOUT", "POSS"] as const;
 
 export type EventType = (typeof EVENT_TYPES)[number];
 export type Team = "A" | "B";
@@ -305,6 +309,7 @@ export function describeGroup(events: GameEvent[], nameOf: (id: number) => strin
   if (clockPlay) {
     if (clockPlay.type === "PAUSE") return "Clock paused";
     if (clockPlay.type === "RESUME") return "Play resumed";
+    if (clockPlay.type === "POSS") return clockPlay.team ? `Ball to Team ${clockPlay.team}` : "Possession set";
     const who = clockPlay.playerId ? `called by ${nameOf(clockPlay.playerId)}` : "";
     const team = clockPlay.team ? `Team ${clockPlay.team}` : "";
     return ["Timeout", [team, who].filter(Boolean).join(", ")].filter(Boolean).join(": ");

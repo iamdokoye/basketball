@@ -321,6 +321,8 @@ export async function recordGroup(
       // Pause, resume and team timeouts name no player (0); a timeout must say who called it.
       if (e.playerId !== 0 && !isId(e.playerId)) return fail(GENERIC);
       if (e.type === "TIMEOUT" && !e.playerId && !e.team) return fail(GENERIC);
+      // Possession is set for a team, never a player.
+      if (e.type === "POSS" && (e.playerId !== 0 || !e.team)) return fail(GENERIC);
     } else if (!isId(e.playerId)) {
       return fail(GENERIC);
     }
