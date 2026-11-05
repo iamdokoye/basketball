@@ -89,7 +89,7 @@ export default async function MePage() {
     .flatMap((game) => {
       const line = game.lines.find((l) => l.playerId === playerId);
       if (!line) return [];
-      const r = rateLine(line, gameContext(game.lines, game.target));
+      const r = rateLine(line, gameContext(game.lines, game.target, game));
       const mine = game.score[line.team];
       const theirs = game.score[line.team === "A" ? "B" : "A"];
       return [

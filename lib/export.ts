@@ -101,7 +101,7 @@ export function boxCsv(games: Game[]): string {
     ]),
   ];
   for (const g of games) {
-    const ctx = gameContext(g.lines, g.target);
+    const ctx = gameContext(g.lines, g.target, g);
     const starter = new Map(g.roster.map((p) => [p.id, p.starter]));
     for (const l of g.lines) {
       const r = rateLine(l, ctx);

@@ -9,6 +9,9 @@ import {
   buildClock,
   elapsedNow,
   formatClock,
+  formatCountdown,
+  getQuarterInfo,
+  isBuzzerBeater,
   timeoutRemaining,
 } from "@/lib/clock";
 import {
@@ -34,7 +37,14 @@ import { CourtAudioControls } from "@/app/components/CourtAudio";
 import { LiveMomentumMeter } from "@/app/components/LiveMomentumMeter";
 import { LiveWinProbability } from "@/app/components/LiveWinProbability";
 import { MiniCourtShotPad } from "@/app/components/MiniCourtShotPad";
-import { playBuzzer, playClang, playOnFireSound, playSwish } from "@/lib/courtAudio";
+import {
+  playBuzzer,
+  playCheer,
+  playClang,
+  playOnFireSound,
+  playSwish,
+  playWhistle,
+} from "@/lib/courtAudio";
 import { detectOnFirePlayers } from "@/lib/momentum";
 
 type Ev = { playerId: number; type: EventType; team?: Team };
@@ -96,6 +106,9 @@ export default function Scorekeeper({
   startMs,
   target,
   winBy,
+  gameType = "target",
+  quarterMinutes = 10,
+  quarterCount = 4,
   readOnly = false,
   spectating = false,
   windowLabel = "",
@@ -112,6 +125,9 @@ export default function Scorekeeper({
   startMs: number;
   target: number;
   winBy: number;
+  gameType?: "target" | "timed";
+  quarterMinutes?: number;
+  quarterCount?: number;
   /** Spectator mode: nothing is tappable and the page follows the live game. */
   readOnly?: boolean;
   /** Opened on purpose to watch (not because scoring is closed): offers a way back to scoring. */
@@ -192,8 +208,37 @@ export default function Scorekeeper({
   const timeoutsBy = (t: Team) =>
     clock.timeouts.filter((x) => x.team === t).length;
   const score = teamScores(lines);
-  const result = gameResult(score, { target, winBy });
+  const isTied = score.A === score.B;
+
+  const quarterInfo = useMemo(
+    () =>
+      gameType === "timed"
+        ? getQuarterInfo(clock, nowMs, quarterMinutes, quarterCount, isTied)
+        : null,
+    [gameType, clock, nowMs, quarterMinutes, quarterCount, isTied],
+  );
+
+  const result = useMemo(
+    () =>
+      gameResult(
+        score,
+        { target, winBy, gameType, quarterMinutes, quarterCount },
+        quarterInfo?.isGameEnded,
+      ),
+    [
+      score,
+      target,
+      winBy,
+      gameType,
+      quarterMinutes,
+      quarterCount,
+      quarterInfo?.isGameEnded,
+    ],
+  );
   const [shotPadShooter, setShotPadShooter] = useState<RosterEntry | null>(null);
+  const [buzzerBeaterAlert, setBuzzerBeaterAlert] = useState<string | null>(null);
+  const [showShotClock, setShowShotClock] = useState(false);
+  const [shotClockSec, setShotClockSec] = useState(24);
 
   const onFirePlayers = useMemo(
     () => detectOnFirePlayers(events, roster, 2),
@@ -212,6 +257,59 @@ export default function Scorekeeper({
     }
     prevIsOver.current = result.over;
   }, [result.over]);
+
+  // End of quarter buzzer sound and auto-pause
+  const prevQuarterEnded = useRef(false);
+  useEffect(() => {
+    if (
+      quarterInfo?.isQuarterEnded &&
+      !prevQuarterEnded.current &&
+      clock.running
+    ) {
+      playBuzzer();
+      if (!readOnly) {
+        // Stamp the pause at the buzzer itself, not at the next redraw, so no time leaks into the next quarter.
+        sync.add(
+          [{ playerId: 0, type: "PAUSE" }],
+          quarterInfo.boundaryWallMs ?? undefined,
+        );
+      }
+    }
+    prevQuarterEnded.current = Boolean(quarterInfo?.isQuarterEnded);
+  }, [quarterInfo, clock.running, readOnly, sync]);
+
+  // Warning whistle on timeout reaching 10 seconds
+  const warnedTimeoutRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!clock.activeTimeout) {
+      warnedTimeoutRef.current = null;
+      return;
+    }
+    const left = timeoutRemaining(clock.activeTimeout, nowMs);
+    if (
+      left <= 10 &&
+      left > 8 &&
+      warnedTimeoutRef.current !== clock.activeTimeout.grp
+    ) {
+      warnedTimeoutRef.current = clock.activeTimeout.grp;
+      playWhistle();
+    }
+  }, [clock.activeTimeout, nowMs]);
+
+  // Shot clock decrement when game clock is running
+  useEffect(() => {
+    if (!showShotClock || !clock.running) return;
+    const interval = setInterval(() => {
+      setShotClockSec((s) => {
+        if (s <= 1) {
+          playBuzzer();
+          return 0;
+        }
+        return s - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [showShotClock, clock.running]);
 
   // Play on fire flame whoosh when a new player catches fire
   const prevOnFireCount = useRef(onFirePlayers.length);
@@ -263,12 +361,46 @@ export default function Scorekeeper({
     // Audio SFX feedback
     if (evs.some((e) => e.type === "MAKE2" || e.type === "MAKE3")) {
       playSwish();
+
+      // Check for Buzzer Beater!
+      if (quarterInfo && isBuzzerBeater(quarterInfo.quarterRemainingMs)) {
+        playBuzzer();
+        playCheer();
+        const shooterId =
+          evs.find((e) => e.type === "MAKE2" || e.type === "MAKE3")?.playerId ?? 0;
+        const shooterName = shortName(nameOf(shooterId));
+        const shotType = evs.some((e) => e.type === "MAKE3") ? "3PT" : "2PT";
+        const remFmt = formatCountdown(quarterInfo.quarterRemainingMs);
+        setBuzzerBeaterAlert(
+          `🚨 ${shooterName} hits the ${shotType} BUZZER BEATER with ${remFmt} left in ${quarterInfo.quarterLabel}!`,
+        );
+        setTimeout(() => setBuzzerBeaterAlert(null), 6000);
+      }
     } else if (evs.some((e) => e.type === "MISS2" || e.type === "MISS3")) {
       playClang();
     }
 
+    // Shot clock resets (FIBA 24s / 14s rules)
+    if (evs.some((e) => e.type === "OREB")) {
+      setShotClockSec(14);
+    } else if (
+      evs.some(
+        (e) =>
+          e.type === "DREB" ||
+          e.type === "STL" ||
+          e.type === "TOV" ||
+          e.type === "MAKE2" ||
+          e.type === "MAKE3",
+      )
+    ) {
+      setShotClockSec(24);
+    }
+
     return sync.add(evs);
   }
+
+  const clockPlay = (type: "PAUSE" | "RESUME") =>
+    commit([{ playerId: 0, type }]);
 
   function removeGroup(grp: string) {
     setLocalError(null);
@@ -466,6 +598,7 @@ export default function Scorekeeper({
   }
 
   function timeoutStep() {
+    playWhistle();
     const side = (t: Team) => ({
       heading: TEAM_STYLE[t].label,
       cols: 2 as const,
@@ -488,9 +621,6 @@ export default function Scorekeeper({
       sections: [side("A"), side("B")],
     });
   }
-
-  const clockPlay = (type: "PAUSE" | "RESUME") =>
-    commit([{ playerId: 0, type }]);
 
   function playerSheet(p: RosterEntry) {
     const solo =
@@ -814,6 +944,32 @@ export default function Scorekeeper({
     <div
       className={`space-y-4 ${view === "pad" ? "pb-[26rem]" : view === "quick" ? "pb-44" : ""}`}
     >
+      {/* Buzzer Beater Celebration Alert */}
+      {buzzerBeaterAlert && (
+        <div className="glass-1 animate-pulse rounded-2xl border-2 border-amber-400 bg-amber-500/20 p-3 shadow-md">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-2xl">🚨</span>
+              <div>
+                <div className="text-xs font-black uppercase tracking-wider text-amber-950">
+                  Buzzer Beater!
+                </div>
+                <div className="text-xs font-bold text-amber-900">
+                  {buzzerBeaterAlert}
+                </div>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setBuzzerBeaterAlert(null)}
+              className="shrink-0 rounded-full bg-white/70 px-2.5 py-1 text-xs font-bold text-amber-950 active:scale-95"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Scoreboard */}
       <div className="sticky top-[calc(var(--header-h)+8px)] z-10 -mx-4 px-4 pb-2 pt-1">
         <div className="glass-3 overflow-hidden rounded-3xl">
@@ -836,10 +992,59 @@ export default function Scorekeeper({
               </div>
             ))}
             <div className="order-2 flex flex-col items-center justify-center px-1 text-[11px] font-semibold text-muted">
-              <span>{winBy > 1 ? `to ${target}` : `first to ${target}`}</span>
-              {winBy > 1 && <span>win by {winBy}</span>}
+              {gameType === "timed" ? (
+                <>
+                  <span className="rounded-full bg-court-soft/50 px-2 py-0.5 text-xs font-extrabold text-court-ink">
+                    {quarterInfo?.quarterLabel ?? "Q1"}
+                  </span>
+                  <span className="mt-0.5 text-[10px] text-muted">
+                    {quarterMinutes}m / Q
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span>{winBy > 1 ? `to ${target}` : `first to ${target}`}</span>
+                  {winBy > 1 && <span>win by {winBy}</span>}
+                </>
+              )}
             </div>
           </div>
+
+          {/* Quarter tracker pills for timed games */}
+          {gameType === "timed" && quarterInfo && (
+            <div className="hairline flex items-center justify-between border-t bg-black/[0.02] px-4 py-1.5">
+              <div className="flex items-center gap-1">
+                {Array.from({ length: quarterCount }, (_, i) => i + 1).map((q) => {
+                  const isCurrent = quarterInfo.quarter === q;
+                  const isPast = quarterInfo.quarter > q;
+                  return (
+                    <span
+                      key={q}
+                      className={`rounded-md px-2 py-0.5 text-[11px] font-bold ${
+                        isCurrent
+                          ? "bg-court-ink text-white shadow-xs"
+                          : isPast
+                            ? "bg-black/[0.08] text-muted"
+                            : "bg-black/[0.04] text-muted/60"
+                      }`}
+                    >
+                      Q{q}
+                    </span>
+                  );
+                })}
+                {quarterInfo.isOvertime && (
+                  <span className="animate-pulse rounded-md bg-amber-500 px-2 py-0.5 text-[11px] font-bold text-white">
+                    {quarterInfo.quarterLabel}
+                  </span>
+                )}
+              </div>
+              <span className="text-[11px] font-semibold text-muted">
+                {quarterInfo.isOvertime
+                  ? "Overtime"
+                  : `Quarter ${quarterInfo.quarter} of ${quarterCount}`}
+              </span>
+            </div>
+          )}
 
           {/* Game clock and timeouts */}
           <div className="hairline flex items-center justify-between gap-3 border-t px-4 py-2.5">
@@ -870,6 +1075,38 @@ export default function Scorekeeper({
                       {shortName(nameOf(clock.activeTimeout.playerId))}
                     </span>
                   )}
+                </div>
+              </div>
+            ) : gameType === "timed" && quarterInfo ? (
+              <div className="min-w-0">
+                <div className="label flex items-center gap-1.5 whitespace-nowrap text-muted">
+                  <span
+                    className={`h-1.5 w-1.5 rounded-full ${
+                      clock.running
+                        ? "animate-pulse bg-win"
+                        : clock.started
+                          ? "bg-court-soft"
+                          : "bg-stone-400"
+                    }`}
+                  />
+                  {quarterInfo.quarterLabel} Countdown
+                  {quarterInfo.isQuarterEnded
+                    ? " · Ended"
+                    : clock.running
+                      ? " · Live"
+                      : " · Paused"}
+                </div>
+                <div
+                  className={`tabular text-2xl font-extrabold leading-7 ${
+                    quarterInfo.quarterRemainingMs <= 10000 &&
+                    quarterInfo.quarterRemainingMs > 0
+                      ? "animate-pulse text-loss"
+                      : quarterInfo.quarterRemainingMs <= 60000
+                        ? "text-amber-600"
+                        : "text-ink"
+                  }`}
+                >
+                  {formatCountdown(quarterInfo.quarterRemainingMs)}
                 </div>
               </div>
             ) : (
@@ -934,27 +1171,131 @@ export default function Scorekeeper({
                 ))}
             </div>
           </div>
+
+          {/* End of Quarter / Break banner */}
+          {gameType === "timed" &&
+            quarterInfo?.isQuarterEnded &&
+            !result.over &&
+            !readOnly && (
+              <div className="hairline flex items-center justify-between gap-2 border-t bg-amber-500/10 px-4 py-2.5">
+                <div className="min-w-0">
+                  <div className="text-xs font-bold text-amber-900">
+                    🔔 {quarterInfo.quarterLabel} Expired!
+                  </div>
+                  <div className="text-[11px] text-amber-800">
+                    {quarterInfo.quarter < quarterCount
+                      ? `Ready for Quarter ${quarterInfo.quarter + 1}`
+                      : isTied
+                        ? "Regulation tied! Overtime ready"
+                        : "Regulation finished!"}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => clockPlay("RESUME")}
+                  className="shrink-0 rounded-full bg-amber-600 px-3 py-1.5 text-xs font-bold text-white shadow-xs active:scale-95"
+                >
+                  {quarterInfo.quarter < quarterCount
+                    ? `Start Q${quarterInfo.quarter + 1} ▶`
+                    : isTied
+                      ? "Start Overtime ▶"
+                      : "Resume Play"}
+                </button>
+              </div>
+            )}
         </div>
       </div>
 
       {/* Court Soundboard & Controls */}
       <div className="flex items-center justify-between px-1">
         <CourtAudioControls />
-        {!readOnly && (
+        <div className="flex items-center gap-1.5">
           <button
             type="button"
-            onClick={() => setShotPadShooter(shotPadShooter ? null : active("A")[0] || null)}
-            className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold transition ${
-              shotPadShooter
-                ? "bg-court-ink text-white shadow-xs"
+            onClick={() => setShowShotClock(!showShotClock)}
+            className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold transition ${
+              showShotClock
+                ? "bg-amber-600 text-white shadow-xs"
                 : "bg-black/[0.06] text-muted hover:text-ink"
             }`}
           >
-            <span>🗺️ Shot Court Tracker</span>
-            <span className="text-[10px]">{shotPadShooter ? "▲" : "▼"}</span>
+            <span>⏱️ 24s</span>
+            <span className="text-[9px]">{showShotClock ? "▲" : "▼"}</span>
           </button>
-        )}
+          {!readOnly && (
+            <button
+              type="button"
+              onClick={() =>
+                setShotPadShooter(shotPadShooter ? null : active("A")[0] || null)
+              }
+              className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold transition ${
+                shotPadShooter
+                  ? "bg-court-ink text-white shadow-xs"
+                  : "bg-black/[0.06] text-muted hover:text-ink"
+              }`}
+            >
+              <span>🗺️ Court Shot</span>
+              <span className="text-[10px]">{shotPadShooter ? "▲" : "▼"}</span>
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* 24s Shot Clock Assistant */}
+      {showShotClock && (
+        <div className="glass-2 space-y-2 rounded-2xl p-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-muted">Shot Clock:</span>
+              <span
+                className={`tabular text-2xl font-black ${
+                  shotClockSec <= 5 ? "animate-pulse text-loss" : "text-ink"
+                }`}
+              >
+                {shotClockSec}s
+              </span>
+              {shotClockSec === 0 && (
+                <span className="text-xs font-bold text-loss">VIOLATION!</span>
+              )}
+            </div>
+            {!readOnly && (
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setShotClockSec(24)}
+                  className="rounded-full bg-black/[0.06] px-2.5 py-1 text-xs font-bold text-ink active:scale-95"
+                >
+                  24s
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShotClockSec(14)}
+                  className="rounded-full bg-court-soft/60 px-2.5 py-1 text-xs font-bold text-court-ink active:scale-95"
+                  title="FIBA Offensive Rebound reset to 14s"
+                >
+                  14s (O-Reb)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    playBuzzer();
+                    const activePlayer = active("A")[0] || roster[0];
+                    if (activePlayer) {
+                      commit([{ playerId: activePlayer.id, type: "TOV" }]);
+                    }
+                  }}
+                  className="rounded-full bg-loss/10 px-2.5 py-1 text-xs font-bold text-loss ring-1 ring-loss/20 active:scale-95"
+                >
+                  Violation (TO)
+                </button>
+              </div>
+            )}
+          </div>
+          <p className="text-[11px] leading-tight text-muted">
+            FIBA rules: 24s to attempt a shot hitting the rim. Resets to 14s on offensive rebound. Ticks when game clock runs.
+          </p>
+        </div>
+      )}
 
       {/* Mini Court Shot Pad (when open) */}
       {!readOnly && shotPadShooter && (
@@ -994,6 +1335,12 @@ export default function Scorekeeper({
         scoreB={score.B}
         target={target}
         winBy={winBy}
+        gameType={gameType}
+        quarterMinutes={quarterMinutes}
+        quarterCount={quarterCount}
+        elapsedSec={Math.floor(elapsedNow(clock, nowMs) / 1000)}
+        isGameOver={result.over}
+        startMs={startMs}
         events={events}
         roster={roster}
         teamNames={{ A: TEAM_STYLE.A.label, B: TEAM_STYLE.B.label }}
@@ -1337,7 +1684,9 @@ export default function Scorekeeper({
           onClick={() => {
             if (
               confirm(
-                "End the game now? Use this if you stopped before the target score.",
+                gameType === "timed"
+                  ? "End the game now? Use this if you called the game before all quarters were finished."
+                  : "End the game now? Use this if you stopped before the target score.",
               )
             )
               finish();

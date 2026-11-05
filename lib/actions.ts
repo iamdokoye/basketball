@@ -211,6 +211,9 @@ export async function createGame(input: {
   players: { id: number; team: "A" | "B"; starter: boolean }[];
   target: number;
   winBy: number;
+  gameType?: "target" | "timed";
+  quarterMinutes?: number;
+  quarterCount?: number;
 }): Promise<ActionResult> {
   const denied = await needPlay();
   if (denied) return denied;
@@ -220,6 +223,16 @@ export async function createGame(input: {
     Math.max(1, Math.floor(Number(input.target)) || 20),
   );
   const winBy = Math.min(5, Math.max(1, Math.floor(Number(input.winBy)) || 1));
+  const gameType = input.gameType === "timed" ? "timed" : "target";
+  const quarterMinutes = Math.min(
+    60,
+    Math.max(1, Math.floor(Number(input.quarterMinutes)) || 10),
+  );
+  const quarterCount = Math.min(
+    8,
+    Math.max(1, Math.floor(Number(input.quarterCount)) || 4),
+  );
+
   const players = (input.players ?? []).map((p) => ({
     id: p.id,
     team: p.team === "B" ? "B" : "A",
@@ -234,11 +247,46 @@ export async function createGame(input: {
       return fail("Each team needs at least one starter.");
   }
 
-  const { data, error } = await db().rpc("create_game", {
+  let { data, error } = await db().rpc("create_game", {
     p_target: target,
     p_win_by: winBy,
     p_players: players,
+    p_game_type: gameType,
+    p_quarter_minutes: quarterMinutes,
+    p_quarter_count: quarterCount,
   });
+
+  if (
+    error &&
+    (error.message?.includes("function") ||
+      error.code === "PGRST202" ||
+      error.message?.includes("parameter"))
+  ) {
+    // Fall back to legacy 3-parameter create_game if database hasn't run the timed migration yet
+    const fallback = await db().rpc("create_game", {
+      p_target: target,
+      p_win_by: winBy,
+      p_players: players,
+    });
+    data = fallback.data;
+    error = fallback.error;
+
+    if (data && !error && gameType === "timed") {
+      try {
+        await db()
+          .from("games")
+          .update({
+            game_type: gameType,
+            quarter_minutes: quarterMinutes,
+            quarter_count: quarterCount,
+          })
+          .eq("id", Number(data));
+      } catch {
+        /* ignore if column doesn't exist yet */
+      }
+    }
+  }
+
   if (error) return fail("Couldn't start the game. Try again.");
   revalidatePath("/", "layout");
   redirect(`/games/${Number(data)}`);

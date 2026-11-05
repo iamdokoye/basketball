@@ -35,8 +35,8 @@ export const RATING = {
   refTotal: 38,
   /** The game target every weight in this file is tuned for; other targets are scaled to it. */
   refTarget: 20,
-  /** Bounds on the game-length scale so extreme targets (1 or 100) can't blow the rating up or flatten it. */
-  minLengthScale: 0.25,
+  /** Bounds on the game-length scale so extreme targets (1 or 200) can't blow the rating up or flatten it. */
+  minLengthScale: 0.15,
   maxLengthScale: 3,
   /** Floor on the share of the game played used to scale a short stint. */
   minShare: 0.3,
@@ -86,13 +86,67 @@ export type GameContext = {
   totalPoints: number;
   maxSec: number;
   target?: number;
+  gameType?: "target" | "timed";
+  quarterMinutes?: number;
+  quarterCount?: number;
 };
 
-export function gameContext(lines: StatLine[], target?: number): GameContext {
+/** Calculates the equivalent target score for timed quarter games based on total regulation minutes. */
+export function timedEffectiveTarget(quarterMinutes = 10, quarterCount = 4): number {
+  const totalMins = Math.max(1, quarterMinutes) * Math.max(1, quarterCount);
+  // A standard pickup game to 20 takes ~10-12 mins of live clock time.
+  // We scale regulation minutes relative to that 10m benchmark (40m = 80 pts equivalent).
+  return Math.round((totalMins / 10) * RATING.refTarget);
+}
+
+export function gameContext(
+  lines: StatLine[],
+  targetOrGame?:
+    | number
+    | {
+        target?: number;
+        gameType?: "target" | "timed";
+        quarterMinutes?: number;
+        quarterCount?: number;
+      },
+  rules?: {
+    gameType?: "target" | "timed";
+    quarterMinutes?: number;
+    quarterCount?: number;
+  },
+): GameContext {
+  const isObj = typeof targetOrGame === "object" && targetOrGame !== null;
+  const rawTarget = isObj ? targetOrGame.target : targetOrGame;
+  const effectiveRules = isObj ? targetOrGame : rules;
+
+  const isTimed =
+    effectiveRules?.gameType === "timed" ||
+    (!rawTarget && Boolean(effectiveRules?.quarterMinutes));
+
+  const maxSec = Math.max(0, ...lines.map((l) => l.sec));
+
+  let effectiveTarget: number;
+  if (isTimed) {
+    effectiveTarget = timedEffectiveTarget(
+      effectiveRules?.quarterMinutes,
+      effectiveRules?.quarterCount,
+    );
+  } else if (rawTarget && rawTarget > 0) {
+    effectiveTarget = rawTarget;
+  } else if (maxSec > 600) {
+    // If target was omitted or 0 but game lasted longer than 10 mins, estimate equivalent target
+    effectiveTarget = Math.max(RATING.refTarget, Math.round((maxSec / 600) * RATING.refTarget));
+  } else {
+    effectiveTarget = RATING.refTarget;
+  }
+
   return {
     totalPoints: lines.reduce((t, l) => t + l.pts, 0),
-    maxSec: Math.max(0, ...lines.map((l) => l.sec)),
-    target,
+    maxSec,
+    target: effectiveTarget,
+    gameType: effectiveRules?.gameType ?? (isTimed ? "timed" : "target"),
+    quarterMinutes: effectiveRules?.quarterMinutes,
+    quarterCount: effectiveRules?.quarterCount,
   };
 }
 

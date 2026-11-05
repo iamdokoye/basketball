@@ -2,7 +2,7 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { getAccess } from "@/lib/access";
-import { buildClock, formatClock } from "@/lib/clock";
+import { buildClock, computeQuarterScores, formatClock } from "@/lib/clock";
 import { leagueTimeZone } from "@/lib/format";
 import { gameSvp, playerOfTheGame, statSummary } from "@/lib/pog";
 import { getGame, listPlayers } from "@/lib/queries";
@@ -50,6 +50,9 @@ export default async function GamePage({
         startMs={game.startMs}
         target={game.target}
         winBy={game.winBy}
+        gameType={game.gameType}
+        quarterMinutes={game.quarterMinutes}
+        quarterCount={game.quarterCount}
         readOnly={!access.canPlay || spectating}
         spectating={spectating}
         windowLabel={access.windowLabel}
@@ -67,6 +70,16 @@ export default async function GamePage({
   const recap = buildRecap(game, leagueTimeZone());
   // Total playing time (pauses and timeouts excluded) and the timeouts, with who called each.
   const clock = buildClock(game.events, game.startMs, game.roster);
+  const quarterScores =
+    game.gameType === "timed"
+      ? computeQuarterScores(
+          game.events,
+          clock,
+          game.quarterMinutes,
+          game.quarterCount,
+          game.roster,
+        )
+      : [];
   const lastAt = game.events.length
     ? Math.max(...game.events.map((e) => e.at))
     : game.startMs;
@@ -90,8 +103,13 @@ export default async function GamePage({
         <CourtAudioControls />
       </div>
       <div className="glass-2 rounded-3xl p-5">
-        <div className="label text-muted">
-          {formatDate(game.playedAt)} · Final
+        <div className="label flex items-center justify-between text-muted">
+          <span>{formatDate(game.playedAt)} · Final</span>
+          <span className="rounded-full bg-black/[0.05] px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-muted">
+            {game.gameType === "timed"
+              ? `Timed · ${game.quarterCount} × ${game.quarterMinutes}m`
+              : `Target ${game.target}`}
+          </span>
         </div>
         <div className="mt-3 grid grid-cols-2 gap-4">
           {(["A", "B"] as const).map((t) => (
@@ -111,6 +129,48 @@ export default async function GamePage({
           ))}
         </div>
       </div>
+
+      {quarterScores.length > 0 && (
+        <div className="glass-2 space-y-2 overflow-hidden rounded-2xl p-4">
+          <div className="label text-muted">Score by quarter</div>
+          <div className="overflow-x-auto">
+            <table className="tabular w-full text-center text-sm">
+              <thead>
+                <tr className="border-b border-black/[0.06] text-xs font-semibold text-muted">
+                  <th className="py-1 text-left">Team</th>
+                  {quarterScores.map((q) => (
+                    <th key={q.label} className="px-2 py-1">
+                      {q.label}
+                    </th>
+                  ))}
+                  <th className="px-2 py-1 font-bold text-ink">Total</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-black/[0.04]">
+                {(["A", "B"] as const).map((t) => (
+                  <tr key={t} className="font-semibold">
+                    <td
+                      className={`py-1.5 text-left font-bold ${
+                        t === "A" ? "text-court-ink" : "text-away-dark"
+                      }`}
+                    >
+                      Team {t}
+                    </td>
+                    {quarterScores.map((q) => (
+                      <td key={q.label} className="px-2 py-1.5">
+                        {q[t]}
+                      </td>
+                    ))}
+                    <td className="px-2 py-1.5 font-extrabold text-ink">
+                      {game.score[t]}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {clock.started && (
         <div className="glass-1 space-y-2.5 rounded-3xl p-4">
@@ -222,6 +282,12 @@ export default async function GamePage({
         scoreB={game.score.B}
         target={game.target}
         winBy={game.winBy}
+        gameType={game.gameType}
+        quarterMinutes={game.quarterMinutes}
+        quarterCount={game.quarterCount}
+        elapsedSec={Math.floor(clock.gameMs(lastAt) / 1000)}
+        isGameOver={true}
+        startMs={game.startMs}
         events={game.events}
         roster={game.roster}
         teamNames={{ A: "Team A", B: "Team B" }}
@@ -231,8 +297,26 @@ export default async function GamePage({
 
       {recap && <ShareRecap text={recap} path={`/games/${game.id}`} />}
 
-      <BoxScoreTable lines={game.lines} team="A" pogId={pog?.line.playerId} svpId={svp?.line.playerId} target={game.target} />
-      <BoxScoreTable lines={game.lines} team="B" pogId={pog?.line.playerId} svpId={svp?.line.playerId} target={game.target} />
+      <BoxScoreTable
+        lines={game.lines}
+        team="A"
+        pogId={pog?.line.playerId}
+        svpId={svp?.line.playerId}
+        target={game.target}
+        gameType={game.gameType}
+        quarterMinutes={game.quarterMinutes}
+        quarterCount={game.quarterCount}
+      />
+      <BoxScoreTable
+        lines={game.lines}
+        team="B"
+        pogId={pog?.line.playerId}
+        svpId={svp?.line.playerId}
+        target={game.target}
+        gameType={game.gameType}
+        quarterMinutes={game.quarterMinutes}
+        quarterCount={game.quarterCount}
+      />
 
       {access.isAdmin && <GameAdminActions gameId={game.id} />}
     </div>

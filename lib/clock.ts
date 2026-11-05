@@ -114,3 +114,151 @@ export function formatClock(ms: number): string {
 export function timeoutRemaining(t: Timeout, now: number): number {
   return TIMEOUT_SECONDS - (now - t.at) / 1000;
 }
+
+// ---- Timed game quarter countdowns, buzzer beaters, and overtime -----------
+
+export const OVERTIME_MINUTES = 5;
+
+export type QuarterInfo = {
+  quarter: number;
+  quarterLabel: string;
+  isOvertime: boolean;
+  totalQuarters: number;
+  quarterDurationMs: number;
+  quarterElapsedMs: number;
+  quarterRemainingMs: number;
+  isQuarterEnded: boolean;
+  isGameEnded: boolean;
+  progress: number;
+  /** Wall-clock time the buzzer sounded, when the clock ran past it without being paused yet. */
+  boundaryWallMs: number | null;
+};
+
+/**
+ * Calculates current quarter, countdown time remaining, and status for timed games.
+ *
+ * The scorekeeper pauses the clock exactly at each buzzer, so a quarter that has just ended is
+ * a paused clock sitting on the boundary: it stays "ended" (0:00 left) until play resumes, and
+ * only then is the next quarter on. If the clock is still running past a buzzer that hasn't been
+ * paused yet, time is held at the buzzer and `boundaryWallMs` says when the buzzer sounded.
+ * The game is over once regulation (or an overtime) ends with the score not tied.
+ */
+export function getQuarterInfo(
+  clock: Clock,
+  nowMs: number,
+  quarterMinutes: number,
+  quarterCount = 4,
+  isTied = false,
+): QuarterInfo {
+  const regDuration = Math.max(1, quarterMinutes) * 60 * 1000;
+  const otDuration = OVERTIME_MINUTES * 60 * 1000;
+  const totalReg = quarterCount * regDuration;
+
+  const startOf = (i: number) => (i < quarterCount ? i * regDuration : totalReg + (i - quarterCount) * otDuration);
+  const lenOf = (i: number) => (i < quarterCount ? regDuration : otDuration);
+  const periodAt = (ms: number) =>
+    ms < totalReg ? Math.floor(ms / regDuration) : quarterCount + Math.floor((ms - totalReg) / otDuration);
+
+  let elapsed = elapsedNow(clock, nowMs);
+  let idx = periodAt(elapsed);
+  let ended = false;
+  let boundaryWallMs: number | null = null;
+
+  if (clock.running && clock.runningSince !== null) {
+    // Running through a buzzer that has not been paused yet: hold at the buzzer.
+    const cur = periodAt(clock.bankedMs);
+    const end = startOf(cur) + lenOf(cur);
+    if (elapsed >= end) {
+      elapsed = end;
+      idx = cur;
+      ended = true;
+      boundaryWallMs = clock.runningSince + (end - clock.bankedMs);
+    }
+  } else if (elapsed > 0 && elapsed === startOf(idx)) {
+    // Paused exactly on a boundary: that period just ended and the next has not started.
+    idx -= 1;
+    ended = true;
+  }
+
+  const qStart = startOf(idx);
+  const dur = lenOf(idx);
+  const qElapsed = Math.min(dur, Math.max(0, elapsed - qStart));
+  const isOvertime = idx >= quarterCount;
+  const otIndex = idx - quarterCount;
+
+  return {
+    quarter: idx + 1,
+    quarterLabel: isOvertime ? (otIndex === 0 ? "OT" : `OT${otIndex + 1}`) : `Q${idx + 1}`,
+    isOvertime,
+    totalQuarters: quarterCount,
+    quarterDurationMs: dur,
+    quarterElapsedMs: qElapsed,
+    quarterRemainingMs: dur - qElapsed,
+    isQuarterEnded: ended,
+    isGameEnded: ended && idx >= quarterCount - 1 && !isTied,
+    progress: qElapsed / dur,
+    boundaryWallMs,
+  };
+}
+
+/** Formats quarter countdown: "10:00", "04:32", or "0:45.3" (with tenths in the final minute). */
+export function formatCountdown(ms: number): string {
+  const safe = Math.max(0, ms);
+  if (safe < 60000 && safe > 0) {
+    const sec = Math.floor(safe / 1000);
+    const tenths = Math.floor((safe % 1000) / 100);
+    return `0:${String(sec).padStart(2, "0")}.${tenths}`;
+  }
+  if (safe === 0) return "0:00.0";
+  return formatClock(safe);
+}
+
+/** True when a shot is made in the dying seconds of a quarter or game (within 5 seconds). */
+export function isBuzzerBeater(quarterRemainingMs: number, thresholdMs = 5000): boolean {
+  return quarterRemainingMs <= thresholdMs && quarterRemainingMs >= 0;
+}
+
+/** Computes points scored in each quarter/overtime for Team A and Team B. */
+export function computeQuarterScores(
+  events: GameEvent[],
+  clock: Clock,
+  quarterMinutes: number,
+  quarterCount = 4,
+  roster: RosterEntry[] = [],
+): { label: string; A: number; B: number }[] {
+  const regDuration = Math.max(1, quarterMinutes) * 60 * 1000;
+  const otDuration = OVERTIME_MINUTES * 60 * 1000;
+  const totalReg = quarterCount * regDuration;
+  const teamOf = new Map(roster.map((p) => [p.id, p.team]));
+
+  const scores = new Map<string, { label: string; A: number; B: number }>();
+  // Pre-fill regulation quarters
+  for (let q = 1; q <= quarterCount; q++) {
+    scores.set(`Q${q}`, { label: `Q${q}`, A: 0, B: 0 });
+  }
+
+  for (const e of events) {
+    if (e.type !== "MAKE2" && e.type !== "MAKE3" && e.type !== "MAKE_FT") continue;
+    const team = e.team ?? teamOf.get(e.playerId);
+    if (!team) continue;
+    const pts = e.type === "MAKE3" ? 3 : e.type === "MAKE2" ? 2 : 1;
+    const atMs = clock.gameMs(e.at);
+
+    // A basket logged while the clock sits on a buzzer belongs to the period that just ended.
+    let key: string;
+    if (atMs <= totalReg) {
+      key = `Q${Math.min(quarterCount, Math.max(1, Math.ceil(atMs / regDuration)))}`;
+    } else {
+      const otIdx = Math.max(0, Math.ceil((atMs - totalReg) / otDuration) - 1);
+      key = otIdx === 0 ? "OT" : `OT${otIdx + 1}`;
+    }
+
+    if (!scores.has(key)) {
+      scores.set(key, { label: key, A: 0, B: 0 });
+    }
+    scores.get(key)![team] += pts;
+  }
+
+  return Array.from(scores.values());
+}
+

@@ -241,15 +241,26 @@ export function teamScores(lines: StatLine[]): Record<Team, number> {
   return score;
 }
 
-export type GameRules = { target: number; winBy: number };
+export type GameRules = {
+  target: number;
+  winBy: number;
+  gameType?: "target" | "timed";
+  quarterMinutes?: number;
+  quarterCount?: number;
+};
 
-/** A game ends when a team has reached the target and leads by the win-by margin. */
+/** A game ends when a team has reached the target and leads by the win-by margin, or when time expires in a timed game and teams are not tied. */
 export function gameResult(
   score: Record<Team, number>,
   rules: GameRules,
+  timedOver?: boolean,
 ): { over: boolean; winner: Team | null } {
   const leader: Team = score.A >= score.B ? "A" : "B";
   const lead = Math.abs(score.A - score.B);
+  if (rules.gameType === "timed") {
+    const over = Boolean(timedOver && score.A !== score.B);
+    return { over, winner: over ? leader : null };
+  }
   const over = score[leader] >= rules.target && lead >= rules.winBy;
   return { over, winner: over ? leader : null };
 }

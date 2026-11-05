@@ -12,6 +12,34 @@ type Assign = { team: "A" | "B"; seq: number };
 const STARTERS = 3;
 
 type ModeId = "first" | "winby2";
+type GameFormat = "target" | "timed";
+
+const TIMED_PRESETS = [
+  {
+    minutes: 10,
+    quarters: 4,
+    title: "10 min / Q",
+    subtitle: "FIBA Standard · 40 min",
+  },
+  {
+    minutes: 12,
+    quarters: 4,
+    title: "12 min / Q",
+    subtitle: "NBA Standard · 48 min",
+  },
+  {
+    minutes: 15,
+    quarters: 4,
+    title: "15 min / Q",
+    subtitle: "Long Quarters · 60 min",
+  },
+  {
+    minutes: 5,
+    quarters: 4,
+    title: "5 min / Q",
+    subtitle: "Sprint Quarters · 20 min",
+  },
+];
 
 /** First-to-target is the default: the game ends the moment a team reaches the score. */
 const MODES: {
@@ -54,6 +82,9 @@ export default function NewGameForm({
     return init;
   });
   const seq = useRef(initialA.length + initialB.length);
+  const [format, setFormat] = useState<GameFormat>("target");
+  const [quarterMinutes, setQuarterMinutes] = useState(10);
+  const [quarterCount, setQuarterCount] = useState(4);
   const [target, setTarget] = useState(20);
   const [mode, setMode] = useState<ModeId>("first");
   const winBy = MODES.find((m) => m.id === mode)!.winBy;
@@ -109,7 +140,14 @@ export default function NewGameForm({
     startTransition(async () => {
       try {
         // On success the action redirects; it only returns when something is wrong.
-        const res = await createGame({ players: payload, target, winBy });
+        const res = await createGame({
+          players: payload,
+          target: format === "timed" ? 0 : target,
+          winBy: format === "timed" ? 1 : winBy,
+          gameType: format,
+          quarterMinutes,
+          quarterCount,
+        });
         if (res && !res.ok) setError(res.error);
       } catch (e) {
         // A redirect is thrown as a control-flow error; let Next handle it.
@@ -194,49 +232,164 @@ export default function NewGameForm({
       </div>
 
       <div className="glass-1 space-y-4 rounded-2xl p-4">
-        <label className="label block text-muted">
-          Play to
-          <input
-            type="number"
-            inputMode="numeric"
-            min={1}
-            max={100}
-            value={target}
-            onChange={(e) => setTarget(Number(e.target.value))}
-            className="mt-1 block h-12 w-full rounded-xl border border-white/80 bg-white/60 px-3 text-base font-semibold normal-case tracking-normal text-ink shadow-inner outline-none focus:ring-2 focus:ring-court"
-          />
-        </label>
-
-        <fieldset>
-          <legend className="label text-muted">Game mode</legend>
-          <div
-            role="radiogroup"
-            className="mt-1 grid grid-cols-2 gap-1 rounded-2xl bg-black/[0.05] p-1"
-          >
-            {MODES.map((m) => {
-              const selected = mode === m.id;
-              return (
-                <button
-                  key={m.id}
-                  type="button"
-                  role="radio"
-                  aria-checked={selected}
-                  onClick={() => setMode(m.id)}
-                  className={`rounded-xl px-3 py-2.5 text-left transition ${
-                    selected
-                      ? "bg-white shadow-sm ring-1 ring-black/5"
-                      : "text-muted"
-                  }`}
-                >
-                  <div className="text-sm font-bold">{m.title(target)}</div>
-                  <div className="text-[11px] font-semibold leading-snug text-muted">
-                    {m.hint(target)}
-                  </div>
-                </button>
-              );
-            })}
+        {/* Game Format Selector: Target Score vs Timed Game */}
+        <div>
+          <span className="label text-muted">Game format</span>
+          <div className="mt-1 grid grid-cols-2 gap-1 rounded-2xl bg-black/[0.05] p-1">
+            <button
+              type="button"
+              onClick={() => setFormat("target")}
+              className={`rounded-xl px-3 py-2 text-center text-sm font-bold transition ${
+                format === "target"
+                  ? "bg-white text-ink shadow-sm ring-1 ring-black/5"
+                  : "text-muted hover:text-ink"
+              }`}
+            >
+              🎯 Target Score
+            </button>
+            <button
+              type="button"
+              onClick={() => setFormat("timed")}
+              className={`rounded-xl px-3 py-2 text-center text-sm font-bold transition ${
+                format === "timed"
+                  ? "bg-white text-ink shadow-sm ring-1 ring-black/5"
+                  : "text-muted hover:text-ink"
+              }`}
+            >
+              ⏱️ Timed Quarters
+            </button>
           </div>
-        </fieldset>
+        </div>
+
+        {format === "target" ? (
+          <>
+            <label className="label block text-muted">
+              Play to
+              <input
+                type="number"
+                inputMode="numeric"
+                min={1}
+                max={100}
+                value={target}
+                onChange={(e) => setTarget(Number(e.target.value))}
+                className="mt-1 block h-12 w-full rounded-xl border border-white/80 bg-white/60 px-3 text-base font-semibold normal-case tracking-normal text-ink shadow-inner outline-none focus:ring-2 focus:ring-court"
+              />
+            </label>
+
+            <fieldset>
+              <legend className="label text-muted">Game mode</legend>
+              <div
+                role="radiogroup"
+                className="mt-1 grid grid-cols-2 gap-1 rounded-2xl bg-black/[0.05] p-1"
+              >
+                {MODES.map((m) => {
+                  const selected = mode === m.id;
+                  return (
+                    <button
+                      key={m.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={selected}
+                      onClick={() => setMode(m.id)}
+                      className={`rounded-xl px-3 py-2.5 text-left transition ${
+                        selected
+                          ? "bg-white shadow-sm ring-1 ring-black/5"
+                          : "text-muted"
+                      }`}
+                    >
+                      <div className="text-sm font-bold">{m.title(target)}</div>
+                      <div className="text-[11px] font-semibold leading-snug text-muted">
+                        {m.hint(target)}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </fieldset>
+          </>
+        ) : (
+          <div className="space-y-4">
+            <fieldset>
+              <legend className="label text-muted">Quarter length</legend>
+              <div className="mt-1 grid grid-cols-2 gap-2">
+                {TIMED_PRESETS.map((p) => {
+                  const selected =
+                    quarterMinutes === p.minutes && quarterCount === p.quarters;
+                  return (
+                    <button
+                      key={p.minutes}
+                      type="button"
+                      onClick={() => {
+                        setQuarterMinutes(p.minutes);
+                        setQuarterCount(p.quarters);
+                      }}
+                      className={`rounded-xl p-2.5 text-left transition ${
+                        selected
+                          ? "bg-court-ink text-white shadow-sm"
+                          : "bg-white/60 text-ink ring-1 ring-black/5 hover:bg-white"
+                      }`}
+                    >
+                      <div className="text-sm font-bold">{p.title}</div>
+                      <div
+                        className={`text-[11px] font-semibold leading-snug ${
+                          selected ? "text-white/80" : "text-muted"
+                        }`}
+                      >
+                        {p.subtitle}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </fieldset>
+
+            <div className="grid grid-cols-2 gap-3">
+              <label className="label block text-muted">
+                Minutes per Quarter
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  max={60}
+                  value={quarterMinutes}
+                  onChange={(e) =>
+                    setQuarterMinutes(
+                      Math.max(1, Math.min(60, Number(e.target.value) || 1)),
+                    )
+                  }
+                  className="mt-1 block h-12 w-full rounded-xl border border-white/80 bg-white/60 px-3 text-base font-semibold normal-case tracking-normal text-ink shadow-inner outline-none focus:ring-2 focus:ring-court"
+                />
+              </label>
+
+              <label className="label block text-muted">
+                Number of Quarters
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  max={8}
+                  value={quarterCount}
+                  onChange={(e) =>
+                    setQuarterCount(
+                      Math.max(1, Math.min(8, Number(e.target.value) || 1)),
+                    )
+                  }
+                  className="mt-1 block h-12 w-full rounded-xl border border-white/80 bg-white/60 px-3 text-base font-semibold normal-case tracking-normal text-ink shadow-inner outline-none focus:ring-2 focus:ring-court"
+                />
+              </label>
+            </div>
+
+            <div className="rounded-xl bg-court-soft/20 p-3 text-xs text-muted">
+              <div className="font-bold text-court-ink">
+                🏀 {quarterCount} Quarters × {quarterMinutes} Minutes ={" "}
+                {quarterCount * quarterMinutes} Minutes total play
+              </div>
+              <div className="mt-1 leading-relaxed">
+                Includes quarter countdowns, official buzzer at 0:00, buzzer-beater detection, team timeouts, and 24s shot clock assistant.
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {error && (

@@ -14,6 +14,12 @@ export function LiveWinProbability({
   scoreB,
   target = 20,
   winBy = 1,
+  gameType = "target",
+  quarterMinutes = 10,
+  quarterCount = 4,
+  elapsedSec = 0,
+  isGameOver = false,
+  startMs,
   events = [],
   roster = [],
   teamNames = { A: "Team A", B: "Team B" },
@@ -22,6 +28,13 @@ export function LiveWinProbability({
   scoreB: number;
   target?: number;
   winBy?: number;
+  gameType?: "target" | "timed";
+  quarterMinutes?: number;
+  quarterCount?: number;
+  elapsedSec?: number;
+  isGameOver?: boolean;
+  /** When the game was created, so the timeline can follow the real game clock. */
+  startMs?: number;
   events?: GameEvent[];
   roster?: RosterEntry[];
   teamNames?: Record<Team, string>;
@@ -35,6 +48,8 @@ export function LiveWinProbability({
     [events, roster],
   );
 
+  const totalRegSec = quarterCount * quarterMinutes * 60;
+
   // Compute live win probability
   const prob = useMemo(
     () =>
@@ -44,17 +59,40 @@ export function LiveWinProbability({
         target,
         winBy,
         momentumPctA: momentum ? momentum.momentumPctA : 50,
+        gameType,
+        elapsedSec,
+        totalRegSec,
+        isGameOver,
       }),
-    [scoreA, scoreB, target, winBy, momentum],
+    [
+      scoreA,
+      scoreB,
+      target,
+      winBy,
+      momentum,
+      gameType,
+      elapsedSec,
+      totalRegSec,
+      isGameOver,
+    ],
   );
 
   // Step-by-step history timeline
   const timeline = useMemo(
     () =>
       events.length > 0
-        ? buildWinProbabilityTimeline(events, roster, target, winBy)
+        ? buildWinProbabilityTimeline(
+            events,
+            roster,
+            target,
+            winBy,
+            gameType,
+            quarterMinutes,
+            quarterCount,
+            startMs,
+          )
         : [],
-    [events, roster, target, winBy],
+    [events, roster, target, winBy, gameType, quarterMinutes, quarterCount, startMs],
   );
 
   const isHighLeverage = prob.leverageIndex >= 2.5;

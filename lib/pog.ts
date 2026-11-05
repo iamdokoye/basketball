@@ -10,7 +10,7 @@ export type Performance = { line: StatLine; rating: number };
  */
 export function rankPerformances(game: Game): Performance[] {
   if (game.status !== "final") return [];
-  const ctx = gameContext(game.lines, game.target);
+  const ctx = gameContext(game.lines, game.target, game);
   return game.lines
     .flatMap((line) => {
       const r = rateLine(line, ctx);

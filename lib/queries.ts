@@ -30,6 +30,9 @@ export type Game = {
   status: "live" | "final";
   target: number;
   winBy: number;
+  gameType: "target" | "timed";
+  quarterMinutes: number;
+  quarterCount: number;
   roster: RosterEntry[];
   events: GameEvent[];
   lines: StatLine[];
@@ -89,6 +92,9 @@ type GameRow = {
   status: string;
   target: number;
   win_by: number;
+  game_type?: "target" | "timed" | null;
+  quarter_minutes?: number | null;
+  quarter_count?: number | null;
   /** Only present once the estimated_order migration has been run. */
   estimated_order?: boolean | null;
 };
@@ -185,6 +191,9 @@ async function loadGames(gameId?: number): Promise<Game[]> {
       status: final ? "final" : "live",
       target: Number(g.target),
       winBy: Number(g.win_by),
+      gameType: g.game_type === "timed" ? "timed" : "target",
+      quarterMinutes: Number(g.quarter_minutes) || 10,
+      quarterCount: Number(g.quarter_count) || 4,
       roster: rosterEntries,
       events: evs,
       lines,
@@ -262,7 +271,7 @@ export function careerTotals(games: Game[], players: Player[]): CareerLine[] {
 
   for (const g of games) {
     if (g.status !== "final") continue;
-    const ctx = gameContext(g.lines, g.target);
+    const ctx = gameContext(g.lines, g.target, g);
     for (const line of g.lines) {
       if (!played(line)) continue; // on the roster but never took the court
       const c = get(line.playerId, line.name);
