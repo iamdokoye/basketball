@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import Link from "next/link";
+import { useState } from "react";
 import { Avatar } from "@/app/components/Avatar";
 import {
   type CourtSpot,
@@ -623,12 +622,12 @@ export function AroundTheWorldGame({ allPlayers }: { allPlayers: Player[] }) {
                       <div className="flex items-center gap-2">
                         <span className="truncate text-xs font-bold text-ink">{p.name}</span>
                         {isTurn && (
-                          <span className="rounded-full bg-court-ink px-1.5 py-0.2 text-[9px] font-black uppercase text-white">
+                          <span className="rounded-full bg-court-ink px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-white">
                             Turn
                           </span>
                         )}
                         {isWinner && (
-                          <span className="rounded-full bg-amber-500/20 px-1.5 py-0.2 text-[9px] font-black uppercase text-amber-800">
+                          <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-amber-800 ring-1 ring-inset ring-amber-500/25">
                             👑 Champion
                           </span>
                         )}

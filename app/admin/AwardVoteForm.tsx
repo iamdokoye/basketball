@@ -146,7 +146,7 @@ export function AwardVoteForm({
                     <span className="text-muted"> · {v.notes}</span>
                   )}
                 </div>
-                <span className="rounded-full bg-court-soft/15 px-2 py-0.5 text-[10px] font-bold text-court-ink">
+                <span className="rounded-full bg-court-soft/10 px-2.5 py-0.5 text-[10px] font-bold text-court-ink ring-1 ring-inset ring-court-soft/20">
                   🎬 Spectacular
                 </span>
               </li>

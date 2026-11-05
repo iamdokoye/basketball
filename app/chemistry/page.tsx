@@ -80,7 +80,7 @@ export default async function ChemistryPage() {
                   >
                     {shortName(r.a.name)}
                   </Link>
-                  <span className="tabular rounded-full bg-black/[0.06] px-2.5 py-1 text-xs font-extrabold">
+                  <span className="tabular rounded-full bg-black/[0.04] ring-1 ring-inset ring-black/5 px-2.5 py-0.5 text-xs font-bold text-ink">
                     {r.against.aWins} – {r.against.bWins}
                   </span>
                   <Link
@@ -96,7 +96,7 @@ export default async function ChemistryPage() {
                   </div>
                   <Link
                     href={`/compare?p1=${r.a.id}&p2=${r.b.id}`}
-                    className="rounded-full bg-court-ink/10 px-2.5 py-1 text-[11px] font-bold text-court-ink hover:bg-court-ink hover:text-white transition"
+                    className="rounded-full bg-court-ink/10 ring-1 ring-inset ring-court-ink/20 px-2.5 py-0.5 text-[11px] font-bold text-court-ink hover:bg-court-ink hover:text-white transition"
                     title="Compare head-to-head"
                   >
                     Compare

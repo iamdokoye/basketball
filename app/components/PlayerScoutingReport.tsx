@@ -33,9 +33,10 @@ export function PlayerScoutingReport({ report }: { report: ScoutingReport }) {
 
         <Link
           href={`/compare?p1=${playerId}`}
-          className="rounded-full bg-court-ink/10 px-3 py-1 text-xs font-bold text-court-ink hover:bg-court-ink hover:text-white transition active:scale-95"
+          className="group inline-flex items-center gap-1.5 rounded-full border border-court-ink/15 bg-court-ink/[0.07] px-3.5 py-1 text-xs font-bold text-court-ink backdrop-blur-xs transition hover:bg-court-ink hover:text-white hover:border-court-ink active:scale-95 shadow-2xs"
         >
-          Tale of the Tape →
+          <span>Tale of the Tape</span>
+          <span className="transition-transform group-hover:translate-x-0.5">→</span>
         </Link>
       </div>
 
@@ -100,18 +101,18 @@ export function PlayerScoutingReport({ report }: { report: ScoutingReport }) {
       {tendencies.length > 0 && (
         <div className="space-y-2 pt-1">
           <div className="label text-[11px] text-muted">Signature Tendencies &amp; Habits</div>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3">
+          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 md:grid-cols-3">
             {tendencies.map((t) => (
               <div
                 key={t.id}
                 className="rounded-2xl border border-black/5 bg-white/70 p-3 shadow-2xs transition hover:bg-white"
               >
                 <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-base">{t.emoji}</span>
-                    <span className="text-xs font-black text-ink">{t.title}</span>
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span className="shrink-0 text-base">{t.emoji}</span>
+                    <span className="truncate text-xs font-extrabold text-ink">{t.title}</span>
                   </div>
-                  <span className="rounded-full bg-court-soft/20 px-2 py-0.5 text-[10px] font-black text-court-ink">
+                  <span className="shrink-0 whitespace-nowrap rounded-full border border-court-ink/15 bg-court-soft/10 px-2.5 py-0.5 text-[10px] font-bold text-court-ink tabular">
                     {t.stat}
                   </span>
                 </div>
@@ -140,27 +141,27 @@ function MatchupCard({
 
   const style = {
     nemesis: {
-      bg: "bg-rose-500/10 border-rose-500/20 text-rose-800",
-      badge: "bg-rose-500/15 text-rose-700",
-      accent: "text-rose-700",
+      bg: "bg-rose-500/[0.07] border-rose-500/20 text-rose-950",
+      badge: "bg-white/90 text-rose-700 ring-1 ring-rose-500/25 shadow-2xs",
+      dot: "bg-rose-500",
       tone: "soft" as const,
     },
     bunny: {
-      bg: "bg-emerald-500/10 border-emerald-500/20 text-emerald-800",
-      badge: "bg-emerald-500/15 text-emerald-700",
-      accent: "text-emerald-700",
+      bg: "bg-emerald-500/[0.07] border-emerald-500/20 text-emerald-950",
+      badge: "bg-white/90 text-emerald-700 ring-1 ring-emerald-500/25 shadow-2xs",
+      dot: "bg-emerald-500",
       tone: "soft" as const,
     },
     coStar: {
-      bg: "bg-amber-500/10 border-amber-500/20 text-amber-800",
-      badge: "bg-amber-500/15 text-amber-800",
-      accent: "text-amber-800",
+      bg: "bg-amber-500/[0.07] border-amber-500/20 text-amber-950",
+      badge: "bg-white/90 text-amber-800 ring-1 ring-amber-500/25 shadow-2xs",
+      dot: "bg-amber-500",
       tone: "ink" as const,
     },
     rival: {
-      bg: "bg-court-soft/20 border-court-soft/30 text-court-ink",
-      badge: "bg-court-soft/30 text-court-ink",
-      accent: "text-court-ink",
+      bg: "bg-court-soft/[0.12] border-court-soft/25 text-stone-900",
+      badge: "bg-white/90 text-court-ink ring-1 ring-court-ink/20 shadow-2xs",
+      dot: "bg-court",
       tone: "soft" as const,
     },
   }[type];
@@ -171,10 +172,13 @@ function MatchupCard({
     <div className={`relative flex flex-col justify-between rounded-2xl border p-3.5 shadow-2xs transition-all ${style.bg}`}>
       <div>
         <div className="flex items-center justify-between gap-1.5 pb-2">
-          <span className="label text-[10px] font-black uppercase tracking-wider opacity-80">
+          <span className="label text-[10px] font-bold uppercase tracking-wider opacity-75">
             {label}
           </span>
-          <span className={`rounded-full px-2 py-0.2 text-[9px] font-black uppercase ${style.badge}`}>
+          <span
+            className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${style.badge}`}
+          >
+            <span className={`h-1.5 w-1.5 rounded-full ${style.dot}`} aria-hidden />
             {badge}
           </span>
         </div>
@@ -197,7 +201,7 @@ function MatchupCard({
           </div>
         </div>
 
-        <p className="mt-2 text-[11px] leading-tight opacity-80 font-medium">
+        <p className="mt-2 text-[11px] leading-snug opacity-80 font-medium">
           {description}
         </p>
       </div>
@@ -205,10 +209,10 @@ function MatchupCard({
       <div className="pt-3">
         <Link
           href={`/compare?p1=${currentPlayerId}&p2=${mate.playerId}`}
-          className="flex items-center justify-center gap-1 rounded-xl bg-white/80 py-1.5 text-[11px] font-bold text-ink shadow-2xs hover:bg-white active:scale-95 transition"
+          className="group flex items-center justify-center gap-1.5 rounded-full border border-black/5 bg-white/90 py-1.5 px-3 text-[11px] font-bold text-ink shadow-2xs transition hover:bg-white hover:shadow-xs active:scale-95"
         >
           <span>Tale of the Tape</span>
-          <span>⚔️</span>
+          <span className="transition-transform group-hover:scale-110">⚔️</span>
         </Link>
       </div>
     </div>

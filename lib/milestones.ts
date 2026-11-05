@@ -1,4 +1,4 @@
-import type { CareerLine, Game } from "./queries";
+import type { CareerLine } from "./queries";
 
 export type MilestoneCategory =
   | "pts"

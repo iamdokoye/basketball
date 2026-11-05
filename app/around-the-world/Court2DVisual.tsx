@@ -244,14 +244,14 @@ export function Court2DVisual({
 
                 {/* Target Pin Pointer Tag */}
                 {isTarget && (
-                  <span className="absolute -top-5 whitespace-nowrap rounded-full bg-court-ink px-1.5 py-0.2 text-[8px] font-black uppercase tracking-wider text-white shadow-xs">
+                  <span className="absolute -top-5 whitespace-nowrap rounded-full bg-court-ink px-2 py-0.5 text-[8px] font-bold uppercase tracking-wider text-white shadow-xs">
                     TARGET
                   </span>
                 )}
               </button>
 
               {/* Spot Label (e.g. "R-CNR", "TOP") */}
-              <span className="mt-1 hidden sm:inline-block whitespace-nowrap rounded-md bg-black/75 px-1.5 py-0.2 text-[9px] font-bold text-white shadow-md pointer-events-none">
+              <span className="mt-1 hidden sm:inline-block whitespace-nowrap rounded-full bg-black/75 px-2 py-0.5 text-[9px] font-bold text-white shadow-md pointer-events-none">
                 {spot.short}
               </span>
 

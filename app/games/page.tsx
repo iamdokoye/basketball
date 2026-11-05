@@ -51,7 +51,7 @@ export default async function GamesPage() {
                   <span className="text-base font-extrabold text-ink group-hover:text-court-ink transition-colors">
                     King of the Court
                   </span>
-                  <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold text-amber-800">
+                  <span className="rounded-full bg-amber-500/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-800 ring-1 ring-inset ring-amber-500/25">
                     Tournaments
                   </span>
                 </div>
@@ -78,7 +78,7 @@ export default async function GamesPage() {
                   <span className="text-base font-extrabold text-ink group-hover:text-court-ink transition-colors">
                     Around the World
                   </span>
-                  <span className="rounded-full bg-court-soft/20 px-2 py-0.5 text-[10px] font-bold text-court-ink">
+                  <span className="rounded-full bg-court-soft/15 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-court-ink ring-1 ring-inset ring-court-ink/20">
                     Shooting Drill
                   </span>
                 </div>

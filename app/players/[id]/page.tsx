@@ -194,9 +194,9 @@ export default async function PlayerPage({
                 playerId={player.id}
                 injured={player.injured}
                 name={player.name}
-                className={`rounded-full px-3 py-1.5 text-xs font-semibold ring-1 transition hover:opacity-90 active:scale-95 ${
+                className={`rounded-full px-3 py-1 text-xs font-semibold ring-1 transition hover:opacity-90 active:scale-95 ${
                   player.injured
-                    ? "bg-rose-500/15 text-rose-700 ring-rose-500/30"
+                    ? "bg-rose-500/10 text-rose-700 ring-rose-500/25"
                     : "bg-emerald-500/10 text-emerald-800 ring-emerald-500/25"
                 }`}
               />
@@ -204,13 +204,13 @@ export default async function PlayerPage({
                 playerId={player.id}
                 name={player.name}
                 nicknames={player.nicknames}
-                className="rounded-full bg-court-soft/40 px-3 py-1.5 text-xs font-semibold text-court-ink ring-1 ring-court/30 transition hover:bg-court-soft/60 active:scale-95"
+                className="rounded-full bg-court-soft/20 px-3 py-1 text-xs font-semibold text-court-ink ring-1 ring-court-ink/20 transition hover:bg-court-soft/30 active:scale-95"
               />
               {access.isAdmin && (
                 <RenamePlayerButton
                   playerId={player.id}
                   name={player.name}
-                  className="rounded-full bg-sub/10 px-3 py-1.5 text-xs font-semibold text-sub ring-1 ring-sub/25 transition hover:bg-sub/15 active:scale-95"
+                  className="rounded-full bg-sub/10 px-3 py-1 text-xs font-semibold text-sub ring-1 ring-sub/20 transition hover:bg-sub/15 active:scale-95"
                 />
               )}
             </div>
@@ -261,7 +261,7 @@ export default async function PlayerPage({
             {shelf.map((t) => (
               <span
                 key={t.label}
-                className="tabular flex items-center gap-1.5 rounded-full bg-court-soft/10 px-3 py-1.5 text-xs font-semibold ring-1 ring-court-soft/25"
+                className="tabular inline-flex items-center gap-1.5 rounded-full bg-court-soft/10 px-3 py-1 text-xs font-semibold ring-1 ring-court-soft/25"
               >
                 <span aria-hidden>🏆</span>
                 {t.label}
@@ -504,7 +504,7 @@ function MateList({
               {currentPlayerId && (
                 <Link
                   href={`/compare?p1=${currentPlayerId}&p2=${m.playerId}`}
-                  className="rounded-full bg-court-ink/10 px-2 py-0.5 text-[10px] font-bold text-court-ink hover:bg-court-ink hover:text-white transition"
+                  className="rounded-full bg-court-ink/10 px-2.5 py-0.5 text-[10px] font-bold text-court-ink ring-1 ring-inset ring-court-ink/20 hover:bg-court-ink hover:text-white transition"
                   title="Compare head-to-head"
                 >
                   VS

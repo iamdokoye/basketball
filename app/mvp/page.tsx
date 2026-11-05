@@ -54,7 +54,7 @@ function Rows({
                 <div className="tabular text-xs font-semibold text-muted">
                   {p.label} · {r.games} {r.games === 1 ? "game" : "games"}
                   {p.key === currentKey && (
-                    <span className="ml-1.5 rounded-full bg-court-soft/15 px-1.5 py-0.5 text-court-ink">
+                    <span className="ml-1.5 rounded-full bg-court-soft/10 px-2 py-0.5 text-[10px] font-bold text-court-ink ring-1 ring-inset ring-court-soft/25">
                       now
                     </span>
                   )}

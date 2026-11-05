@@ -8,19 +8,19 @@ import {
 
 const TIER_STYLES = {
   bronze: {
-    badge: "bg-amber-900/15 text-amber-800 ring-amber-900/25",
+    badge: "bg-amber-900/10 text-amber-900 ring-1 ring-inset ring-amber-900/20",
     dot: "bg-amber-700",
   },
   silver: {
-    badge: "bg-slate-300/40 text-slate-700 ring-slate-400/30",
+    badge: "bg-slate-200/60 text-slate-700 ring-1 ring-inset ring-slate-400/25",
     dot: "bg-slate-500",
   },
   gold: {
-    badge: "bg-amber-400/20 text-amber-700 ring-amber-500/40",
+    badge: "bg-amber-400/15 text-amber-800 ring-1 ring-inset ring-amber-500/30",
     dot: "bg-amber-500",
   },
   hof: {
-    badge: "bg-purple-600/15 text-purple-700 ring-purple-500/35 shadow-sm",
+    badge: "bg-purple-600/10 text-purple-700 ring-1 ring-inset ring-purple-500/25 shadow-2xs",
     dot: "bg-purple-600",
   },
 };
@@ -102,7 +102,7 @@ export function PlayerBadges({
                   {current.title}
                 </h2>
                 <span
-                  className={`tabular inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-black uppercase tracking-wider ring-1 ${tierMeta.badgeClass}`}
+                  className={`tabular inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ring-1 ring-inset ${tierMeta.badgeClass}`}
                 >
                   <span className={`h-1.5 w-1.5 rounded-full ${tierMeta.dotClass}`} />
                   {tierMeta.label}
@@ -122,7 +122,7 @@ export function PlayerBadges({
             </div>
           </div>
           {current.badges.length > 0 && (
-            <span className="tabular rounded-full bg-court-soft/10 px-3 py-1 text-xs font-bold text-court-ink ring-1 ring-court-soft/25">
+            <span className="tabular shrink-0 whitespace-nowrap rounded-full bg-court-soft/10 px-3 py-1 text-xs font-bold text-court-ink ring-1 ring-inset ring-court-soft/25">
               {current.badges.length} {current.badges.length === 1 ? "badge" : "badges"}
             </span>
           )}
@@ -161,13 +161,13 @@ export function PlayerBadges({
                             {u.title}
                           </div>
                           <span
-                            className={`tabular inline-flex items-center gap-1 rounded-sm px-1.5 py-0.2 text-[9px] font-black uppercase tracking-wider ${upgradeTier.badgeClass}`}
+                            className={`tabular inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${upgradeTier.badgeClass}`}
                           >
                             {upgradeTier.label}
                           </span>
                         </div>
                       </div>
-                      <span className="tabular font-black text-xs text-court-ink bg-court-soft/10 px-2 py-0.5 rounded-md">
+                      <span className="tabular font-bold text-xs text-court-ink bg-court-soft/10 px-2.5 py-0.5 rounded-full ring-1 ring-inset ring-court-ink/15">
                         {u.progressPct}%
                       </span>
                     </div>
@@ -257,7 +257,7 @@ export function PlayerBadges({
                         <span className="font-extrabold text-ink">{b.name}</span>
                       </div>
                       <span
-                        className={`tabular inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-black uppercase tracking-wider ring-1 ${style.badge}`}
+                        className={`tabular inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ring-1 ring-inset ${style.badge}`}
                       >
                         <span className={`h-1.5 w-1.5 rounded-full ${style.dot}`} />
                         {b.tierLabel}

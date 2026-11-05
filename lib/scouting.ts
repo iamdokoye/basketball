@@ -1,5 +1,5 @@
 import type { Game, CareerLine } from "./queries";
-import { pairStats, relationsFor, type Mate, type Pair } from "./chemistry";
+import { pairStats, relationsFor, type Mate } from "./chemistry";
 import type { ClutchLine } from "./clutch";
 import { fmtAvg, fmtPct } from "./stats";
 

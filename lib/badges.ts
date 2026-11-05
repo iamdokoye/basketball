@@ -50,27 +50,27 @@ export const ARCHETYPE_TIER_META: Record<
 > = {
   4: {
     label: "Tier 4 · All-Around Threat",
-    badgeClass: "bg-emerald-500/15 text-emerald-800 ring-emerald-500/40 shadow-xs font-black",
+    badgeClass: "bg-emerald-500/10 text-emerald-800 ring-1 ring-inset ring-emerald-500/30 shadow-2xs font-bold",
     dotClass: "bg-emerald-600",
   },
   3: {
     label: "Tier 3 · Pinnacle",
-    badgeClass: "bg-purple-600/15 text-purple-700 ring-purple-500/35",
+    badgeClass: "bg-purple-600/10 text-purple-700 ring-1 ring-inset ring-purple-500/25 font-bold",
     dotClass: "bg-purple-600",
   },
   2: {
     label: "Tier 2 · Hybrid",
-    badgeClass: "bg-amber-400/20 text-amber-700 ring-amber-500/40",
+    badgeClass: "bg-amber-400/15 text-amber-800 ring-1 ring-inset ring-amber-500/30 font-bold",
     dotClass: "bg-amber-500",
   },
   1: {
     label: "Tier 1 · Specialist",
-    badgeClass: "bg-sky-500/15 text-sky-700 ring-sky-500/35",
+    badgeClass: "bg-sky-500/10 text-sky-700 ring-1 ring-inset ring-sky-500/25 font-bold",
     dotClass: "bg-sky-500",
   },
   0: {
     label: "Foundation",
-    badgeClass: "bg-slate-300/40 text-slate-700 ring-slate-400/30",
+    badgeClass: "bg-slate-200/60 text-slate-700 ring-1 ring-inset ring-slate-400/25 font-bold",
     dotClass: "bg-slate-500",
   },
 };

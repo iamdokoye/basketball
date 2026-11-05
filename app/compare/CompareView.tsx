@@ -193,7 +193,7 @@ export function CompareView({
 
           {/* VS Center */}
           <div className="flex flex-col items-center text-center">
-            <span className="rounded-full bg-court-ink/10 px-3 py-1 text-xs font-black tracking-wider text-court-ink uppercase">
+            <span className="rounded-full bg-court-ink/10 px-3 py-0.5 text-[11px] font-bold tracking-wider text-court-ink uppercase ring-1 ring-inset ring-court-ink/20">
               VS
             </span>
             <div className="tabular mt-2 text-3xl font-black tracking-tight sm:text-4xl">
@@ -252,7 +252,7 @@ export function CompareView({
 
         {/* Together Summary */}
         <div className="mt-5 border-t border-black/5 pt-4 text-center">
-          <div className="inline-flex items-center gap-2 rounded-full bg-black/[0.04] px-4 py-1.5 text-xs font-semibold text-muted">
+          <div className="inline-flex items-center gap-2 rounded-full bg-black/[0.04] px-3.5 py-1 text-xs font-semibold text-muted ring-1 ring-inset ring-black/5">
             <span>🤝 Teammate synergy:</span>
             {together.gp > 0 ? (
               <span className="font-bold text-ink">
@@ -288,8 +288,10 @@ export function CompareView({
                     <div className="flex items-center justify-between gap-3 text-xs">
                       <div className="flex items-center gap-2">
                         <span
-                          className={`rounded-full px-2 py-0.5 font-bold ${
-                            p1Won ? "bg-court-soft/20 text-court-ink" : "bg-black/[0.06] text-muted"
+                          className={`rounded-full px-2.5 py-0.5 font-bold ring-1 ring-inset ${
+                            p1Won
+                              ? "bg-court-soft/15 text-court-ink ring-court-ink/20"
+                              : "bg-black/[0.04] text-muted ring-black/5"
                           }`}
                         >
                           {p1Won ? `${shortName(player1.name)} Won` : `${shortName(player2.name)} Won`}
@@ -363,7 +365,7 @@ export function CompareView({
                     {m.p1Display}
                   </span>
                   {isP1 && (
-                    <span className="grid h-4 w-4 place-items-center rounded-full bg-court-soft/20 text-[10px] font-black text-court-ink">
+                    <span className="grid h-4 w-4 place-items-center rounded-full bg-court-soft/15 text-[10px] font-bold text-court-ink ring-1 ring-inset ring-court-ink/20">
                       ✓
                     </span>
                   )}
@@ -377,7 +379,7 @@ export function CompareView({
                 {/* P2 Stat */}
                 <div className="flex items-center justify-end gap-2 text-right">
                   {isP2 && (
-                    <span className="grid h-4 w-4 place-items-center rounded-full bg-court-soft/20 text-[10px] font-black text-court-ink">
+                    <span className="grid h-4 w-4 place-items-center rounded-full bg-court-soft/15 text-[10px] font-bold text-court-ink ring-1 ring-inset ring-court-ink/20">
                       ✓
                     </span>
                   )}
