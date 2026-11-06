@@ -79,6 +79,8 @@ A game that is still running when the window closes can't be saved to by the pub
 
 Run `supabase/migrations/20261014000000_function_hardening.sql` in the Supabase SQL Editor. It clears the security advisor warnings: it pins the search path of `create_game` and `record_group`, and stops the public API from calling Supabase's `rls_auto_enable()` helper. The app talks to the database only from the server with the service key, so nothing changes in how it works.
 
+Also run `supabase/migrations/20261107000001_rls_hardening.sql`. It turns on Row Level Security for the two later tables (`shot_zones` and `voted_awards`), which were created after the initial schema and never had it enabled. With no policies, the publishable/anon key can read and write nothing; the server keeps working because it uses the service role.
+
 ## Your page (who is this device?)
 
 - **Pick your name once:** tap the person icon in the header (or open `/me`) and choose your name. This device then remembers you: the icon becomes your initials, and **My page** (`/me`) shows your rank and rating, your last game, trophies, milestone progress, rating trend, recent games, badges and scouting report, plus a banner if you're in a live game. **Not you? Switch** at the bottom forgets the choice.
@@ -116,6 +118,8 @@ Run `supabase/migrations/20261014000000_function_hardening.sql` in the Supabase 
 ## Share, balance, records
 
 - **Game recap:** on a finished game, **Share** opens the phone's share sheet (e.g. WhatsApp) with a text summary: score, teams, player of the game and standouts, plus a link to the box score. **Copy recap** does the same to the clipboard.
+- **Box score picture:** the same page has **Save** and **Share** for a 1080 × 1350 PNG of the full box score (both teams, every stat column, player of the game). It is drawn on the phone, like the title cards, and sharing sends the picture itself when the phone allows it.
+- **Link previews:** links pasted into WhatsApp, X or Slack unfurl with a generated picture — the scoreboard for a game, the player's rank and averages for a profile, and the league card for the site. Set `NEXT_PUBLIC_SITE_URL` (e.g. `https://pickup.example.com`) in production so the previews point at the right address.
 - **Player of the game:** the best rating in the game (ties go to the winning team), shown on the game page and starred in the box score.
 - **Balance teams:** on New game, tap everyone who's playing and press **Balance teams**. It splits them into the two most even teams from ratings and win rates (people with few games count as average), and **Shuffle** gives another fair split.
 - **Records and streaks** (`/records`): single-game highs, biggest win, win streaks, best month.
@@ -148,12 +152,12 @@ After a game session, every stat leader gets a trading card with a title, and th
 - **Recap slideshows:** a finished month or year has a **Watch the recap** button above its cards. It is a full-screen slideshow with music: the period's numbers, then each category winner revealed with a drumroll (the all-rounder last), then **Player of the Month / Year** (whoever won the most cards), then everyone's titles. Tap the right side for next and the left edge for back, or use the pause, mute and close buttons. The **month** show is short and bright (blue, confetti, a bouncy groove). The **year** show is longer and grander (black and gold, turning light rays, fireworks, a month-by-month MVP roll call, a slower anthem with strings, brass and timpani). The music is made on the phone with the Web Audio API, so there are no audio files, and it starts only when you tap **Play with sound**. Nothing is stored; the show is built from the same games as the cards.
 - The weekly digest lists the week's titles.
 - **WhatsApp & Instagram Story Card Exporter:** Any award card (weekly, monthly, or yearly) can be saved or shared as a crisp 1080×1350 PNG (4:5 story aspect ratio) directly into WhatsApp, Instagram, or group chats with full graphical styling.
-- **Shot chart & visual heatmap (`/players/[id]`):** An interactive half-court diagram on every player profile detailing shooting percentages and volume across 6 distinct zones (Paint/Rim, Mid-Range Left, Mid-Range Right, 3PT Left, 3PT Right, and Top of the Arc) with hot (🔥) and cold (❄️) zone efficiency markers.
+- **Shot chart & visual heatmap:** On the scorekeeper, open **🗺️ Court Shot**, pick the shooter and tap the spot the shot came from. The location is saved with the shot (tap **Make** or **Miss** first), so it is undone with the play, queued offline with it, and shows up on every phone. The half-court diagram then appears on the player profile (`/players/[id]`), on the finished game, and league-wide under **Records → Shooting by zone**, with made/attempted, frequency, and hot (🔥) / cold (❄️) markers against the league benchmark. Shots made before this existed have no location: the player card shows how many shots are actually charted and estimates the rest from the league's usual mix, and a game with no charted shots shows no chart at all.
 - **Live court momentum & "On Fire" heat check:**
   - **On Fire badge:** When a player makes 2+ consecutive field goals without a miss, a glowing flame badge (`🔥 ON FIRE`) appears on their live card, scorekeeper row, and game recaps.
   - **Court momentum meter:** A live tug-of-war meter showing which team controls game energy and active scoring runs (e.g. `6-0 run`).
 - **Retro arcade court audio & soundboard:** Synthesized entirely in the browser with the Web Audio API (zero audio files to download or host). Automatically plays snappy swish sounds on makes, metallic rim clanks on misses, flame whooshes on heat checks, and classic arcade buzzers on game-winners. Features a floating soundboard with instant mute toggle.
-- **One-time SQL:** run `supabase/migrations/20261026000000_shot_zones.sql` in the Supabase SQL Editor to store detailed shot locations.
+- **One-time SQL:** run `supabase/migrations/20261107000000_shot_locations.sql` in the Supabase SQL Editor to store shot locations. Until then a shot from the court pad still saves; only its spot is dropped. (The older `20261026000000_shot_zones.sql` table is no longer used.)
 
 ## Tale of the tape, team builder & tournaments
 

@@ -1,9 +1,10 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { getAccess } from "@/lib/access";
 import { buildClock, computeQuarterScores, formatClock } from "@/lib/clock";
-import { leagueTimeZone } from "@/lib/format";
+import { formatGameDateTime, leagueTimeZone } from "@/lib/format";
 import { gameSvp, playerOfTheGame, statSummary } from "@/lib/pog";
 import { getGame, listPlayers } from "@/lib/queries";
 import { buildRecap } from "@/lib/recap";
@@ -14,11 +15,50 @@ import { LiveWinProbability } from "@/app/components/LiveWinProbability";
 import { ShareRecap } from "@/app/components/ShareRecap";
 import { buildGameMomentum, detectOnFirePlayers } from "@/lib/momentum";
 import { CourtAudioControls } from "@/app/components/CourtAudio";
+import { ShotHeatmap, ShotZoneTable } from "@/app/components/ShotHeatmap";
+import { ShareBoxScore } from "@/app/components/ShareBoxScore";
+import { siteUrl } from "@/lib/site";
+import {
+  computeGameShotProfile,
+  computeGameTeamShotProfile,
+  zoneRecordsFromGames,
+} from "@/lib/shotZones";
 import GameAdminActions from "./GameAdminActions";
 import Scorekeeper from "./Scorekeeper";
 import { parseScoreMode, SCORE_MODE_COOKIE } from "./scoreModeShared";
 
 export const dynamic = "force-dynamic";
+
+/** The link preview: a shared game reads as a scoreboard in the group chat. */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  const game = await getGame(Number(id));
+  if (!game) return { title: "Game not found" };
+  const live = game.status === "live";
+  const title = `${live ? "Live" : "Final"} · Team A ${game.score.A}–${game.score.B} Team B`;
+  const pog = playerOfTheGame(game);
+  const description = [
+    formatGameDateTime(game.playedAt),
+    game.gameType === "timed"
+      ? `${game.quarterCount} × ${game.quarterMinutes} min`
+      : `First to ${game.target}`,
+    pog
+      ? `Player of the game: ${pog.line.name} (${pog.line.pts} pts, ${pog.line.reb} reb, ${pog.line.ast} ast)`
+      : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  return {
+    title,
+    description,
+    openGraph: { title, description, type: "article" },
+    twitter: { card: "summary_large_image", title, description },
+  };
+}
 
 export default async function GamePage({
   params,
@@ -80,6 +120,40 @@ export default async function GamePage({
           game.roster,
         )
       : [];
+  // Only games scored with the court pad carry real locations; older games show no chart at all
+  // rather than an estimate.
+  const zoneRecords = zoneRecordsFromGames([game]);
+  const gameShots = computeGameShotProfile(game, zoneRecords);
+
+  const teamRows = (t: "A" | "B") =>
+    game.lines
+      .filter((l) => l.team === t)
+      .sort((a, b) => b.pts - a.pts || a.name.localeCompare(b.name))
+      .map((l) => ({
+        name: l.name,
+        pts: l.pts,
+        reb: l.reb,
+        ast: l.ast,
+        stl: l.stl,
+        blk: l.blk,
+        tov: l.tov,
+      }));
+  const boxImage = {
+    status: "Final",
+    subtitle: `${formatGameDateTime(game.playedAt)} · ${
+      game.gameType === "timed"
+        ? `${game.quarterCount} × ${game.quarterMinutes} min`
+        : `First to ${game.target}`
+    }`,
+    scoreA: game.score.A,
+    scoreB: game.score.B,
+    winner: game.winner,
+    teamA: teamRows("A"),
+    teamB: teamRows("B"),
+    pogName: pog?.line.name,
+    host: new URL(siteUrl()).host,
+  };
+
   const lastAt = game.events.length
     ? Math.max(...game.events.map((e) => e.at))
     : game.startMs;
@@ -296,6 +370,37 @@ export default async function GamePage({
       {momentum && <GameMomentumChart momentum={momentum} />}
 
       {recap && <ShareRecap text={recap} path={`/games/${game.id}`} />}
+
+      <ShareBoxScore
+        data={boxImage}
+        text={
+          recap ??
+          `Team A ${game.score.A} – ${game.score.B} Team B`
+        }
+        path={`/games/${game.id}`}
+      />
+
+      {gameShots.taggedFga > 0 && (
+        <div className="space-y-3">
+          <ShotHeatmap
+            profile={gameShots}
+            label="Where the shots fell"
+            title="Game shot chart"
+          />
+          <ShotZoneTable
+            columns={[
+              {
+                label: "Team A",
+                profile: computeGameTeamShotProfile(game, zoneRecords, "A"),
+              },
+              {
+                label: "Team B",
+                profile: computeGameTeamShotProfile(game, zoneRecords, "B"),
+              },
+            ]}
+          />
+        </div>
+      )}
 
       <BoxScoreTable
         lines={game.lines}
