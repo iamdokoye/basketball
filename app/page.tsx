@@ -497,7 +497,7 @@ export default async function Home() {
       {/* Explore */}
       <section className="space-y-2.5">
         <h2 className="label px-1">Explore</h2>
-        <div className="grid grid-cols-3 gap-2.5">
+        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
           {[
             { href: "/builder", title: "Team builder", sub: "Fair squads & draft" },
             { href: "/tournaments", title: "Tournaments", sub: "King of the court" },

@@ -36,22 +36,24 @@ export default async function ChemistryPage() {
             {duos.map((d) => (
               <li
                 key={`${d.a.id}-${d.b.id}`}
-                className="glass-1 flex items-center gap-3 rounded-2xl p-3.5"
+                className="glass-1 flex items-center justify-between gap-3 rounded-2xl p-3.5"
               >
                 <div className="min-w-0 flex-1 text-sm font-bold">
-                  <Link href={`/players/${d.a.id}`} className="hover:underline">
-                    {shortName(d.a.name)}
-                  </Link>
-                  <span className="text-muted"> &amp; </span>
-                  <Link href={`/players/${d.b.id}`} className="hover:underline">
-                    {shortName(d.b.name)}
-                  </Link>
+                  <div className="flex items-center gap-1.5 truncate">
+                    <Link href={`/players/${d.a.id}`} className="truncate hover:underline">
+                      {shortName(d.a.name)}
+                    </Link>
+                    <span className="text-muted shrink-0"> &amp; </span>
+                    <Link href={`/players/${d.b.id}`} className="truncate hover:underline">
+                      {shortName(d.b.name)}
+                    </Link>
+                  </div>
                   <div className="tabular text-xs font-semibold text-muted">
                     {d.together.wins}-{d.together.losses} in {d.together.gp}{" "}
                     games together
                   </div>
                 </div>
-                <div className="tabular text-xl font-extrabold text-court-ink">
+                <div className="tabular shrink-0 text-xl font-extrabold text-court-ink">
                   {pct(d.together.wins, d.together.gp)}
                 </div>
               </li>
@@ -71,7 +73,7 @@ export default async function ChemistryPage() {
             {rivals.map((r) => (
               <li
                 key={`${r.a.id}-${r.b.id}`}
-                className="glass-1 flex items-center gap-3 rounded-2xl p-3.5"
+                className="glass-1 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 rounded-2xl p-3.5"
               >
                 <div className="grid min-w-0 flex-1 grid-cols-[1fr_auto_1fr] items-center gap-2 text-sm font-bold">
                   <Link
@@ -80,7 +82,7 @@ export default async function ChemistryPage() {
                   >
                     {shortName(r.a.name)}
                   </Link>
-                  <span className="tabular rounded-full bg-black/[0.04] ring-1 ring-inset ring-black/5 px-2.5 py-0.5 text-xs font-bold text-ink">
+                  <span className="tabular rounded-full bg-black/[0.04] ring-1 ring-inset ring-black/5 px-2.5 py-0.5 text-xs font-bold text-ink text-center">
                     {r.against.aWins} – {r.against.bWins}
                   </span>
                   <Link
@@ -90,7 +92,7 @@ export default async function ChemistryPage() {
                     {shortName(r.b.name)}
                   </Link>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center justify-between sm:justify-end gap-2 border-t sm:border-t-0 border-black/5 pt-2 sm:pt-0">
                   <div className="tabular text-xs font-semibold text-muted">
                     {r.against.gp} games
                   </div>

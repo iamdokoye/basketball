@@ -77,7 +77,7 @@ function reduce(state: RosterPlayer[], op: Op): RosterPlayer[] {
 }
 
 const PILL =
-  "rounded-full px-2 py-1 text-xs font-semibold transition active:scale-95 disabled:opacity-40 sm:px-3 sm:py-1.5";
+  "inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold transition active:scale-95 disabled:opacity-40 sm:px-3 sm:py-1 sm:text-xs";
 
 /**
  * Roster list that updates instantly and saves in the background. The server
@@ -211,8 +211,8 @@ export function PlayerRoster({
                   onToggle={(next) => apply({ t: "injury", id: p.id, injured: next })}
                   className={`${PILL} ${
                     p.injured
-                      ? "bg-rose-500/15 text-rose-700 ring-1 ring-rose-500/30 hover:bg-rose-500/25"
-                      : "bg-emerald-500/10 text-emerald-800 ring-1 ring-emerald-500/25 hover:bg-emerald-500/20"
+                      ? "bg-rose-500/10 text-rose-700 ring-1 ring-inset ring-rose-500/25 hover:bg-rose-500/20"
+                      : "bg-emerald-500/10 text-emerald-800 ring-1 ring-inset ring-emerald-500/25 hover:bg-emerald-500/20"
                   }`}
                 />
               )}
@@ -225,7 +225,7 @@ export function PlayerRoster({
                     const res = await setNicknames(p.id, next);
                     return res.ok ? null : res.error;
                   }}
-                  className={`${PILL} bg-court-soft/40 text-court-ink ring-1 ring-court/30 hover:bg-court-soft/60`}
+                  className={`${PILL} bg-court-soft/20 text-court-ink ring-1 ring-inset ring-court-ink/20 hover:bg-court-soft/30`}
                 />
               )}
               {isAdmin && (
@@ -234,12 +234,12 @@ export function PlayerRoster({
                     name={p.name}
                     onSubmit={rename(p)}
                     disabled={p.id < 0}
-                    className={`${PILL} bg-sub/10 text-sub ring-1 ring-sub/25 hover:bg-sub/15`}
+                    className={`${PILL} bg-sub/10 text-sub ring-1 ring-inset ring-sub/20 hover:bg-sub/15`}
                   />
                   <button
                     disabled={p.id < 0}
                     onClick={() => archive(p, true)}
-                    className={`${PILL} bg-loss/10 text-loss ring-1 ring-loss/25 hover:bg-loss/15`}
+                    className={`${PILL} bg-loss/10 text-loss ring-1 ring-inset ring-loss/20 hover:bg-loss/15`}
                   >
                     Archive
                   </button>

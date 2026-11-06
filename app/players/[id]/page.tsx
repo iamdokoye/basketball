@@ -498,7 +498,8 @@ function MateList({
                     {m.wins}-{m.losses}
                   </span>{" "}
                   · {Math.round((m.wins / m.gp) * 100)}% · {m.gp}{" "}
-                  {m.gp === 1 ? "game" : "games"}
+                  <span className="hidden sm:inline">{m.gp === 1 ? "game" : "games"}</span>
+                  <span className="sm:hidden">G</span>
                 </span>
               </Link>
               {currentPlayerId && (
