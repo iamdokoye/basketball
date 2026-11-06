@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 import { GeistSans } from "geist/font/sans";
 import { getMe } from "@/lib/identity";
+import { SITE_DESCRIPTION, SITE_NAME, siteUrl } from "@/lib/site";
 import { ME_REFRESH_MS } from "@/lib/identityShared";
 import { AccessBadge } from "./components/AccessBadge";
 import { IdentitySync } from "./components/IdentitySync";
@@ -10,9 +11,26 @@ import { BottomNav, TopNav } from "./components/Nav";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Pickup League",
-  description: "3v3 pickup stats for the crew",
-  applicationName: "Pickup League",
+  // Makes the per-route link-preview images absolute (see app/**/opengraph-image.tsx).
+  metadataBase: new URL(siteUrl()),
+  title: {
+    default: SITE_NAME,
+    template: `%s · ${SITE_NAME}`,
+  },
+  description: SITE_DESCRIPTION,
+  applicationName: SITE_NAME,
+  openGraph: {
+    type: "website",
+    siteName: SITE_NAME,
+    title: SITE_NAME,
+    description: SITE_DESCRIPTION,
+    locale: "en_NG",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: SITE_NAME,
+    description: SITE_DESCRIPTION,
+  },
   appleWebApp: {
     capable: true,
     title: "Pickup League",
@@ -31,7 +49,7 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
+  // No maximumScale: pinch-zoom must stay available (WCAG 1.4.4).
   viewportFit: "cover", // use the whole screen when installed (the header adds the notch padding)
   themeColor: "#f4f1ec",
 };

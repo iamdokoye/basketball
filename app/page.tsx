@@ -80,10 +80,15 @@ export default async function Home() {
   const lastMonthNum = m === 1 ? 12 : m - 1;
   const lastMonthKey = `${lastMonthYear}-${String(lastMonthNum).padStart(2, "0")}`;
 
+  const thisMonth = monthKey(access.now, tz);
   const monthPeriods = groupByPeriod(games, "month", tz, day);
+  // Declared before it is used: this runs on the 1st-7th of a month, when the previous month may
+  // have no games at all (a skipped month, or a fresh install).
   const lastMonthPeriod =
     monthPeriods.find((p) => p.key === lastMonthKey) ??
-    (isFirstWeekOfMonth ? monthPeriods.find((p) => p.key < thisMonth) : undefined);
+    (isFirstWeekOfMonth
+      ? monthPeriods.find((p) => p.key < thisMonth)
+      : undefined);
 
   const lastMonthFinals = lastMonthPeriod
     ? lastMonthPeriod.games.filter((g) => g.status === "final")
@@ -98,10 +103,7 @@ export default async function Home() {
     lastMonthFinals.length > 0;
 
   // Awards are handed out when a month is over: show the latest completed month.
-  const thisMonth = monthKey(access.now, tz);
-  const lastDone = monthPeriods.find(
-    (p) => p.key < thisMonth,
-  );
+  const lastDone = monthPeriods.find((p) => p.key < thisMonth);
   const lastAwards = lastDone ? monthAwards(lastDone.games) : [];
 
   const leaders = LEADER_CATEGORIES.flatMap(({ key, label, unit }) => {
