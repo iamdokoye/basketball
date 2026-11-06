@@ -10,6 +10,8 @@ import {
   type RecordItem,
 } from "@/lib/records";
 import { Avatar } from "@/app/components/Avatar";
+import { ShotHeatmap } from "@/app/components/ShotHeatmap";
+import { computeLeagueShotProfile, zoneRecordsFromGames } from "@/lib/shotZones";
 
 export const dynamic = "force-dynamic";
 
@@ -93,6 +95,8 @@ export default async function RecordsPage() {
     .filter((s) => s.current >= 2)
     .sort((a, b) => b.current - a.current)
     .slice(0, 5);
+  const zoneRecords = zoneRecordsFromGames(games);
+  const leagueShots = computeLeagueShotProfile(games, zoneRecords);
 
   if (single.length === 0) {
     return (
@@ -240,6 +244,17 @@ export default async function RecordsPage() {
           later, are left out because their order of plays isn&apos;t real.
         </p>
       </section>
+
+      {leagueShots.taggedFga > 0 && (
+        <Section title="Shooting by zone">
+          <ShotHeatmap
+            profile={leagueShots}
+            label="League shooting"
+            title="Where the league scores"
+            subtitle={`${leagueShots.taggedFga} charted shots, all games`}
+          />
+        </Section>
+      )}
 
       {month && (
         <Section title="Best month ever">

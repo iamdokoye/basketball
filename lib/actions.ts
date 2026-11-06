@@ -11,6 +11,7 @@ import {
 } from "./access";
 import { db } from "./supabase";
 import { cleanNicknames } from "./nicknames";
+import { isShotZone } from "./shotZones";
 import { CLOCK_TYPES, EVENT_TYPES, type EventType } from "./stats";
 import { leagueTimeZone } from "./format";
 import {
@@ -297,7 +298,13 @@ export async function recordGroup(
   gameId: number,
   grp: string,
   at: number,
-  events: { playerId: number; type: EventType; team?: "A" | "B" }[],
+  events: {
+    playerId: number;
+    type: EventType;
+    team?: "A" | "B";
+    /** Only on a ZONE event: where the shot was taken from. */
+    zone?: string;
+  }[],
 ): Promise<ActionResult> {
   const denied = await needPlay();
   if (denied) return denied;
@@ -317,6 +324,10 @@ export async function recordGroup(
     if (!EVENT_TYPES.includes(e.type)) return fail(GENERIC);
     if (e.team !== undefined && e.team !== "A" && e.team !== "B")
       return fail(GENERIC);
+    if (e.zone !== undefined && !isShotZone(e.zone)) return fail(GENERIC);
+    // A shot location only makes sense on a ZONE event, and it belongs to a player, not a team.
+    if (e.type === "ZONE" && (!isShotZone(e.zone) || e.team))
+      return fail(GENERIC);
     if (isClock(e.type)) {
       // Pause, resume and team timeouts name no player (0); a timeout must say who called it.
       if (e.playerId !== 0 && !isId(e.playerId)) return fail(GENERIC);
@@ -328,13 +339,18 @@ export async function recordGroup(
     }
   }
   const hasClock = events.some((e) => isClock(e.type));
-  // Out of bounds needs the out_of_bounds migration. Until it is run, save the play without that
-  // marker rather than losing the whole miss.
-  const withoutOob = events.filter((e) => e.type !== "OOB");
-  const dropOob =
-    withoutOob.length > 0 && withoutOob.length < events.length
-      ? () => recordGroup(gameId, grp, at, withoutOob)
+  // Out of bounds and shot locations each need their own migration. Until one is run, save the
+  // play without that detail rather than losing the whole shot. Shot locations are tried first,
+  // so an old database still keeps the out-of-bounds marker.
+  const without = (type: EventType) => {
+    const rest = events.filter((e) => e.type !== type);
+    return rest.length > 0 && rest.length < events.length
+      ? () => recordGroup(gameId, grp, at, rest)
       : null;
+  };
+  const dropZone = without("ZONE");
+  const dropOob = without("OOB");
+  const missingOptional = ["23514", "23502", "42703"];
 
   // Fast path: one database function does every check and the insert in a single round trip.
   const rpc = await db().rpc("record_group", {
@@ -345,6 +361,7 @@ export async function recordGroup(
       player_id: e.playerId || null,
       type: e.type,
       team: e.team ?? null,
+      ...(e.type === "ZONE" && e.zone ? { zone: e.zone } : {}),
     })),
   });
   if (!rpc.error) {
@@ -360,7 +377,10 @@ export async function recordGroup(
         return fail(GENERIC);
     }
   }
-  if (dropOob && rpc.error.code === "23514") return dropOob();
+  if (missingOptional.includes(rpc.error.code ?? "")) {
+    if (dropZone) return dropZone();
+    if (dropOob) return dropOob();
+  }
   // The table refused a clock play (old CHECK constraints or missing columns): update not run yet.
   if (hasClock && ["23514", "23502", "42703"].includes(rpc.error.code ?? ""))
     return fail(NEEDS_CLOCK_UPDATE);
@@ -405,11 +425,15 @@ export async function recordGroup(
         type: e.type,
         grp,
         at: when,
-        // only sent when set, so ordinary plays still save before the migration adds this column
+        // only sent when set, so ordinary plays still save before the migration adds the column
         ...(e.team ? { team: e.team } : {}),
+        ...(e.type === "ZONE" && e.zone ? { zone: e.zone } : {}),
       })),
     );
-  if (error && dropOob && error.code === "23514") return dropOob();
+  if (missingOptional.includes(error?.code ?? "")) {
+    if (dropZone) return dropZone();
+    if (dropOob) return dropOob();
+  }
   if (error)
     return fail(
       hasClock && ["23514", "23502", "42703"].includes(error.code ?? "")

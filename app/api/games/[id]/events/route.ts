@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getGameRoster } from "@/lib/queries";
+import { isShotZone } from "@/lib/shotZones";
 import { db } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
@@ -43,6 +44,8 @@ export async function GET(
         id: Number(e.id),
         playerId: Number(e.player_id ?? 0),
         team: e.team === "A" || e.team === "B" ? e.team : undefined,
+        // "*" means this is absent until the shot-locations migration is run.
+        ...(isShotZone(e.zone) ? { zone: e.zone } : {}),
         type: e.type,
         grp: e.grp,
         at: new Date(e.at).getTime(),

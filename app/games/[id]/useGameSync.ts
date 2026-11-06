@@ -2,9 +2,21 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { recordGroup, undoGroup } from "@/lib/actions";
-import type { EventType, GameEvent, RosterEntry, Team } from "@/lib/stats";
+import type {
+  EventType,
+  GameEvent,
+  RosterEntry,
+  ShotZoneId,
+  Team,
+} from "@/lib/stats";
 
-type Ev = { playerId: number; type: EventType; team?: Team };
+type Ev = {
+  playerId: number;
+  type: EventType;
+  team?: Team;
+  /** Only on a ZONE event: where the shot was taken from. */
+  zone?: ShotZoneId;
+};
 type Op =
   | { kind: "add"; gameId: number; grp: string; at: number; events: Ev[] }
   | { kind: "remove"; gameId: number; grp: string };

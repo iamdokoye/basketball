@@ -25,6 +25,7 @@ import {
   type EventType,
   type GameEvent,
   type RosterEntry,
+  type ShotZoneId,
   type Team,
 } from "@/lib/stats";
 import { Avatar, shortName } from "@/app/components/Avatar";
@@ -50,7 +51,13 @@ import {
 import { detectOnFirePlayers } from "@/lib/momentum";
 import { buildPossession, readShotClock, type Possession } from "@/lib/possession";
 
-type Ev = { playerId: number; type: EventType; team?: Team };
+type Ev = {
+  playerId: number;
+  type: EventType;
+  team?: Team;
+  /** Only on a ZONE event: where the shot was taken from. */
+  zone?: ShotZoneId;
+};
 
 type Option = {
   label: string;
@@ -783,9 +790,19 @@ export default function Scorekeeper({
   const dismissFollow = useCallback(() => setFollow(null), []);
   const dismissSaved = useCallback(() => setSaved(null), []);
 
-  /** A shot is saved at once; a chip strip then offers the assist (made) or the rebound (missed). */
-  function quickShot(p: RosterEntry, type: "MAKE2" | "MAKE3" | "MISS2" | "MISS3") {
-    const grp = commit([{ playerId: p.id, type }]);
+  /**
+   * A shot is saved at once; a chip strip then offers the assist (made) or the rebound (missed).
+   * When it came from the court pad, the zone rides along in the same group, so undo removes it
+   * and every phone gets it through the normal poll.
+   */
+  function quickShot(
+    p: RosterEntry,
+    type: "MAKE2" | "MAKE3" | "MISS2" | "MISS3",
+    zone?: ShotZoneId,
+  ) {
+    const evs: Ev[] = [{ playerId: p.id, type }];
+    if (zone) evs.push({ playerId: p.id, type: "ZONE", zone });
+    const grp = commit(evs);
     setFollow({
       grp,
       kind: type.startsWith("MAKE") ? "assist" : "rebound",
@@ -820,6 +837,7 @@ export default function Scorekeeper({
       playerId: e.playerId,
       type: e.type,
       ...(e.team ? { team: e.team } : {}),
+      ...(e.zone ? { zone: e.zone } : {}),
     }));
     sync.remove(g.grp);
     const grp = sync.add([...base, ...extra], g.events[0].at);
@@ -1418,9 +1436,16 @@ export default function Scorekeeper({
           </div>
           <MiniCourtShotPad
             shooterName={shotPadShooter.name}
-            onRecordShot={(_zone, made, pts) => {
-              const type = pts === 3 ? (made ? "MAKE3" : "MISS3") : (made ? "MAKE2" : "MISS2");
-              quickShot(shotPadShooter, type);
+            onRecordShot={(zone, made, pts) => {
+              const type =
+                pts === 3
+                  ? made
+                    ? "MAKE3"
+                    : "MISS3"
+                  : made
+                    ? "MAKE2"
+                    : "MISS2";
+              quickShot(shotPadShooter, type, zone);
             }}
           />
         </div>

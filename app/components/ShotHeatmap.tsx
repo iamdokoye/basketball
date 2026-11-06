@@ -1,11 +1,27 @@
 "use client";
 
 import { useState } from "react";
-import type { PlayerShotProfile, ShotZoneId } from "@/lib/shotZones";
+import type { ShotProfile, ShotZoneId } from "@/lib/shotZones";
 
-export function ShotHeatmap({ profile }: { profile: PlayerShotProfile }) {
+/**
+ * Half-court shot chart. It draws only what the play log actually recorded: `taggedFga` counts
+ * the shots that carry a real zone. Until someone charts shots (🗺️ Court Shot on the scorekeeper)
+ * the card says so instead of showing an invented chart.
+ */
+export function ShotHeatmap({
+  profile,
+  label = "Shooting Efficiency",
+  title = "Shot Chart & Heatmap",
+  subtitle,
+}: {
+  profile: ShotProfile;
+  label?: string;
+  title?: string;
+  subtitle?: string;
+}) {
   const [selectedZone, setSelectedZone] = useState<ShotZoneId>("paint");
   const activeZone = profile.zones[selectedZone];
+  const estimated = profile.totalFga - profile.taggedFga;
 
   const zoneColor = (zoneId: ShotZoneId) => {
     const z = profile.zones[zoneId];
@@ -15,14 +31,43 @@ export function ShotHeatmap({ profile }: { profile: PlayerShotProfile }) {
     return "fill-black/[0.07] stroke-black/20 hover:fill-black/[0.12]";
   };
 
+  if (profile.taggedFga === 0) {
+    return (
+      <div className="glass-1 space-y-3 rounded-3xl p-5">
+        <div>
+          <div className="label text-court-ink">{label}</div>
+          <h2 className="text-base font-extrabold tracking-tight">{title}</h2>
+        </div>
+        <div className="rounded-2xl border border-dashed border-black/15 bg-white/40 px-4 py-6 text-center">
+          <div className="text-2xl" aria-hidden>
+            🗺️
+          </div>
+          <p className="mt-2 text-sm font-semibold">
+            {profile.totalFga === 0
+              ? "No shots recorded yet."
+              : "No shot locations recorded yet."}
+          </p>
+          <p className="mx-auto mt-1 max-w-xs text-xs font-medium text-muted">
+            {profile.totalFga === 0
+              ? "Chart a shot and its spot on the court will appear here."
+              : "On the scorekeeper, open Court Shot and tap the spot a shot came from. Every charted shot is then broken down by zone here."}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="glass-1 space-y-4 rounded-3xl p-5">
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between gap-3">
         <div>
-          <div className="label text-court-ink">Shooting Efficiency</div>
-          <h2 className="text-base font-extrabold tracking-tight">Shot Chart &amp; Heatmap</h2>
+          <div className="label text-court-ink">{label}</div>
+          <h2 className="text-base font-extrabold tracking-tight">{title}</h2>
+          {subtitle && (
+            <p className="mt-0.5 text-xs font-medium text-muted">{subtitle}</p>
+          )}
         </div>
-        <div className="flex items-center gap-2 text-[11px] font-bold">
+        <div className="flex shrink-0 items-center gap-2 text-[11px] font-bold">
           <span className="flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-amber-700">
             🔥 Hot
           </span>
@@ -34,19 +79,13 @@ export function ShotHeatmap({ profile }: { profile: PlayerShotProfile }) {
 
       {/* SVG Court Canvas */}
       <div className="relative mx-auto w-full max-w-md overflow-hidden rounded-2xl bg-paper/90 border border-black/10 p-2 shadow-inner">
-        <svg
-          viewBox="0 0 300 240"
-          className="w-full h-auto select-none"
-        >
+        <svg viewBox="0 0 300 240" className="w-full h-auto select-none">
           {/* Court Perimeter */}
           <rect x="5" y="5" width="290" height="230" rx="10" className="fill-none stroke-black/25 stroke-[2]" />
 
           {/* Three-point arc: Center at (150, 20), radius 130 */}
-          {/* Left corner 3 boundary */}
           <line x1="25" y1="5" x2="25" y2="70" className="stroke-black/25 stroke-[2]" />
-          {/* Right corner 3 boundary */}
           <line x1="275" y1="5" x2="275" y2="70" className="stroke-black/25 stroke-[2]" />
-          {/* Arc path */}
           <path
             d="M 25 70 A 125 125 0 0 0 275 70"
             className="fill-none stroke-black/25 stroke-[2]"
@@ -62,8 +101,6 @@ export function ShotHeatmap({ profile }: { profile: PlayerShotProfile }) {
           {/* Restricted area / Basket (center 150, 30) */}
           <circle cx="150" cy="30" r="12" className="fill-none stroke-court-soft stroke-[2.5]" />
           <line x1="135" y1="18" x2="165" y2="18" className="stroke-black/40 stroke-[3]" />
-
-          {/* INTERACTIVE ZONE REGIONS */}
 
           {/* 1. Paint Zone */}
           <g
@@ -254,6 +291,64 @@ export function ShotHeatmap({ profile }: { profile: PlayerShotProfile }) {
           <span>Mid-Range {profile.distribution.midRange}%</span>
           <span>3-Point {profile.distribution.three}%</span>
         </div>
+      </div>
+
+      <p className="text-[11px] font-medium text-muted">
+        {estimated > 0
+          ? `${profile.taggedFga} of ${profile.totalFga} shots charted; the rest are estimated from the league's usual mix.`
+          : `All ${profile.taggedFga} shots charted from the floor.`}
+      </p>
+    </div>
+  );
+}
+
+/** A compact zone-by-zone split, for comparing two teams (or a team and the league). */
+export function ShotZoneTable({
+  columns,
+}: {
+  columns: { label: string; profile: ShotProfile }[];
+}) {
+  const zones = Object.values(columns[0]?.profile.zones ?? {});
+  if (columns.length === 0) return null;
+  return (
+    <div className="glass-1 space-y-2 rounded-3xl p-4">
+      <div className="overflow-x-auto">
+        <table className="w-full text-center text-xs">
+          <thead>
+            <tr className="text-[10px] font-bold uppercase tracking-wider text-muted">
+              <th className="py-1 text-left">Zone</th>
+              {columns.map((c) => (
+                <th key={c.label} className="px-2 py-1">
+                  {c.label}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-black/[0.04]">
+            {zones.map((z) => (
+              <tr key={z.id}>
+                <td className="py-1.5 text-left font-semibold">{z.label}</td>
+                {columns.map((c) => {
+                  const zz = c.profile.zones[z.id];
+                  return (
+                    <td key={c.label} className="tabular px-2 py-1.5 font-bold">
+                      {zz.fga === 0 ? (
+                        <span className="text-muted">–</span>
+                      ) : (
+                        <>
+                          {zz.pct}%
+                          <span className="ml-1 font-medium text-muted">
+                            {zz.fgm}/{zz.fga}
+                          </span>
+                        </>
+                      )}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );

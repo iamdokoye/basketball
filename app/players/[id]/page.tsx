@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import type { Metadata } from "next";
 import { getAccess } from "@/lib/access";
 import { gameContext, rateLine } from "@/lib/rating";
 import { pairStats, relationsFor, type Mate } from "@/lib/chemistry";
@@ -26,12 +27,43 @@ import { getPlayerMilestones } from "@/lib/milestones";
 import { PlayerBadges } from "@/app/components/PlayerBadges";
 import { PlayerMilestonesCard } from "@/app/components/PlayerMilestonesCard";
 import { PlayerStatsView } from "@/app/components/PlayerStatsView";
-import { computePlayerShotProfile } from "@/lib/shotZones";
+import { computePlayerShotProfile, zoneRecordsFromGames } from "@/lib/shotZones";
 import { ShotHeatmap } from "@/app/components/ShotHeatmap";
 import { generateScoutingReport } from "@/lib/scouting";
 import { PlayerScoutingReport } from "@/app/components/PlayerScoutingReport";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  const playerId = Number(id);
+  const [players, games] = await Promise.all([listPlayers(), listGames()]);
+  const player = players.find((p) => p.id === playerId);
+  if (!player) return { title: "Player not found" };
+
+  const career = careerTotals(games, players);
+  const finals = games.filter((g) => g.status === "final").length;
+  const row = rankPlayers(career, "rating", finals).rows.find(
+    (r) => r.playerId === playerId,
+  );
+  const gp = row?.gp ?? 0;
+  const per = (n: number) => (gp > 0 ? (n / gp).toFixed(1) : "–");
+  const title = player.name;
+  const description =
+    gp > 0
+      ? `${row?.rank ? `Rank #${row.rank} · ` : ""}${(row?.rating ?? 0).toFixed(1)} rating · ${per(row?.pts ?? 0)} PPG · ${per(row?.reb ?? 0)} RPG · ${per(row?.ast ?? 0)} APG in ${gp} games`
+      : "Pickup League player profile";
+  return {
+    title,
+    description,
+    openGraph: { title, description, type: "profile" },
+    twitter: { card: "summary_large_image", title, description },
+  };
+}
 
 export default async function PlayerPage({
   params,
@@ -73,7 +105,13 @@ export default async function PlayerPage({
     ).get(playerId),
   );
   const relations = relationsFor(playerId, pairStats(games));
-  const shotProfile = computePlayerShotProfile(playerId, games);
+  // Real shot locations live on the ZONE plays; games recorded before the court pad have none,
+  // and the card says so rather than inventing a chart.
+  const shotProfile = computePlayerShotProfile(
+    playerId,
+    games,
+    zoneRecordsFromGames(games),
+  );
 
   // Rating trend: the latest 15 rated games, oldest to newest.
   const TREND_GAMES = 15;
@@ -284,7 +322,10 @@ export default async function PlayerPage({
 
       <PlayerScoutingReport report={scoutingReport} />
 
-      {shotProfile.totalFga > 0 && <ShotHeatmap profile={shotProfile} />}
+      <ShotHeatmap
+        profile={shotProfile}
+        subtitle={`${player.name.split(" ")[0]} · every charted shot, by zone`}
+      />
 
       <section className="space-y-2">
         <div className="flex items-baseline justify-between px-1">

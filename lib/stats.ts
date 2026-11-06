@@ -19,6 +19,9 @@ export const EVENT_TYPES = [
   "FOUL",
   "DEFL",
   "OOB",
+  // Where a shot was taken from. Recorded in the same group as the make/miss, so undo removes it
+  // too and every phone sees it through the normal play poll. It adds no stat of its own.
+  "ZONE",
   "SUB_IN",
   "SUB_OUT",
   "PAUSE",
@@ -26,6 +29,17 @@ export const EVENT_TYPES = [
   "TIMEOUT",
   "POSS",
 ] as const;
+
+/** The six half-court zones a shot can be tagged with (see lib/shotZones.ts for the court map). */
+export const SHOT_ZONE_IDS = [
+  "paint",
+  "mid_left",
+  "mid_right",
+  "three_left",
+  "three_right",
+  "three_top",
+] as const;
+export type ShotZoneId = (typeof SHOT_ZONE_IDS)[number];
 
 /**
  * Plays that are about the clock, not a player stat. They can carry no player (playerId 0).
@@ -43,6 +57,8 @@ export type GameEvent = {
   type: EventType;
   /** The team a timeout was called for. */
   team?: Team;
+  /** Where the shot was taken from, on a ZONE event (always grouped with its make/miss). */
+  zone?: ShotZoneId;
   /** Events recorded by one scorekeeper action (e.g. make + assist) share a group. */
   grp: string;
   /** Epoch milliseconds when the event happened. */

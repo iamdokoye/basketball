@@ -1,6 +1,8 @@
 import "server-only";
+import { cache } from "react";
 import { db, fetchAll } from "./supabase";
 import { gameContext, played, rateLine } from "./rating";
+import { isShotZone } from "./shotZones";
 import {
   boxScore,
   emptyLine,
@@ -42,7 +44,11 @@ export type Game = {
   estimatedOrder: boolean;
 };
 
-export async function listPlayers(): Promise<Player[]> {
+/**
+ * Wrapped in React's per-request cache: a page, its generateMetadata and any child component all
+ * share one read instead of hitting the database again.
+ */
+export const listPlayers = cache(async function listPlayers(): Promise<Player[]> {
   const { data, error } = await db()
     .from("players")
     // "*" so this keeps working before the nicknames column exists
@@ -60,7 +66,7 @@ export async function listPlayers(): Promise<Player[]> {
     .sort((a, b) =>
       a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
     );
-}
+});
 
 /** The people in one game, for the live screens to refresh when someone joins late. */
 export async function getGameRoster(gameId: number): Promise<RosterEntry[]> {
@@ -112,6 +118,8 @@ type EventRow = {
   grp: string;
   at: string;
   team?: string | null;
+  /** Only present once the shot-locations migration adds the column. */
+  zone?: string | null;
 };
 
 /** Loads games (all, or one) with roster, events and derived box score. */
@@ -169,6 +177,7 @@ async function loadGames(gameId?: number): Promise<Game[]> {
       id: Number(r.id),
       playerId: Number(r.player_id ?? 0),
       team: r.team === "A" || r.team === "B" ? r.team : undefined,
+      ...(isShotZone(r.zone) ? { zone: r.zone } : {}),
       type: r.type as EventType,
       grp: r.grp,
       at: new Date(r.at).getTime(),
@@ -205,12 +214,14 @@ async function loadGames(gameId?: number): Promise<Game[]> {
   });
 }
 
-export const listGames = () => loadGames();
+export const listGames = cache(() => loadGames());
 
-export async function getGame(id: number): Promise<Game | null> {
+export const getGame = cache(async function getGame(
+  id: number,
+): Promise<Game | null> {
   if (!Number.isSafeInteger(id)) return null;
   return (await loadGames(id))[0] ?? null;
-}
+});
 
 export type CareerLine = StatLine & {
   /** Games actually played (benched all game doesn't count). */

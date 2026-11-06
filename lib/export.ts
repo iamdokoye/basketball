@@ -42,7 +42,18 @@ const gameCols = (g: Game) => [
 
 export function eventsCsv(games: Game[]): string {
   const lines = [
-    row([...GAME_HEAD, "seq", "event_id", "event_at", "player_id", "player_name", "team", "type", "grp"]),
+    row([
+      ...GAME_HEAD,
+      "seq",
+      "event_id",
+      "event_at",
+      "player_id",
+      "player_name",
+      "team",
+      "type",
+      "zone",
+      "grp",
+    ]),
   ];
   for (const g of games) {
     const byId = new Map(g.roster.map((p) => [p.id, p]));
@@ -59,6 +70,7 @@ export function eventsCsv(games: Game[]): string {
             p?.name ?? "",
             e.team ?? p?.team ?? "",
             e.type,
+            e.zone ?? "",
             e.grp,
           ],
           [GAME_HEAD.length + 4],
