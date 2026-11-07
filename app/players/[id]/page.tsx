@@ -13,9 +13,7 @@ import { careerTotals, listGames, listPlayers, listVotedAwards } from "@/lib/que
 import { rankPlayers } from "@/lib/rankings";
 import {
   fmtMinutes,
-  fmtSigned,
 } from "@/lib/stats";
-import { formatDate } from "@/app/components/BoxScore";
 import { Avatar } from "@/app/components/Avatar";
 import { InjuredBadge } from "@/app/components/InjuredBadge";
 import { InjuryToggle } from "@/app/components/InjuryToggle";
@@ -31,6 +29,8 @@ import { computePlayerShotProfile, zoneRecordsFromGames } from "@/lib/shotZones"
 import { ShotHeatmap } from "@/app/components/ShotHeatmap";
 import { generateScoutingReport } from "@/lib/scouting";
 import { PlayerScoutingReport } from "@/app/components/PlayerScoutingReport";
+import { buildPlayerGameInsights } from "@/lib/playerHistory";
+import { PlayerGameHistory } from "@/app/components/PlayerGameHistory";
 
 export const dynamic = "force-dynamic";
 
@@ -207,9 +207,7 @@ export default async function PlayerPage({
     games,
     clutch,
   });
-
-  const th = "px-2 py-2 text-right font-semibold";
-  const td = "px-2 py-2 text-right";
+  const historySummary = buildPlayerGameInsights(playerId, games, players);
 
   return (
     <div className="space-y-5">
@@ -451,104 +449,7 @@ export default async function PlayerPage({
         </section>
       )}
 
-      <section>
-        <h2 className="label mb-2 px-1">Game log</h2>
-        {log.length === 0 ? (
-          <p className="glass-1 rounded-2xl p-6 text-center text-sm text-muted">
-            No finished games yet.
-          </p>
-        ) : (
-          <div className="glass-2 overflow-hidden rounded-2xl">
-            <div className="overflow-x-auto">
-              <table className="tabular w-full whitespace-nowrap text-sm">
-                <thead>
-                  <tr className="label text-muted">
-                    <th className="sticky-cell px-3 py-2.5 text-left font-semibold">
-                      Game
-                    </th>
-                    {[
-                      "PTS",
-                      "RTG",
-                      "FG",
-                      "3P",
-                      "FT",
-                      "REB",
-                      "AST",
-                      "STL",
-                      "BLK",
-                      "TO",
-                      "+/-",
-                      "MIN",
-                    ].map((h) => (
-                      <th key={h} className={th}>
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-black/[0.06]">
-                  {log.map(({ game, line }) => {
-                    const mine = game.score[line.team];
-                    const theirs = game.score[line.team === "A" ? "B" : "A"];
-                    return (
-                      <tr key={game.id}>
-                        <td className="sticky-cell px-3 py-2">
-                          <Link
-                            href={`/games/${game.id}`}
-                            className="hover:underline"
-                          >
-                            <span
-                              className={`font-extrabold ${mine > theirs ? "text-win" : "text-loss"}`}
-                            >
-                              {mine > theirs ? "W" : "L"}
-                            </span>{" "}
-                            {mine}-{theirs}
-                            <span className="flex items-center gap-1.5 text-xs font-medium text-muted">
-                              <span>{formatDate(game.playedAt)}</span>
-                              {game.gameType === "timed" ? (
-                                <span className="rounded-full bg-amber-500/15 px-1.5 py-0.2 text-[10px] font-bold text-amber-800">
-                                  Timed
-                                </span>
-                              ) : null}
-                            </span>
-                          </Link>
-                        </td>
-                        <td className={`${td} font-extrabold`}>{line.pts}</td>
-                        <td className={`${td} font-bold`}>
-                          {rateLine(
-                            line,
-                            gameContext(game.lines, game.target, game),
-                          )?.rating.toFixed(1) ?? (
-                            <span className="text-muted">DNP</span>
-                          )}
-                        </td>
-                        <td className={td}>
-                          {line.fgm}-{line.fga}
-                        </td>
-                        <td className={td}>
-                          {line.fg3m}-{line.fg3a}
-                        </td>
-                        <td className={td}>
-                          {line.ftm}-{line.fta}
-                        </td>
-                        <td className={td}>{line.reb}</td>
-                        <td className={td}>{line.ast}</td>
-                        <td className={td}>{line.stl}</td>
-                        <td className={td}>{line.blk}</td>
-                        <td className={td}>{line.tov}</td>
-                        <td className={td}>{fmtSigned(line.plusMinus)}</td>
-                        <td className={`${td} text-muted`}>
-                          {fmtMinutes(line.sec)}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-      </section>
+      <PlayerGameHistory summary={historySummary} currentPlayerId={playerId} />
 
       {(relations.teammates.length > 0 || relations.opponents.length > 0) && (
         <div className="grid gap-4 sm:grid-cols-2">
