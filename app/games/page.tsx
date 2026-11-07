@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { getAccess } from "@/lib/access";
 import { listGames } from "@/lib/queries";
-import { GameRow } from "@/app/components/GameRow";
+import { MatchHistoryList } from "@/app/components/MatchHistoryList";
 
 export const dynamic = "force-dynamic";
 
@@ -95,22 +95,7 @@ export default async function GamesPage() {
       </section>
 
       {/* Match History List */}
-      <section className="space-y-3">
-        <div className="flex items-center justify-between px-1">
-          <h2 className="label">Match History ({games.length})</h2>
-        </div>
-        {games.length === 0 ? (
-          <p className="glass-1 rounded-2xl p-6 text-center text-sm text-muted">
-            {access.canPlay ? "No games yet. Start one!" : "No games yet."}
-          </p>
-        ) : (
-          <ul className="space-y-3">
-            {games.map((g) => (
-              <GameRow key={g.id} game={g} />
-            ))}
-          </ul>
-        )}
-      </section>
+      <MatchHistoryList games={games} canPlay={access.canPlay} />
     </div>
   );
 }

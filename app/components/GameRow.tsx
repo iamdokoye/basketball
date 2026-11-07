@@ -18,11 +18,15 @@ function names(game: Game, team: "A" | "B") {
 
 /** Compact result card used in lists. */
 export function GameRow({ game }: { game: Game }) {
+  const topScorer = [...game.lines].sort((a, b) => b.pts - a.pts)[0];
+  const topAssister = [...game.lines].filter((l) => l.ast > 0).sort((a, b) => b.ast - a.ast)[0];
+  const topBlocker = [...game.lines].filter((l) => l.blk > 0).sort((a, b) => b.blk - a.blk)[0];
+
   return (
     <li>
       <Link
         href={`/games/${game.id}`}
-        className="glass-1 block space-y-2 rounded-2xl p-3.5 transition-transform active:scale-[0.99]"
+        className="glass-1 block space-y-2 rounded-2xl p-3.5 transition-transform active:scale-[0.99] hover:bg-white/80"
       >
         <div className="flex items-center justify-between text-[11px] font-semibold text-muted">
           <div className="flex items-center gap-1.5">
@@ -65,6 +69,31 @@ export function GameRow({ game }: { game: Game }) {
             );
           })}
         </div>
+        {game.status === "final" && (topScorer || topAssister || topBlocker) && (
+          <div className="flex flex-wrap items-center gap-1.5 pt-1.5 border-t border-black/[0.05] text-[11px] font-semibold text-muted">
+            {topScorer && topScorer.pts > 0 && (
+              <span className="inline-flex items-center gap-1 rounded-md bg-black/[0.03] px-2 py-0.5 text-ink">
+                <span>🔥</span>
+                <span className="font-extrabold">{shortName(topScorer.name)}</span>
+                <span className="text-muted font-normal">{topScorer.pts} pts</span>
+              </span>
+            )}
+            {topAssister && topAssister.ast > 0 && (
+              <span className="inline-flex items-center gap-1 rounded-md bg-court-ink/10 px-2 py-0.5 text-court-ink">
+                <span>🪄</span>
+                <span className="font-extrabold">{shortName(topAssister.name)}</span>
+                <span className="text-court-ink/80 font-normal">{topAssister.ast} ast</span>
+              </span>
+            )}
+            {topBlocker && topBlocker.blk > 0 && (
+              <span className="inline-flex items-center gap-1 rounded-md bg-amber-500/10 px-2 py-0.5 text-amber-800">
+                <span>🧱</span>
+                <span className="font-extrabold">{shortName(topBlocker.name)}</span>
+                <span className="text-amber-800/80 font-normal">{topBlocker.blk} blk</span>
+              </span>
+            )}
+          </div>
+        )}
       </Link>
     </li>
   );

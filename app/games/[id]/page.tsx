@@ -23,6 +23,8 @@ import {
   computeGameTeamShotProfile,
   zoneRecordsFromGames,
 } from "@/lib/shotZones";
+import { buildGameHistoryInsights } from "@/lib/gameHistory";
+import { GamePlayHistory } from "@/app/components/GamePlayHistory";
 import GameAdminActions from "./GameAdminActions";
 import Scorekeeper from "./Scorekeeper";
 import { parseScoreMode, SCORE_MODE_COOKIE } from "./scoreModeShared";
@@ -421,6 +423,11 @@ export default async function GamePage({
         gameType={game.gameType}
         quarterMinutes={game.quarterMinutes}
         quarterCount={game.quarterCount}
+      />
+
+      <GamePlayHistory
+        insights={buildGameHistoryInsights(game)}
+        teamNames={{ A: "Team A", B: "Team B" }}
       />
 
       {access.isAdmin && <GameAdminActions gameId={game.id} />}
