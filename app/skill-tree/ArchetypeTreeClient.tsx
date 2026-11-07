@@ -819,10 +819,17 @@ function GraphicalTreeCanvas({
     const occupants = playersByNode.get(hoveredNodeId) ?? [];
     if (occupants.length > 0) return null; // Requirements tooltip only appears for unoccupied archetypes
     const coord = SKILL_TREE_COORDS[hoveredNodeId];
-    if (!coord) return null;
+    const node = SKILL_TREE_NODES[hoveredNodeId];
+    if (!coord || !node) return null;
+    const dim = getNodeDimensions(node.tier);
+
+    // If near the top (Tier 4), anchor right below the card; otherwise anchor right above the card
+    const isNearTop = coord.y < 160;
+    const anchorY = isNearTop ? coord.y + dim.height / 2 + 8 : coord.y - dim.height / 2 - 8;
+
     const leftPct = ((coord.x - viewBoxX) / viewBoxW) * 100;
-    const topPct = ((coord.y - viewBoxY) / viewBoxH) * 100;
-    return { leftPct, topPct };
+    const topPct = ((anchorY - viewBoxY) / viewBoxH) * 100;
+    return { leftPct, topPct, isNearTop };
   }, [hoveredNodeId, hoveredPlayer, hoveredRosterNodeId, hoveredBadgeNodeId, playersByNode, viewBoxX, viewBoxY, viewBoxW, viewBoxH]);
 
   return (
@@ -1385,7 +1392,7 @@ function GraphicalTreeCanvas({
       {/* ----------------------------------------------------------- */}
       {hoveredRosterNodeId && rosterPopoverPos && !hoveredPlayer && (
         <div
-          className="absolute z-50 w-72 rounded-2xl bg-white p-3.5 shadow-[0_20px_50px_rgba(0,0,0,0.22)] ring-1 ring-black/10 border border-black/5 pointer-events-auto transition-all animate-in fade-in zoom-in-95 duration-150"
+          className="absolute z-50 w-72 rounded-3xl bg-white/85 backdrop-blur-xl p-3.5 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.2)] ring-1 ring-black/10 border border-white/60 pointer-events-auto transition-all animate-in fade-in zoom-in-95 duration-150"
           style={{
             left: `${Math.max(12, Math.min(88, rosterPopoverPos.leftPct))}%`,
             top: `${Math.max(5, Math.min(85, rosterPopoverPos.topPct))}%`,
@@ -1486,7 +1493,7 @@ function GraphicalTreeCanvas({
       {/* ----------------------------------------------------------- */}
       {hoveredPlayer && popoverPos && (
         <div
-          className="absolute z-50 w-72 rounded-2xl bg-white p-4 shadow-[0_20px_50px_rgba(0,0,0,0.22)] ring-1 ring-black/10 border border-black/5 pointer-events-auto transition-all animate-in fade-in zoom-in-95 duration-150"
+          className="absolute z-50 w-72 rounded-3xl bg-white/85 backdrop-blur-xl p-4 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.2)] ring-1 ring-black/10 border border-white/60 pointer-events-auto transition-all animate-in fade-in zoom-in-95 duration-150"
           style={{
             left: `${Math.max(12, Math.min(88, popoverPos.leftPct))}%`,
             top: `${Math.max(5, Math.min(85, popoverPos.topPct))}%`,
@@ -1572,47 +1579,46 @@ function GraphicalTreeCanvas({
       {/* ----------------------------------------------------------- */}
       {hoveredNodeId && !hoveredPlayer && nodeTooltipPos && (
         <div
-          className="absolute z-50 w-68 rounded-2xl bg-white p-4 shadow-[0_20px_50px_rgba(0,0,0,0.22)] ring-1 ring-black/10 border border-black/5 pointer-events-none transition-all animate-in fade-in zoom-in-95 duration-150"
+          className="absolute z-50 w-72 rounded-3xl bg-white/85 backdrop-blur-xl p-4 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.2)] ring-1 ring-black/10 border border-white/60 pointer-events-none transition-all animate-in fade-in zoom-in-95 duration-150"
           style={{
-            left: `${Math.max(12, Math.min(88, nodeTooltipPos.leftPct))}%`,
-            top: `${Math.max(5, Math.min(85, nodeTooltipPos.topPct))}%`,
-            transform:
-              nodeTooltipPos.topPct < 20
-                ? nodeTooltipPos.leftPct > 70
-                  ? "translate(-85%, 45px)"
-                  : nodeTooltipPos.leftPct < 30
-                    ? "translate(-15%, 45px)"
-                    : "translate(-50%, 45px)"
-                : nodeTooltipPos.leftPct > 70
-                  ? "translate(-85%, calc(-100% - 15px))"
-                  : nodeTooltipPos.leftPct < 30
-                    ? "translate(-15%, calc(-100% - 15px))"
-                    : "translate(-50%, calc(-100% - 15px))",
+            left: `${Math.max(10, Math.min(90, nodeTooltipPos.leftPct))}%`,
+            top: `${nodeTooltipPos.topPct}%`,
+            transform: nodeTooltipPos.isNearTop
+              ? nodeTooltipPos.leftPct > 72
+                ? "translate(-85%, 0)"
+                : nodeTooltipPos.leftPct < 28
+                  ? "translate(-15%, 0)"
+                  : "translate(-50%, 0)"
+              : nodeTooltipPos.leftPct > 72
+                ? "translate(-85%, -100%)"
+                : nodeTooltipPos.leftPct < 28
+                  ? "translate(-15%, -100%)"
+                  : "translate(-50%, -100%)",
           }}
         >
-          <div className="flex items-center gap-2">
-            <span className="text-2xl" aria-hidden>
+          <div className="flex items-center gap-2.5">
+            <span className="text-2xl select-none" aria-hidden>
               {SKILL_TREE_NODES[hoveredNodeId].emoji}
             </span>
-            <div>
-              <div className="font-extrabold text-xs text-ink leading-tight">
+            <div className="min-w-0">
+              <div className="font-extrabold text-xs text-stone-900 leading-tight truncate">
                 {SKILL_TREE_NODES[hoveredNodeId].title}
               </div>
-              <div className="text-[10px] font-bold uppercase text-muted">
+              <div className="text-[10px] font-black uppercase tracking-wider text-court-ink">
                 {SKILL_TREE_NODES[hoveredNodeId].pillarLabel}
               </div>
             </div>
           </div>
-          <p className="mt-2 text-[11px] font-medium text-muted leading-relaxed">
+          <p className="mt-2 text-[11px] font-medium text-stone-700 leading-relaxed">
             {SKILL_TREE_NODES[hoveredNodeId].summary}
           </p>
-          <div className="mt-2 border-t border-black/[0.06] pt-1.5 space-y-0.5 text-left">
-            <div className="text-[10px] font-black uppercase tracking-wider text-court-ink">
+          <div className="mt-2.5 border-t border-black/[0.08] pt-2 space-y-1 text-left">
+            <div className="text-[10px] font-black uppercase tracking-wider text-stone-900">
               Requirements:
             </div>
             {SKILL_TREE_NODES[hoveredNodeId].requirements.map((r, i) => (
-              <div key={i} className="text-[10px] text-ink flex items-start gap-1">
-                <span className="text-muted">•</span>
+              <div key={i} className="text-[10.5px] font-semibold text-stone-800 flex items-start gap-1.5 leading-snug">
+                <span className="text-court-ink font-black">•</span>
                 <span>{r}</span>
               </div>
             ))}
