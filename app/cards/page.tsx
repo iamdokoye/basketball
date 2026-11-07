@@ -16,6 +16,7 @@ import { leagueGameDay, leagueTimeZone } from "@/lib/format";
 import { groupByPeriod, monthKey, weekKey } from "@/lib/mvp";
 import { listGames } from "@/lib/queries";
 import { AwardCard, CardBack } from "@/app/components/AwardCard";
+import { AwardCardTable } from "@/app/components/AwardCardTable";
 import { Countdown } from "@/app/components/Countdown";
 import { AdminDisclaimerBanner } from "@/app/components/AdminDisclaimer";
 
@@ -35,9 +36,10 @@ function hourLabel(h: number) {
 export default async function CardsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tier?: string; period?: string; unlock?: string }>;
+  searchParams: Promise<{ tier?: string; period?: string; unlock?: string; view?: string }>;
 }) {
-  const { tier: t, period, unlock } = await searchParams;
+  const { tier: t, period, unlock, view: viewParam } = await searchParams;
+  const view: "grid" | "table" = viewParam === "table" ? "table" : "grid";
   const tier: Tier = TIERS.includes(t as Tier) ? (t as Tier) : "week";
   const [games, access] = await Promise.all([listGames(), getAccess()]);
   const tz = leagueTimeZone();
@@ -79,7 +81,7 @@ export default async function CardsPage({
   const cards = selected && !hidden ? buildCards(selected.games, tier, selected) : [];
   const path = `/cards?tier=${tier}${selected ? `&period=${selected.key}` : ""}${unlock ? `&unlock=${unlock}` : ""}`;
   const href = (nextTier: Tier, key?: string) =>
-    `/cards?tier=${nextTier}${key ? `&period=${key}` : ""}`;
+    `/cards?tier=${nextTier}${key ? `&period=${key}` : ""}${view === "table" ? "&view=table" : ""}`;
 
   return (
     <div className="space-y-5">
@@ -278,13 +280,39 @@ export default async function CardsPage({
               </span>
             </Link>
           )}
-          <ul className="grid grid-cols-2 gap-3">
-            {cards.map((c) => (
-              <li key={c.key} className="min-w-0">
-                <AwardCard card={c} sharePath={path} />
-              </li>
-            ))}
-          </ul>
+          <nav aria-label="View" className="flex items-center justify-end gap-1">
+            {(["grid", "table"] as const).map((v) =>
+              v === view ? (
+                <span
+                  key={v}
+                  aria-current="page"
+                  className="rounded-full bg-ink px-3 py-1.5 text-xs font-semibold capitalize text-paper shadow-sm"
+                >
+                  {v}
+                </span>
+              ) : (
+                <Link
+                  key={v}
+                  href={`${path}${v === "table" ? "&view=table" : ""}`}
+                  scroll={false}
+                  className="glass-1 rounded-full px-3 py-1.5 text-xs font-semibold capitalize text-muted hover:text-ink active:scale-95"
+                >
+                  {v}
+                </Link>
+              ),
+            )}
+          </nav>
+          {view === "table" ? (
+            <AwardCardTable cards={cards} sharePath={path} />
+          ) : (
+            <ul className="grid grid-cols-2 gap-3">
+              {cards.map((c) => (
+                <li key={c.key} className="min-w-0">
+                  <AwardCard card={c} sharePath={path} />
+                </li>
+              ))}
+            </ul>
+          )}
         </>
       )}
 
