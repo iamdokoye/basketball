@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useRef, useEffect } from "react";
+import { useMemo, useState, useRef } from "react";
 import Link from "next/link";
 import { Avatar, shortName } from "@/app/components/Avatar";
 import { InjuredBadge } from "@/app/components/InjuredBadge";
@@ -18,8 +18,8 @@ import { ARCHETYPE_TIER_META, type ArchetypeTier } from "@/lib/badges";
 type ViewMode = "diagram" | "table";
 type TimeMode = "season" | "allTime";
 
-const CANVAS_WIDTH = 1600;
-const CANVAS_HEIGHT = 1060;
+const BASE_VB_WIDTH = 1000;
+const BASE_VB_HEIGHT = 880;
 
 export function ArchetypeTreeClient({
   seasonPlayers,
@@ -42,7 +42,32 @@ export function ArchetypeTreeClient({
   const [tierFilter, setTierFilter] = useState<"all" | ArchetypeTier>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [hideArchived, setHideArchived] = useState(true);
-  const [zoomScale, setZoomScale] = useState(0.85);
+  const activePlayers = timeMode === "season" ? seasonPlayers : allTimePlayers;
+
+  // Compute initial focus if initialPlayerId is provided via URL
+  const initialFocus = useMemo(() => {
+    if (!initialPlayerId) return null;
+    const p = activePlayers.find((x) => x.id === initialPlayerId);
+    if (!p) return null;
+    const coord = SKILL_TREE_COORDS[p.nodeId];
+    if (!coord) return null;
+    const vbW = BASE_VB_WIDTH / 1.3;
+    const vbH = BASE_VB_HEIGHT / 1.3;
+    const maxPanX = (BASE_VB_WIDTH - vbW) / 2;
+    const maxPanY = (BASE_VB_HEIGHT - vbH) / 2;
+    const targetPanX = coord.x - BASE_VB_WIDTH / 2;
+    const targetPanY = coord.y - BASE_VB_HEIGHT / 2;
+    return {
+      zoom: 1.3,
+      pan: {
+        x: Math.max(-maxPanX, Math.min(maxPanX, targetPanX)),
+        y: Math.max(-maxPanY, Math.min(maxPanY, targetPanY)),
+      },
+    };
+  }, [initialPlayerId, activePlayers]);
+
+  const [zoomScale, setZoomScale] = useState(() => initialFocus?.zoom ?? 1.0);
+  const [pan, setPan] = useState(() => initialFocus?.pan ?? { x: 0, y: 0 });
 
   // Table tree tier accordion state
   const [expandedTiers, setExpandedTiers] = useState<Record<number, boolean>>({
@@ -52,10 +77,6 @@ export function ArchetypeTreeClient({
     1: true,
     0: true,
   });
-
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
-
-  const activePlayers = timeMode === "season" ? seasonPlayers : allTimePlayers;
 
   // Filtered players
   const filteredPlayers = useMemo(() => {
@@ -127,70 +148,26 @@ export function ArchetypeTreeClient({
     return unique.size;
   }, [activePlayers, hideArchived]);
 
-  // Auto center or smart fit on initial load
-  useEffect(() => {
-    if (scrollContainerRef.current) {
-      const containerW = scrollContainerRef.current.clientWidth;
-      let initialScale = 0.85;
-      if (containerW > 0 && containerW < CANVAS_WIDTH) {
-        initialScale = Math.max(0.55, Math.min(0.85, (containerW - 32) / CANVAS_WIDTH));
-        setZoomScale(Number(initialScale.toFixed(2)));
-      }
-      scrollContainerRef.current.scrollTo({
-        left: Math.max(0, (CANVAS_WIDTH * initialScale - containerW) / 2),
-        top: 0,
-      });
-    }
-  }, []);
-
-  // Auto center on initial player if provided via URL
-  useEffect(() => {
-    if (initialPlayerId && scrollContainerRef.current) {
-      const p = activePlayers.find((x) => x.id === initialPlayerId);
-      if (p) {
-        const coord = SKILL_TREE_COORDS[p.nodeId];
-        if (coord) {
-          const container = scrollContainerRef.current;
-          container.scrollTo({
-            left: coord.x * zoomScale - container.clientWidth / 2,
-            top: coord.y * zoomScale - container.clientHeight / 2,
-            behavior: "smooth",
-          });
-        }
-      }
-    }
-  }, [initialPlayerId, activePlayers, zoomScale]);
-
   const toggleTierAccordion = (tier: number) => {
     setExpandedTiers((prev) => ({ ...prev, [tier]: !prev[tier] }));
   };
 
   const handleZoom = (delta: number) => {
-    setZoomScale((prev) => Math.max(0.45, Math.min(1.6, Number((prev + delta).toFixed(2)))));
+    setZoomScale((prev) => {
+      const next = Math.max(1.0, Math.min(2.2, Number((prev + delta).toFixed(2))));
+      if (next === 1.0) setPan({ x: 0, y: 0 });
+      return next;
+    });
   };
 
   const handleResetZoom = () => {
-    setZoomScale(1);
-    if (scrollContainerRef.current) {
-      scrollContainerRef.current.scrollTo({
-        left: Math.max(0, (CANVAS_WIDTH - scrollContainerRef.current.clientWidth) / 2),
-        top: 0,
-        behavior: "smooth",
-      });
-    }
+    setZoomScale(1.0);
+    setPan({ x: 0, y: 0 });
   };
 
   const handleFitScreen = () => {
-    if (scrollContainerRef.current) {
-      const containerW = scrollContainerRef.current.clientWidth - 48;
-      const fit = Math.max(0.45, Math.min(1.0, containerW / CANVAS_WIDTH));
-      setZoomScale(Number(fit.toFixed(2)));
-      scrollContainerRef.current.scrollTo({
-        left: 0,
-        top: 0,
-        behavior: "smooth",
-      });
-    }
+    setZoomScale(1.0);
+    setPan({ x: 0, y: 0 });
   };
 
   return (
@@ -435,9 +412,12 @@ export function ArchetypeTreeClient({
             <div className="inline-flex items-center rounded-xl bg-black/[0.05] p-0.5 text-xs font-black">
               <button
                 type="button"
-                onClick={() => handleZoom(-0.15)}
+                onClick={() => handleZoom(-0.2)}
+                disabled={zoomScale <= 1.0}
                 title="Zoom Out (−)"
-                className="px-2 py-1 text-muted hover:text-ink transition-colors cursor-pointer"
+                className={`px-2 py-1 transition-colors ${
+                  zoomScale <= 1.0 ? "text-muted/30 cursor-not-allowed" : "text-muted hover:text-ink cursor-pointer"
+                }`}
               >
                 −
               </button>
@@ -451,9 +431,12 @@ export function ArchetypeTreeClient({
               </button>
               <button
                 type="button"
-                onClick={() => handleZoom(0.15)}
+                onClick={() => handleZoom(0.2)}
+                disabled={zoomScale >= 2.2}
                 title="Zoom In (+)"
-                className="px-2 py-1 text-muted hover:text-ink transition-colors cursor-pointer"
+                className={`px-2 py-1 transition-colors ${
+                  zoomScale >= 2.2 ? "text-muted/30 cursor-not-allowed" : "text-muted hover:text-ink cursor-pointer"
+                }`}
               >
                 +
               </button>
@@ -461,7 +444,11 @@ export function ArchetypeTreeClient({
                 type="button"
                 onClick={handleFitScreen}
                 title="Fit to Screen"
-                className="border-l border-black/10 px-2 py-1 text-[10px] text-court-ink hover:text-court-dark transition-colors cursor-pointer"
+                className={`border-l border-black/10 px-2 py-1 text-[10px] font-black transition-colors cursor-pointer ${
+                  zoomScale === 1.0 && pan.x === 0 && pan.y === 0
+                    ? "text-court-ink underline"
+                    : "text-court-ink hover:text-court-dark"
+                }`}
               >
                 Fit
               </button>
@@ -561,10 +548,11 @@ export function ArchetypeTreeClient({
           tierFilter={tierFilter}
           zoomScale={zoomScale}
           setZoomScale={setZoomScale}
+          pan={pan}
+          setPan={setPan}
           onZoom={handleZoom}
           onFitScreen={handleFitScreen}
           onResetZoom={handleResetZoom}
-          scrollContainerRef={scrollContainerRef}
         />
       ) : (
         <TableTreeView
@@ -588,8 +576,69 @@ export function ArchetypeTreeClient({
 }
 
 // ---------------------------------------------------------------------------
-// VIEW 1: EXPANDED GRAPHICAL TREE CANVAS WITH ZOOM & PAN CONTROLS
+// VIEW 1: RESPONSIVE GRAPHICAL TREE CANVAS (CONTAINER IS CANVAS)
 // ---------------------------------------------------------------------------
+function splitNodeTitle(title: string): [string, string?] {
+  if (title === "The All-Around Threat") return ["All-Around", "Threat"];
+  if (title === "Playmaking Shot Creator") return ["Playmaking", "Shot Creator"];
+  if (title === "3-and-D Specialist") return ["3-and-D", "Specialist"];
+  if (title === "Two-Way Floor General") return ["Two-Way", "Floor General"];
+  if (title === "Lockdown Specialist") return ["Lockdown", "Specialist"];
+  if (title === "Defensive Anchor") return ["Defensive", "Anchor"];
+  if (title === "Two-Way Playmaker") return ["Two-Way", "Playmaker"];
+  if (title === "Two-Way Slasher") return ["Two-Way", "Slasher"];
+  if (title === "Two-Way Shooter") return ["Two-Way", "Shooter"];
+  if (title === "Two-Way Force") return ["Two-Way", "Force"];
+  if (title === "Clutch Assassin") return ["Clutch", "Assassin"];
+  if (title === "Rebound Dynamo") return ["Rebound", "Dynamo"];
+  if (title === "Hustle Engine") return ["Hustle", "Engine"];
+  return [title];
+}
+
+function getNodeDimensions(tier: ArchetypeTier) {
+  switch (tier) {
+    case 4:
+      return { width: 140, height: 74 };
+    case 3:
+      return { width: 126, height: 74 };
+    case 2:
+      return { width: 108, height: 74 };
+    case 1:
+      return { width: 94, height: 74 };
+    case 0:
+    default:
+      return { width: 126, height: 74 };
+  }
+}
+
+function getPlayerDotCoords(
+  nodeCoord: { x: number; y: number },
+  cardHeight: number,
+  index: number,
+  total: number,
+) {
+  if (total <= 5) {
+    const spacing = 20;
+    const startX = nodeCoord.x - ((total - 1) * spacing) / 2;
+    return {
+      x: startX + index * spacing,
+      y: nodeCoord.y - cardHeight / 2 - 13,
+    };
+  }
+  const half = Math.ceil(total / 2);
+  const isRow1 = index < half;
+  const rowIndex = isRow1 ? index : index - half;
+  const rowCount = isRow1 ? half : total - half;
+  const spacing = 19;
+  const startX = nodeCoord.x - ((rowCount - 1) * spacing) / 2;
+  return {
+    x: startX + rowIndex * spacing,
+    y: isRow1
+      ? nodeCoord.y - cardHeight / 2 - 25
+      : nodeCoord.y - cardHeight / 2 - 9,
+  };
+}
+
 function GraphicalTreeCanvas({
   playersByNode,
   selectedPlayer,
@@ -601,10 +650,11 @@ function GraphicalTreeCanvas({
   tierFilter,
   zoomScale,
   setZoomScale,
+  pan,
+  setPan,
   onZoom,
   onFitScreen,
   onResetZoom,
-  scrollContainerRef,
 }: {
   playersByNode: Map<ArchetypeNodeId, PlayerTreeItem[]>;
   selectedPlayer: PlayerTreeItem | null;
@@ -616,48 +666,78 @@ function GraphicalTreeCanvas({
   tierFilter: "all" | ArchetypeTier;
   zoomScale: number;
   setZoomScale: React.Dispatch<React.SetStateAction<number>>;
+  pan: { x: number; y: number };
+  setPan: React.Dispatch<React.SetStateAction<{ x: number; y: number }>>;
   onZoom: (delta: number) => void;
   onFitScreen: () => void;
   onResetZoom: () => void;
-  scrollContainerRef: React.RefObject<HTMLDivElement | null>;
 }) {
+  const containerRef = useRef<HTMLDivElement>(null);
   const activeFocusPlayer = hoveredPlayer ?? selectedPlayer;
 
-  // Drag-to-pan state
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0, scrollLeft: 0, scrollTop: 0 });
+  // ViewBox coordinates based on zoomScale & pan
+  const viewBoxW = BASE_VB_WIDTH / zoomScale;
+  const viewBoxH = BASE_VB_HEIGHT / zoomScale;
+  const maxPanX = (BASE_VB_WIDTH - viewBoxW) / 2;
+  const maxPanY = (BASE_VB_HEIGHT - viewBoxH) / 2;
+  const viewBoxX = maxPanX + pan.x;
+  const viewBoxY = maxPanY + pan.y;
 
-  const handleMouseDown = (e: React.MouseEvent) => {
+  // Pointer drag-to-pan state
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0, panX: 0, panY: 0 });
+
+  const handlePointerDown = (e: React.PointerEvent) => {
     if ((e.target as HTMLElement).closest("button, a, input")) return;
-    if (!scrollContainerRef.current) return;
+    if (zoomScale <= 1.0) return;
     setIsDragging(true);
     setDragStart({
       x: e.clientX,
       y: e.clientY,
-      scrollLeft: scrollContainerRef.current.scrollLeft,
-      scrollTop: scrollContainerRef.current.scrollTop,
+      panX: pan.x,
+      panY: pan.y,
+    });
+    try {
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    } catch {
+      // ignore
+    }
+  };
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!isDragging || !containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const dx = e.clientX - dragStart.x;
+    const dy = e.clientY - dragStart.y;
+    const svgDx = dx * (viewBoxW / rect.width);
+    const svgDy = dy * (viewBoxH / rect.height);
+
+    setPan({
+      x: Math.max(-maxPanX, Math.min(maxPanX, dragStart.panX - svgDx)),
+      y: Math.max(-maxPanY, Math.min(maxPanY, dragStart.panY - svgDy)),
     });
   };
 
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isDragging || !scrollContainerRef.current) return;
-    e.preventDefault();
-    const dx = e.clientX - dragStart.x;
-    const dy = e.clientY - dragStart.y;
-    scrollContainerRef.current.scrollLeft = dragStart.scrollLeft - dx;
-    scrollContainerRef.current.scrollTop = dragStart.scrollTop - dy;
+  const handlePointerUp = (e: React.PointerEvent) => {
+    if (isDragging) {
+      setIsDragging(false);
+      try {
+        (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+      } catch {
+        // ignore
+      }
+    }
   };
 
-  const handleMouseUp = () => {
-    setIsDragging(false);
-  };
-
-  // Wheel zoom handling with Ctrl/Meta or trackpad pinch
   const handleWheel = (e: React.WheelEvent) => {
     if (e.ctrlKey || e.metaKey) {
       e.preventDefault();
       const delta = -e.deltaY * 0.005;
-      setZoomScale((prev) => Math.max(0.45, Math.min(1.6, Number((prev + delta).toFixed(2)))));
+      setZoomScale((prev) => {
+        const next = Math.max(1.0, Math.min(2.2, Number((prev + delta).toFixed(2))));
+        if (next === 1.0) setPan({ x: 0, y: 0 });
+        return next;
+      });
     }
   };
 
@@ -682,31 +762,60 @@ function GraphicalTreeCanvas({
     return ids;
   }, [activeFocusPlayer, targetNodeId]);
 
+  // Hovered dot position in SVG coordinates
+  const hoveredDotCoord = useMemo(() => {
+    if (!hoveredPlayer) return null;
+    const node = SKILL_TREE_NODES[hoveredPlayer.nodeId];
+    const coord = SKILL_TREE_COORDS[hoveredPlayer.nodeId];
+    if (!node || !coord) return null;
+    const occupants = playersByNode.get(hoveredPlayer.nodeId) ?? [];
+    const idx = occupants.findIndex((p) => p.id === hoveredPlayer.id);
+    const dim = getNodeDimensions(node.tier);
+    return getPlayerDotCoords(coord, dim.height, idx >= 0 ? idx : 0, occupants.length);
+  }, [hoveredPlayer, playersByNode]);
+
+  // Convert SVG coordinates to container percentages for HTML popover
+  const popoverPos = useMemo(() => {
+    if (!hoveredDotCoord) return null;
+    const leftPct = ((hoveredDotCoord.x - viewBoxX) / viewBoxW) * 100;
+    const topPct = ((hoveredDotCoord.y - viewBoxY) / viewBoxH) * 100;
+    return { leftPct, topPct };
+  }, [hoveredDotCoord, viewBoxX, viewBoxY, viewBoxW, viewBoxH]);
+
+  // Node tooltip position (when a node is hovered without a player dot)
+  const nodeTooltipPos = useMemo(() => {
+    if (!hoveredNodeId || hoveredPlayer) return null;
+    const coord = SKILL_TREE_COORDS[hoveredNodeId];
+    if (!coord) return null;
+    const leftPct = ((coord.x - viewBoxX) / viewBoxW) * 100;
+    const topPct = ((coord.y - viewBoxY) / viewBoxH) * 100;
+    return { leftPct, topPct };
+  }, [hoveredNodeId, hoveredPlayer, viewBoxX, viewBoxY, viewBoxW, viewBoxH]);
+
   return (
     <div
-      ref={scrollContainerRef}
-      onMouseDown={handleMouseDown}
-      onMouseMove={handleMouseMove}
-      onMouseUp={handleMouseUp}
-      onMouseLeave={handleMouseUp}
+      ref={containerRef}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerUp}
       onWheel={handleWheel}
-      className={`glass-2 relative overflow-auto rounded-3xl p-4 shadow-xl ring-1 ring-black/10 select-none ${
-        isDragging ? "cursor-grabbing" : "cursor-grab"
+      className={`glass-2 relative rounded-3xl p-3 sm:p-5 shadow-xl ring-1 ring-black/10 overflow-hidden select-none w-full ${
+        isDragging ? "cursor-grabbing" : zoomScale > 1.0 ? "cursor-grab" : "cursor-default"
       }`}
-      style={{ minHeight: "750px", maxHeight: "88vh" }}
     >
-      {/* Sticky Top Bar & Legend */}
-      <div className="sticky left-0 top-0 z-30 flex items-center justify-between gap-3 pb-3 mb-2 border-b border-black/[0.06] bg-white/60 backdrop-blur-md px-3 rounded-2xl">
+      {/* Top Bar with Legend */}
+      <div className="flex items-center justify-between gap-3 pb-3 mb-2 border-b border-black/[0.06] bg-white/70 backdrop-blur-md px-3.5 py-2 rounded-2xl">
         <div className="flex items-center gap-2">
           <span className="text-base" aria-hidden>
             ✨
           </span>
           <span className="text-xs font-bold text-ink">
-            Interactive Tree Graph ({CANVAS_WIDTH}px canvas) · Hover on any{" "}
+            Interactive Tree Graph · Hover on any{" "}
             <span className="text-court-ink font-black">player dot</span> to inspect their road!
           </span>
         </div>
-        <div className="flex items-center gap-3 text-[11px] font-bold text-muted">
+        <div className="hidden sm:flex items-center gap-3 text-[11px] font-bold text-muted">
           <span className="flex items-center gap-1">
             <span className="h-2 w-2 rounded-full bg-emerald-500" /> Apex (T4)
           </span>
@@ -726,23 +835,33 @@ function GraphicalTreeCanvas({
       </div>
 
       {/* Floating Zoom & Pan HUD Controls */}
-      <div className="sticky bottom-4 right-4 z-40 ml-auto flex items-center gap-1.5 rounded-2xl glass-3 p-1.5 shadow-2xl ring-1 ring-black/15 w-fit bg-white/90 backdrop-blur-md">
+      <div className="absolute bottom-4 right-4 z-40 flex items-center gap-1 rounded-2xl glass-3 p-1.5 shadow-xl ring-1 ring-black/10 bg-white/90 backdrop-blur-md">
         <button
           type="button"
-          onClick={() => onZoom(-0.15)}
+          onClick={() => onZoom(-0.2)}
+          disabled={zoomScale <= 1.0}
           title="Zoom Out (−)"
-          className="grid h-8 w-8 place-items-center rounded-xl bg-black/[0.05] text-base font-black text-ink hover:bg-black/10 transition-colors cursor-pointer"
+          className={`grid h-8 w-8 place-items-center rounded-xl text-sm font-black transition-colors ${
+            zoomScale <= 1.0
+              ? "text-muted/30 cursor-not-allowed"
+              : "text-ink hover:bg-black/10 cursor-pointer"
+          }`}
         >
           −
         </button>
-        <span className="tabular px-2 text-xs font-black text-ink select-none min-w-[50px] text-center">
+        <span className="tabular px-2 text-xs font-black text-ink select-none min-w-[46px] text-center">
           {Math.round(zoomScale * 100)}%
         </span>
         <button
           type="button"
-          onClick={() => onZoom(0.15)}
+          onClick={() => onZoom(0.2)}
+          disabled={zoomScale >= 2.2}
           title="Zoom In (+)"
-          className="grid h-8 w-8 place-items-center rounded-xl bg-black/[0.05] text-base font-black text-ink hover:bg-black/10 transition-colors cursor-pointer"
+          className={`grid h-8 w-8 place-items-center rounded-xl text-sm font-black transition-colors ${
+            zoomScale >= 2.2
+              ? "text-muted/30 cursor-not-allowed"
+              : "text-ink hover:bg-black/10 cursor-pointer"
+          }`}
         >
           +
         </button>
@@ -750,8 +869,12 @@ function GraphicalTreeCanvas({
         <button
           type="button"
           onClick={onFitScreen}
-          title="Fit whole tree into screen"
-          className="flex items-center gap-1 rounded-xl bg-court-ink/10 px-2.5 py-1.5 text-xs font-black text-court-ink hover:bg-court-ink hover:text-white transition-colors cursor-pointer"
+          title="Fit tree directly inside placeholder container"
+          className={`flex items-center gap-1 rounded-xl px-2.5 py-1.5 text-xs font-black transition-colors cursor-pointer ${
+            zoomScale === 1.0 && pan.x === 0 && pan.y === 0
+              ? "bg-court-ink text-white shadow-xs"
+              : "bg-court-ink/10 text-court-ink hover:bg-court-ink hover:text-white"
+          }`}
         >
           <span>⤢</span>
           <span>Fit Screen</span>
@@ -760,384 +883,512 @@ function GraphicalTreeCanvas({
           type="button"
           onClick={onResetZoom}
           title="Reset to 100%"
-          className="rounded-xl bg-black/[0.05] px-2.5 py-1.5 text-xs font-bold text-muted hover:text-ink transition-colors cursor-pointer"
+          className="rounded-xl bg-black/[0.05] px-2 py-1.5 text-xs font-bold text-muted hover:text-ink transition-colors cursor-pointer"
         >
           100%
         </button>
       </div>
 
-      {/* Scalable Coordinate Container */}
-      <div
-        className="relative mx-auto transition-transform duration-150 origin-top"
-        style={{
-          width: `${CANVAS_WIDTH}px`,
-          height: `${CANVAS_HEIGHT}px`,
-          transform: `scale(${zoomScale})`,
-          transformOrigin: "top center",
-        }}
+      {/* Responsive SVG Canvas (Container IS the canvas!) */}
+      <svg
+        viewBox={`${viewBoxX} ${viewBoxY} ${viewBoxW} ${viewBoxH}`}
+        className="w-full h-auto block select-none"
+        style={{ minHeight: "620px", maxHeight: "82vh" }}
       >
-        {/* SVG Layer: Tier Bands and Connector Branches */}
-        <svg
-          className="absolute inset-0 w-full h-full pointer-events-none"
-          viewBox={`0 0 ${CANVAS_WIDTH} ${CANVAS_HEIGHT}`}
-        >
-          <defs>
-            {/* Gradients for Glowing Active Branches */}
-            <linearGradient id="activeBranchGrad" x1="0%" y1="100%" x2="0%" y2="0%">
-              <stop offset="0%" stopColor="#ea580c" stopOpacity="0.95" />
-              <stop offset="100%" stopColor="#10b981" stopOpacity="0.95" />
-            </linearGradient>
+        <defs>
+          <linearGradient id="activeBranchGrad" x1="0%" y1="100%" x2="0%" y2="0%">
+            <stop offset="0%" stopColor="#ea580c" stopOpacity="0.95" />
+            <stop offset="100%" stopColor="#10b981" stopOpacity="0.95" />
+          </linearGradient>
 
-            <filter id="branchGlow" x="-20%" y="-20%" width="140%" height="140%">
-              <feGaussianBlur stdDeviation="3.5" result="blur" />
-              <feMerge>
-                <feMergeNode in="blur" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-            </filter>
-          </defs>
+          <filter id="branchGlow" x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur stdDeviation="3" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
 
-          {/* Horizontal Tier Region Backdrops */}
-          {/* Tier 4 Apex Summit */}
-          <rect
-            x="40"
-            y="25"
-            width="1520"
-            height="150"
-            rx="24"
-            fill="rgba(16, 185, 129, 0.04)"
-            stroke="rgba(16, 185, 129, 0.18)"
-            strokeDasharray="4 4"
-          />
-          <text x="70" y="55" fill="#065f46" fontSize="13" fontWeight="800" letterSpacing="0.08em">
-            TIER 4 · THE SUPREME APEX
-          </text>
+          <filter id="nodeShadow" x="-10%" y="-10%" width="125%" height="125%">
+            <feDropShadow dx="0" dy="2" stdDeviation="3" floodOpacity="0.08" />
+          </filter>
 
-          {/* Tier 3 Pinnacle Ridge */}
-          <rect
-            x="40"
-            y="235"
-            width="1520"
-            height="160"
-            rx="24"
-            fill="rgba(168, 85, 247, 0.03)"
-            stroke="rgba(168, 85, 247, 0.14)"
-            strokeDasharray="4 4"
-          />
-          <text x="70" y="265" fill="#7e22ce" fontSize="13" fontWeight="800" letterSpacing="0.08em">
-            TIER 3 · PINNACLE DUAL-PILLARS
-          </text>
+          <filter id="dotShadow" x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="1" stdDeviation="1.5" floodOpacity="0.25" />
+          </filter>
+        </defs>
 
-          {/* Tier 2 Hybrid Bridge */}
-          <rect
-            x="40"
-            y="450"
-            width="1520"
-            height="170"
-            rx="24"
-            fill="rgba(245, 158, 11, 0.03)"
-            stroke="rgba(245, 158, 11, 0.14)"
-            strokeDasharray="4 4"
-          />
-          <text x="70" y="480" fill="#b45309" fontSize="13" fontWeight="800" letterSpacing="0.08em">
-            TIER 2 · HYBRID ROLES
-          </text>
+        {/* Tier 4 Apex Summit */}
+        <rect
+          x="12"
+          y="16"
+          width="976"
+          height="134"
+          rx="20"
+          fill="rgba(16, 185, 129, 0.04)"
+          stroke="rgba(16, 185, 129, 0.2)"
+          strokeDasharray="4 4"
+        />
+        <text x="28" y="38" fill="#065f46" fontSize="11" fontWeight="800" letterSpacing="0.08em">
+          TIER 4 · THE SUPREME APEX
+        </text>
 
-          {/* Tier 1 Specialist Meadow */}
-          <rect
-            x="40"
-            y="670"
-            width="1520"
-            height="170"
-            rx="24"
-            fill="rgba(14, 165, 233, 0.03)"
-            stroke="rgba(14, 165, 233, 0.14)"
-            strokeDasharray="4 4"
-          />
-          <text x="70" y="700" fill="#0369a1" fontSize="13" fontWeight="800" letterSpacing="0.08em">
-            TIER 1 · SPECIALIZED DISCIPLINES
-          </text>
+        {/* Tier 3 Pinnacle Ridge */}
+        <rect
+          x="12"
+          y="166"
+          width="976"
+          height="150"
+          rx="20"
+          fill="rgba(168, 85, 247, 0.03)"
+          stroke="rgba(168, 85, 247, 0.16)"
+          strokeDasharray="4 4"
+        />
+        <text x="28" y="188" fill="#7e22ce" fontSize="11" fontWeight="800" letterSpacing="0.08em">
+          TIER 3 · PINNACLE DUAL-PILLARS
+        </text>
 
-          {/* Tier 0 Foundation Ground */}
-          <rect
-            x="40"
-            y="870"
-            width="1520"
-            height="160"
-            rx="24"
-            fill="rgba(148, 163, 184, 0.04)"
-            stroke="rgba(148, 163, 184, 0.16)"
-            strokeDasharray="4 4"
-          />
-          <text x="70" y="900" fill="#475569" fontSize="13" fontWeight="800" letterSpacing="0.08em">
-            TIER 0 · FOUNDATIONS & ROOTS
-          </text>
+        {/* Tier 2 Hybrid Bridge */}
+        <rect
+          x="12"
+          y="332"
+          width="976"
+          height="156"
+          rx="20"
+          fill="rgba(245, 158, 11, 0.03)"
+          stroke="rgba(245, 158, 11, 0.16)"
+          strokeDasharray="4 4"
+        />
+        <text x="28" y="354" fill="#b45309" fontSize="11" fontWeight="800" letterSpacing="0.08em">
+          TIER 2 · HYBRID ROLES
+        </text>
 
-          {/* SVG Tree Connector Branches */}
-          {SKILL_TREE_BRANCHES.map((branch) => {
-            const sourceCoord = SKILL_TREE_COORDS[branch.source];
-            const targetCoord = SKILL_TREE_COORDS[branch.target];
-            if (!sourceCoord || !targetCoord) return null;
+        {/* Tier 1 Specialist Meadow */}
+        <rect
+          x="12"
+          y="504"
+          width="976"
+          height="176"
+          rx="20"
+          fill="rgba(14, 165, 233, 0.03)"
+          stroke="rgba(14, 165, 233, 0.16)"
+          strokeDasharray="4 4"
+        />
+        <text x="28" y="526" fill="#0369a1" fontSize="11" fontWeight="800" letterSpacing="0.08em">
+          TIER 1 · SPECIALIZED DISCIPLINES
+        </text>
 
-            const isHighlighted = activeBranchIds.has(branch.id);
-            const isFaded = activeFocusPlayer && !isHighlighted;
+        {/* Tier 0 Foundation Ground */}
+        <rect
+          x="12"
+          y="696"
+          width="976"
+          height="166"
+          rx="20"
+          fill="rgba(148, 163, 184, 0.04)"
+          stroke="rgba(148, 163, 184, 0.18)"
+          strokeDasharray="4 4"
+        />
+        <text x="28" y="718" fill="#475569" fontSize="11" fontWeight="800" letterSpacing="0.08em">
+          TIER 0 · FOUNDATIONS & ROOTS
+        </text>
 
-            // Smooth vertical Bezier curve from source to target
-            const dy = Math.abs(sourceCoord.y - targetCoord.y);
-            const cy1 = sourceCoord.y - dy * 0.45;
-            const cy2 = targetCoord.y + dy * 0.45;
-            const pathData = `M ${sourceCoord.x} ${sourceCoord.y} C ${sourceCoord.x} ${cy1}, ${targetCoord.x} ${cy2}, ${targetCoord.x} ${targetCoord.y}`;
+        {/* Connector Branches */}
+        {SKILL_TREE_BRANCHES.map((branch) => {
+          const sourceCoord = SKILL_TREE_COORDS[branch.source];
+          const targetCoord = SKILL_TREE_COORDS[branch.target];
+          const sourceNode = SKILL_TREE_NODES[branch.source];
+          const targetNode = SKILL_TREE_NODES[branch.target];
+          if (!sourceCoord || !targetCoord || !sourceNode || !targetNode) return null;
 
-            return (
-              <path
-                key={branch.id}
-                d={pathData}
-                fill="none"
-                stroke={isHighlighted ? "url(#activeBranchGrad)" : "rgba(0, 0, 0, 0.13)"}
-                strokeWidth={isHighlighted ? 4 : 2}
-                strokeDasharray={isHighlighted ? "6 3" : undefined}
-                filter={isHighlighted ? "url(#branchGlow)" : undefined}
-                opacity={isFaded ? 0.22 : 1}
-                className={isHighlighted ? "animate-[dash_1.5s_linear_infinite]" : "transition-opacity duration-300"}
-              />
-            );
-          })}
-        </svg>
+          const sourceDim = getNodeDimensions(sourceNode.tier);
+          const targetDim = getNodeDimensions(targetNode.tier);
+          const sourceOccupants = playersByNode.get(branch.source)?.length ?? 0;
+          const dotOffset = sourceOccupants > 5 ? 28 : sourceOccupants > 0 ? 16 : 0;
 
-        {/* HTML Layer: All 18 Archetype Nodes and Interactive Player Dots */}
+          const startX = sourceCoord.x;
+          const startY = sourceCoord.y - sourceDim.height / 2 - dotOffset;
+          const endX = targetCoord.x;
+          const endY = targetCoord.y + targetDim.height / 2;
+
+          const isHighlighted = activeBranchIds.has(branch.id);
+          const isFaded = activeFocusPlayer && !isHighlighted;
+
+          const dy = Math.abs(startY - endY);
+          const cy1 = startY - dy * 0.45;
+          const cy2 = endY + dy * 0.45;
+          const pathData = `M ${startX} ${startY} C ${startX} ${cy1}, ${endX} ${cy2}, ${endX} ${endY}`;
+
+          return (
+            <path
+              key={branch.id}
+              d={pathData}
+              fill="none"
+              stroke={isHighlighted ? "url(#activeBranchGrad)" : "rgba(0, 0, 0, 0.14)"}
+              strokeWidth={isHighlighted ? 3.5 : 1.8}
+              strokeDasharray={isHighlighted ? "6 3" : undefined}
+              filter={isHighlighted ? "url(#branchGlow)" : undefined}
+              opacity={isFaded ? 0.2 : 1}
+              className={isHighlighted ? "animate-[dash_1.5s_linear_infinite]" : "transition-opacity duration-300"}
+            />
+          );
+        })}
+
+        {/* Archetype Cards & Player Dots */}
         {(Object.keys(SKILL_TREE_NODES) as ArchetypeNodeId[]).map((nodeId) => {
           const node = SKILL_TREE_NODES[nodeId];
           const coord = SKILL_TREE_COORDS[nodeId];
+          const dim = getNodeDimensions(node.tier);
           const occupants = playersByNode.get(nodeId) ?? [];
           const isOccupied = occupants.length > 0;
 
-          // Check if this node is relevant to the active focused player
           const isCurrentForFocus = activeFocusPlayer && activeFocusPlayer.nodeId === nodeId;
           const isTargetForFocus = activeFocusPlayer && targetNodeId === nodeId;
           const isDimmed =
             (tierFilter !== "all" && node.tier !== tierFilter) ||
             (activeFocusPlayer && !isCurrentForFocus && !isTargetForFocus);
 
+          const [titleLine1, titleLine2] = splitNodeTitle(node.title);
+
           return (
-            <div
+            <g
               key={nodeId}
-              onMouseEnter={() => onHoverNode(nodeId)}
-              onMouseLeave={() => onHoverNode(null)}
-              className={`absolute flex flex-col items-center transition-all duration-300 ${
-                isDimmed ? "opacity-35 scale-95" : "opacity-100 scale-100"
-              }`}
-              style={{
-                left: `${coord.x}px`,
-                top: `${coord.y}px`,
-                transform: "translate(-50%, -50%)",
-                width: "144px",
-              }}
+              opacity={isDimmed ? 0.35 : 1}
+              className="transition-opacity duration-200"
             >
-              {/* ------------------------------------------------------------- */}
-              {/* PLAYER DOTS ON THE TREE (Positioned directly above the node) */}
-              {/* ------------------------------------------------------------- */}
-              {isOccupied && (
-                <div className="absolute -top-7 flex items-center justify-center gap-1.5 z-20">
-                  {occupants.map((p) => {
-                    const isDotSelected = selectedPlayer?.id === p.id;
-                    const isDotHovered = hoveredPlayer?.id === p.id;
-
-                    return (
-                      <div
-                        key={p.id}
-                        className="relative group/dot"
-                        onMouseEnter={() => onHoverPlayer(p.id)}
-                        onMouseLeave={() => onHoverPlayer(null)}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onSelectPlayer(p);
-                        }}
-                      >
-                        {/* The Interactive Glowing Player Dot */}
-                        <button
-                          type="button"
-                          aria-label={`Player ${p.name}`}
-                          className={`relative grid h-6.5 w-6.5 place-items-center rounded-full text-[9px] font-black uppercase transition-all duration-200 cursor-pointer ${
-                            isDotSelected
-                              ? "bg-court-ink text-white ring-3 ring-court-ink ring-offset-2 scale-125 shadow-lg"
-                              : isDotHovered
-                                ? "bg-court-ink text-white ring-2 ring-court-ink ring-offset-1 scale-125 shadow-md"
-                                : "bg-ink text-paper ring-2 ring-white shadow-xs hover:scale-115 hover:bg-court-ink"
-                          }`}
-                        >
-                          {/* Dot Initials */}
-                          <span>{p.name.slice(0, 2).toUpperCase()}</span>
-
-                          {/* Pulsing Aura */}
-                          <span
-                            className={`absolute inset-0 rounded-full animate-ping opacity-30 ${
-                              isDotSelected ? "bg-court-ink" : "bg-emerald-400"
-                            }`}
-                          />
-                        </button>
-
-                        {/* --------------------------------------------------------- */}
-                        {/* HOVER POPOVER CARD: Displays when user hovers on this dot */}
-                        {/* --------------------------------------------------------- */}
-                        {isDotHovered && (
-                          <div
-                            className={`absolute z-50 w-72 rounded-2xl glass-3 p-4 shadow-2xl ring-1 ring-black/15 pointer-events-auto transition-all animate-in fade-in zoom-in-95 duration-150 ${
-                              coord.x > 1100
-                                ? "right-0 translate-x-4"
-                                : coord.x < 500
-                                  ? "left-0 -translate-x-4"
-                                  : "left-1/2 -translate-x-1/2"
-                            } ${coord.y < 400 ? "top-8" : "bottom-8"}`}
-                          >
-                            <div className="flex items-center gap-2.5">
-                              <Avatar name={p.name} size="md" />
-                              <div className="min-w-0 flex-1">
-                                <div className="flex items-center gap-1.5">
-                                  <span className="font-extrabold text-sm text-ink truncate">
-                                    {p.name}
-                                  </span>
-                                  {p.injured && <InjuredBadge size="xs" />}
-                                </div>
-                                <div className="text-[11px] font-bold text-muted truncate">
-                                  {p.archetype.emoji} {p.archetype.title} · Tier {p.archetype.tier}
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Stat snapshot */}
-                            <div className="mt-2.5 grid grid-cols-4 gap-1 text-center bg-black/[0.04] p-1.5 rounded-xl text-[10px]">
-                              <div>
-                                <div className="text-muted font-bold">GP</div>
-                                <div className="font-extrabold text-ink">{p.gp}</div>
-                              </div>
-                              <div>
-                                <div className="text-muted font-bold">PPG</div>
-                                <div className="font-extrabold text-ink">{p.ppg.toFixed(1)}</div>
-                              </div>
-                              <div>
-                                <div className="text-muted font-bold">APG</div>
-                                <div className="font-extrabold text-ink">{p.apg.toFixed(1)}</div>
-                              </div>
-                              <div>
-                                <div className="text-muted font-bold">STOCKS</div>
-                                <div className="font-extrabold text-ink">{p.stockPg.toFixed(1)}</div>
-                              </div>
-                            </div>
-
-                            {/* Active Road to Next Tier */}
-                            <div className="mt-2.5 border-t border-black/[0.06] pt-2">
-                              <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-court-ink">
-                                <span>Road to Tier {p.targetTier}</span>
-                                <span>{p.roadProgressPct}%</span>
-                              </div>
-                              <div className="mt-1 flex items-center gap-1.5 text-xs font-black text-ink">
-                                <span>{p.targetEmoji}</span>
-                                <span>{p.targetTitle}</span>
-                              </div>
-                              <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-black/[0.08]">
-                                <div
-                                  className="h-full rounded-full bg-court-ink transition-all duration-300"
-                                  style={{ width: `${Math.max(6, p.roadProgressPct)}%` }}
-                                />
-                              </div>
-                              <div className="mt-1.5 text-[10px] font-medium text-court-ink leading-tight">
-                                🎯 {p.deltaSummary}
-                              </div>
-                            </div>
-
-                            <div className="mt-2 text-[9px] font-bold text-muted text-center italic">
-                              Click dot to inspect full evolution path
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* Archetype Node Badge */}
-              <div
-                className={`relative flex flex-col items-center justify-center rounded-2xl p-3 transition-all text-center ${
-                  isCurrentForFocus
-                    ? "bg-court-ink/15 ring-3 ring-court-ink shadow-lg scale-110"
-                    : isTargetForFocus
-                      ? "bg-emerald-500/15 ring-2 ring-emerald-500 shadow-lg scale-110 animate-pulse"
-                      : isOccupied
-                        ? "bg-white/90 ring-1 ring-black/15 shadow-sm hover:scale-105 hover:ring-court-ink/50"
-                        : "bg-white/55 ring-1 ring-dashed ring-black/15 hover:bg-white/75"
-                }`}
-                style={{ width: "136px" }}
+              {/* Archetype Card Rectangle */}
+              <g
+                className="cursor-pointer group/card"
+                onMouseEnter={() => onHoverNode(nodeId)}
+                onMouseLeave={() => onHoverNode(null)}
+                onClick={() => {
+                  if (occupants.length > 0) {
+                    onSelectPlayer(occupants[0]);
+                  }
+                }}
               >
+                <rect
+                  x={coord.x - dim.width / 2}
+                  y={coord.y - dim.height / 2}
+                  width={dim.width}
+                  height={dim.height}
+                  rx={14}
+                  fill={
+                    isCurrentForFocus
+                      ? "rgba(234, 88, 12, 0.12)"
+                      : isTargetForFocus
+                        ? "rgba(16, 185, 129, 0.12)"
+                        : isOccupied
+                          ? "#ffffff"
+                          : "rgba(255, 255, 255, 0.65)"
+                  }
+                  stroke={
+                    isCurrentForFocus
+                      ? "#ea580c"
+                      : isTargetForFocus
+                        ? "#10b981"
+                        : isOccupied
+                          ? "rgba(0, 0, 0, 0.18)"
+                          : "rgba(0, 0, 0, 0.1)"
+                  }
+                  strokeWidth={isCurrentForFocus || isTargetForFocus ? 2.5 : 1}
+                  strokeDasharray={!isOccupied && !isCurrentForFocus && !isTargetForFocus ? "4 3" : undefined}
+                  filter="url(#nodeShadow)"
+                />
+
                 {/* Node Emoji */}
-                <span className="text-2xl" aria-hidden>
+                <text
+                  x={coord.x}
+                  y={coord.y - 14}
+                  textAnchor="middle"
+                  fontSize={node.tier === 1 ? 18 : 20}
+                  className="select-none pointer-events-none"
+                >
                   {node.emoji}
-                </span>
+                </text>
 
                 {/* Node Title */}
-                <span className="mt-0.5 text-xs font-extrabold text-ink leading-tight line-clamp-2">
-                  {node.title}
-                </span>
+                <text
+                  x={coord.x}
+                  y={coord.y + (titleLine2 ? 0 : 3)}
+                  textAnchor="middle"
+                  fontSize={node.tier === 1 ? 9.5 : 10.5}
+                  fontWeight="800"
+                  fill="#1c1917"
+                  className="select-none pointer-events-none"
+                >
+                  {titleLine1}
+                </text>
+                {titleLine2 && (
+                  <text
+                    x={coord.x}
+                    y={coord.y + 11.5}
+                    textAnchor="middle"
+                    fontSize={node.tier === 1 ? 9.5 : 10.5}
+                    fontWeight="800"
+                    fill="#1c1917"
+                    className="select-none pointer-events-none"
+                  >
+                    {titleLine2}
+                  </text>
+                )}
 
-                {/* Pillar / Tier tag */}
-                <span className="mt-1 text-[9px] font-bold uppercase tracking-wider text-muted">
+                {/* Pillar Tag */}
+                <text
+                  x={coord.x}
+                  y={coord.y + (titleLine2 ? 22 : 15)}
+                  textAnchor="middle"
+                  fontSize={7.5}
+                  fontWeight="700"
+                  fill="#6f6762"
+                  letterSpacing="0.04em"
+                  className="select-none pointer-events-none uppercase"
+                >
                   {node.pillarLabel.split("+")[0].trim()}
-                </span>
+                </text>
 
-                {/* Occupant Counter */}
-                <span
-                  className={`mt-1 tabular rounded-full px-2 py-0.5 text-[9px] font-extrabold ring-1 ring-inset ${
-                    isOccupied
-                      ? "bg-court-ink text-white ring-court-ink"
-                      : "bg-black/[0.04] text-muted ring-black/10"
-                  }`}
+                {/* Occupants Counter Pill */}
+                <rect
+                  x={coord.x - dim.width * 0.38}
+                  y={coord.y + dim.height / 2 - 14}
+                  width={dim.width * 0.76}
+                  height={13}
+                  rx={6.5}
+                  fill={isOccupied ? "#ea580c" : "rgba(0, 0, 0, 0.05)"}
+                />
+                <text
+                  x={coord.x}
+                  y={coord.y + dim.height / 2 - 4.5}
+                  textAnchor="middle"
+                  fontSize={8}
+                  fontWeight="800"
+                  fill={isOccupied ? "#ffffff" : "#6f6762"}
+                  className="select-none pointer-events-none"
                 >
                   {occupants.length} {occupants.length === 1 ? "player" : "players"}
-                </span>
+                </text>
 
-                {/* Status Badges for Active Focused Player */}
+                {/* Focus Badges */}
                 {isCurrentForFocus && (
-                  <span className="mt-1 text-[8px] font-black uppercase text-court-ink bg-court-soft/10 px-1 rounded-sm">
-                    📍 Current
-                  </span>
+                  <text
+                    x={coord.x}
+                    y={coord.y + dim.height / 2 + 10}
+                    textAnchor="middle"
+                    fontSize={7.5}
+                    fontWeight="900"
+                    fill="#a73a00"
+                  >
+                    📍 CURRENT
+                  </text>
                 )}
                 {isTargetForFocus && (
-                  <span className="mt-1 text-[8px] font-black uppercase text-emerald-700 bg-emerald-500/15 px-1 rounded-sm">
-                    🎯 Next Target
-                  </span>
+                  <text
+                    x={coord.x}
+                    y={coord.y + dim.height / 2 + 10}
+                    textAnchor="middle"
+                    fontSize={7.5}
+                    fontWeight="900"
+                    fill="#059669"
+                  >
+                    🎯 NEXT TARGET
+                  </text>
                 )}
-              </div>
+              </g>
 
-              {/* Archetype Hover Info Tooltip (When node itself is hovered and no dot is hovered) */}
-              {hoveredNodeId === nodeId && !hoveredPlayer && (
-                <div
-                  className={`absolute z-40 w-64 rounded-2xl glass-3 p-3.5 shadow-2xl ring-1 ring-black/15 pointer-events-none transition-all animate-in fade-in zoom-in-95 duration-150 ${
-                    coord.y < 400 ? "top-20" : "bottom-20"
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="text-2xl" aria-hidden>{node.emoji}</span>
-                    <div>
-                      <div className="font-extrabold text-xs text-ink leading-tight">{node.title}</div>
-                      <div className="text-[10px] font-bold uppercase text-muted">{node.pillarLabel}</div>
-                    </div>
-                  </div>
-                  <p className="mt-2 text-[11px] font-medium text-muted leading-relaxed">{node.summary}</p>
-                  <div className="mt-2 border-t border-black/[0.06] pt-1.5 space-y-0.5 text-left">
-                    <div className="text-[10px] font-black uppercase tracking-wider text-court-ink">Requirements:</div>
-                    {node.requirements.map((r, i) => (
-                      <div key={i} className="text-[10px] text-ink flex items-start gap-1">
-                        <span className="text-muted">•</span>
-                        <span>{r}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
+              {/* ----------------------------------------------------------- */}
+              {/* PLAYER DOTS ON THE TREE (Positioned directly above the card) */}
+              {/* ----------------------------------------------------------- */}
+              {isOccupied &&
+                occupants.map((p, idx) => {
+                  const dotCoord = getPlayerDotCoords(coord, dim.height, idx, occupants.length);
+                  const isDotSelected = selectedPlayer?.id === p.id;
+                  const isDotHovered = hoveredPlayer?.id === p.id;
+
+                  return (
+                    <g
+                      key={p.id}
+                      className="cursor-pointer group/dot"
+                      onMouseEnter={() => onHoverPlayer(p.id)}
+                      onMouseLeave={() => onHoverPlayer(null)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onSelectPlayer(p);
+                      }}
+                    >
+                      {/* Pulsing Outer Ring */}
+                      <circle
+                        cx={dotCoord.x}
+                        cy={dotCoord.y}
+                        r={isDotSelected || isDotHovered ? 13 : 11}
+                        fill="none"
+                        stroke={isDotSelected || isDotHovered ? "#ea580c" : "#10b981"}
+                        strokeWidth={1.5}
+                        opacity={isDotSelected || isDotHovered ? 0.7 : 0.35}
+                        className="animate-ping"
+                      />
+
+                      {/* Main Player Dot Circle */}
+                      <circle
+                        cx={dotCoord.x}
+                        cy={dotCoord.y}
+                        r={isDotSelected || isDotHovered ? 11 : 9}
+                        fill={isDotSelected || isDotHovered ? "#ea580c" : "#059669"}
+                        stroke="#ffffff"
+                        strokeWidth={2}
+                        filter="url(#dotShadow)"
+                        className="transition-all duration-150"
+                      />
+
+                      {/* Player Initials */}
+                      <text
+                        x={dotCoord.x}
+                        y={dotCoord.y + (isDotSelected || isDotHovered ? 3.5 : 3)}
+                        textAnchor="middle"
+                        fontSize={isDotSelected || isDotHovered ? 9.5 : 8}
+                        fontWeight="900"
+                        fill="#ffffff"
+                        className="select-none pointer-events-none"
+                      >
+                        {p.name.slice(0, 2).toUpperCase()}
+                      </text>
+                    </g>
+                  );
+                })}
+            </g>
           );
         })}
-      </div>
+      </svg>
+
+      {/* ----------------------------------------------------------- */}
+      {/* HTML HOVER POPOVER CARD FOR HOVERED PLAYER DOT               */}
+      {/* ----------------------------------------------------------- */}
+      {hoveredPlayer && popoverPos && (
+        <div
+          className="absolute z-50 w-72 rounded-2xl glass-3 p-4 shadow-2xl ring-1 ring-black/15 pointer-events-auto transition-all animate-in fade-in zoom-in-95 duration-150"
+          style={{
+            left: `${Math.max(10, Math.min(90, popoverPos.leftPct))}%`,
+            top: `${Math.max(5, Math.min(85, popoverPos.topPct))}%`,
+            transform:
+              popoverPos.topPct < 40
+                ? popoverPos.leftPct > 70
+                  ? "translate(-85%, 20px)"
+                  : popoverPos.leftPct < 30
+                    ? "translate(-15%, 20px)"
+                    : "translate(-50%, 20px)"
+                : popoverPos.leftPct > 70
+                  ? "translate(-85%, calc(-100% - 20px))"
+                  : popoverPos.leftPct < 30
+                    ? "translate(-15%, calc(-100% - 20px))"
+                    : "translate(-50%, calc(-100% - 20px))",
+          }}
+        >
+          <div className="flex items-center gap-2.5">
+            <Avatar name={hoveredPlayer.name} size="md" />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5">
+                <span className="font-extrabold text-sm text-ink truncate">
+                  {hoveredPlayer.name}
+                </span>
+                {hoveredPlayer.injured && <InjuredBadge size="xs" />}
+              </div>
+              <div className="text-[11px] font-bold text-muted truncate">
+                {hoveredPlayer.archetype.emoji} {hoveredPlayer.archetype.title} · Tier{" "}
+                {hoveredPlayer.archetype.tier}
+              </div>
+            </div>
+          </div>
+
+          {/* Stat Snapshot */}
+          <div className="mt-2.5 grid grid-cols-4 gap-1 text-center bg-black/[0.04] p-1.5 rounded-xl text-[10px]">
+            <div>
+              <div className="text-muted font-bold">GP</div>
+              <div className="font-extrabold text-ink">{hoveredPlayer.gp}</div>
+            </div>
+            <div>
+              <div className="text-muted font-bold">PPG</div>
+              <div className="font-extrabold text-ink">{hoveredPlayer.ppg.toFixed(1)}</div>
+            </div>
+            <div>
+              <div className="text-muted font-bold">APG</div>
+              <div className="font-extrabold text-ink">{hoveredPlayer.apg.toFixed(1)}</div>
+            </div>
+            <div>
+              <div className="text-muted font-bold">STOCKS</div>
+              <div className="font-extrabold text-ink">{hoveredPlayer.stockPg.toFixed(1)}</div>
+            </div>
+          </div>
+
+          {/* Active Road to Next Tier */}
+          <div className="mt-2.5 border-t border-black/[0.06] pt-2">
+            <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-court-ink">
+              <span>Road to Tier {hoveredPlayer.targetTier}</span>
+              <span>{hoveredPlayer.roadProgressPct}%</span>
+            </div>
+            <div className="mt-1 flex items-center gap-1.5 text-xs font-black text-ink">
+              <span>{hoveredPlayer.targetEmoji}</span>
+              <span>{hoveredPlayer.targetTitle}</span>
+            </div>
+            <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-black/[0.08]">
+              <div
+                className="h-full rounded-full bg-court-ink transition-all duration-300"
+                style={{ width: `${Math.max(6, hoveredPlayer.roadProgressPct)}%` }}
+              />
+            </div>
+            <div className="mt-1.5 text-[10px] font-medium text-court-ink leading-tight">
+              🎯 {hoveredPlayer.deltaSummary}
+            </div>
+          </div>
+
+          <div className="mt-2 text-[9px] font-bold text-muted text-center italic">
+            Click dot to inspect full evolution path
+          </div>
+        </div>
+      )}
+
+      {/* ----------------------------------------------------------- */}
+      {/* HTML TOOLTIP FOR HOVERED ARCHETYPE NODE (WITHOUT OCCUPANTS)  */}
+      {/* ----------------------------------------------------------- */}
+      {hoveredNodeId && !hoveredPlayer && nodeTooltipPos && (
+        <div
+          className="absolute z-40 w-64 rounded-2xl glass-3 p-3.5 shadow-2xl ring-1 ring-black/15 pointer-events-none transition-all animate-in fade-in zoom-in-95 duration-150"
+          style={{
+            left: `${Math.max(10, Math.min(90, nodeTooltipPos.leftPct))}%`,
+            top: `${Math.max(5, Math.min(85, nodeTooltipPos.topPct))}%`,
+            transform:
+              nodeTooltipPos.topPct < 40
+                ? "translate(-50%, 45px)"
+                : "translate(-50%, calc(-100% - 45px))",
+          }}
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-2xl" aria-hidden>
+              {SKILL_TREE_NODES[hoveredNodeId].emoji}
+            </span>
+            <div>
+              <div className="font-extrabold text-xs text-ink leading-tight">
+                {SKILL_TREE_NODES[hoveredNodeId].title}
+              </div>
+              <div className="text-[10px] font-bold uppercase text-muted">
+                {SKILL_TREE_NODES[hoveredNodeId].pillarLabel}
+              </div>
+            </div>
+          </div>
+          <p className="mt-2 text-[11px] font-medium text-muted leading-relaxed">
+            {SKILL_TREE_NODES[hoveredNodeId].summary}
+          </p>
+          <div className="mt-2 border-t border-black/[0.06] pt-1.5 space-y-0.5 text-left">
+            <div className="text-[10px] font-black uppercase tracking-wider text-court-ink">
+              Requirements:
+            </div>
+            {SKILL_TREE_NODES[hoveredNodeId].requirements.map((r, i) => (
+              <div key={i} className="text-[10px] text-ink flex items-start gap-1">
+                <span className="text-muted">•</span>
+                <span>{r}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
