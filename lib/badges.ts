@@ -678,7 +678,7 @@ export function computePlayerArchetype(
   }
   // 3. Assist + Defense (1 Gold, 1 Silver)
   else if (career.gp >= 25 && ((hasGoldAssist && hasSilverDefense) || (hasGoldDefense && hasSilverAssist))) {
-    archetypeTitle = "Two-Way Floor General";
+    archetypeTitle = "Floor Commander";
     archetypeEmoji = "🛡️";
     archetypeDesc =
       "Commands the offense with crisp distribution while anchoring the perimeter with tenacious lockdown defense.";
@@ -1071,8 +1071,8 @@ function computeArchetypeUpgrades(ctx: UpgradeContext): ArchetypeUpgrade[] {
       });
     }
 
-    // 3. Two-Way Floor General (Assist + Defense: 1 Gold, 1 Silver)
-    if (ctx.currentTitle !== "Two-Way Floor General") {
+    // 3. Floor Commander (Assist + Defense: 1 Gold, 1 Silver)
+    if (ctx.currentTitle !== "Floor Commander" && ctx.currentTitle !== "Two-Way Floor General") {
       const pct = Math.min(
         99,
         Math.round(((astGoldProg + defGoldProg) / 2) * 100),
@@ -1094,7 +1094,7 @@ function computeArchetypeUpgrades(ctx: UpgradeContext): ArchetypeUpgrade[] {
       }
 
       candidates.push({
-        title: "Two-Way Floor General",
+        title: "Floor Commander",
         emoji: "🛡️",
         tier: 3,
         tierLabel: ARCHETYPE_TIER_META[3].label,

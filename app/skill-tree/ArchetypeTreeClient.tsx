@@ -582,7 +582,8 @@ function splitNodeTitle(title: string): [string, string?] {
   if (title === "The All-Around Threat") return ["All-Around", "Threat"];
   if (title === "Playmaking Shot Creator") return ["Playmaking", "Shot Creator"];
   if (title === "3-and-D Specialist") return ["3-and-D", "Specialist"];
-  if (title === "Two-Way Floor General") return ["Two-Way", "Floor General"];
+  if (title === "Floor Commander") return ["Floor", "Commander"];
+  if (title === "Two-Way Floor General") return ["Floor", "Commander"];
   if (title === "Lockdown Specialist") return ["Lockdown", "Specialist"];
   if (title === "Defensive Anchor") return ["Defensive", "Anchor"];
   if (title === "Two-Way Playmaker") return ["Two-Way", "Playmaker"];
@@ -1264,12 +1265,12 @@ function GraphicalTreeCanvas({
       {/* ----------------------------------------------------------- */}
       {hoveredPlayer && popoverPos && (
         <div
-          className="absolute z-50 w-72 rounded-2xl glass-3 p-4 shadow-2xl ring-1 ring-black/15 pointer-events-auto transition-all animate-in fade-in zoom-in-95 duration-150"
+          className="absolute z-50 w-72 rounded-2xl bg-white p-4 shadow-[0_20px_50px_rgba(0,0,0,0.22)] ring-1 ring-black/10 border border-black/5 pointer-events-auto transition-all animate-in fade-in zoom-in-95 duration-150"
           style={{
-            left: `${Math.max(10, Math.min(90, popoverPos.leftPct))}%`,
+            left: `${Math.max(12, Math.min(88, popoverPos.leftPct))}%`,
             top: `${Math.max(5, Math.min(85, popoverPos.topPct))}%`,
             transform:
-              popoverPos.topPct < 40
+              popoverPos.topPct < 22
                 ? popoverPos.leftPct > 70
                   ? "translate(-85%, 20px)"
                   : popoverPos.leftPct < 30
@@ -1350,14 +1351,22 @@ function GraphicalTreeCanvas({
       {/* ----------------------------------------------------------- */}
       {hoveredNodeId && !hoveredPlayer && nodeTooltipPos && (
         <div
-          className="absolute z-40 w-64 rounded-2xl glass-3 p-3.5 shadow-2xl ring-1 ring-black/15 pointer-events-none transition-all animate-in fade-in zoom-in-95 duration-150"
+          className="absolute z-50 w-68 rounded-2xl bg-white p-4 shadow-[0_20px_50px_rgba(0,0,0,0.22)] ring-1 ring-black/10 border border-black/5 pointer-events-none transition-all animate-in fade-in zoom-in-95 duration-150"
           style={{
-            left: `${Math.max(10, Math.min(90, nodeTooltipPos.leftPct))}%`,
+            left: `${Math.max(12, Math.min(88, nodeTooltipPos.leftPct))}%`,
             top: `${Math.max(5, Math.min(85, nodeTooltipPos.topPct))}%`,
             transform:
-              nodeTooltipPos.topPct < 40
-                ? "translate(-50%, 45px)"
-                : "translate(-50%, calc(-100% - 45px))",
+              nodeTooltipPos.topPct < 20
+                ? nodeTooltipPos.leftPct > 70
+                  ? "translate(-85%, 45px)"
+                  : nodeTooltipPos.leftPct < 30
+                    ? "translate(-15%, 45px)"
+                    : "translate(-50%, 45px)"
+                : nodeTooltipPos.leftPct > 70
+                  ? "translate(-85%, calc(-100% - 15px))"
+                  : nodeTooltipPos.leftPct < 30
+                    ? "translate(-15%, calc(-100% - 15px))"
+                    : "translate(-50%, calc(-100% - 15px))",
           }}
         >
           <div className="flex items-center gap-2">

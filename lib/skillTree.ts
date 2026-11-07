@@ -12,6 +12,7 @@ export type ArchetypeNodeId =
   | "all-around-threat"
   | "playmaking-shot-creator"
   | "3-and-d-specialist"
+  | "floor-commander"
   | "two-way-floor-general"
   | "combo-guard"
   | "two-way-shooter"
@@ -92,7 +93,7 @@ export const SKILL_TREE_TIERS: TierMeta[] = [
     glowColor: "rgba(168, 85, 247, 0.22)",
     borderColor: "border-purple-500/35",
     accentBg: "bg-purple-500/10",
-    nodeIds: ["playmaking-shot-creator", "3-and-d-specialist", "two-way-floor-general"],
+    nodeIds: ["playmaking-shot-creator", "3-and-d-specialist", "floor-commander"],
   },
   {
     tier: 2,
@@ -160,6 +161,7 @@ export const SKILL_TREE_COORDS: Record<ArchetypeNodeId, NodeCoord> = {
   // Tier 3 · Pinnacle (Y = 248)
   "playmaking-shot-creator": { x: 250, y: 248 },
   "3-and-d-specialist": { x: 500, y: 248 },
+  "floor-commander": { x: 750, y: 248 },
   "two-way-floor-general": { x: 750, y: 248 },
 
   // Tier 2 · Hybrid (Y = 418)
@@ -230,13 +232,13 @@ export const SKILL_TREE_BRANCHES: TreeBranch[] = [
   { id: "shooter-3d", source: "two-way-shooter", target: "3-and-d-specialist", pillar: "hybrid" },
   { id: "slasher-3d", source: "two-way-slasher", target: "3-and-d-specialist", pillar: "hybrid" },
   { id: "playmaker-psc", source: "two-way-playmaker", target: "playmaking-shot-creator", pillar: "hybrid" },
-  { id: "playmaker-fg", source: "two-way-playmaker", target: "two-way-floor-general", pillar: "hybrid" },
-  { id: "anchor-fg", source: "defensive-anchor", target: "two-way-floor-general", pillar: "hybrid" },
+  { id: "playmaker-fc", source: "two-way-playmaker", target: "floor-commander", pillar: "hybrid" },
+  { id: "anchor-fc", source: "defensive-anchor", target: "floor-commander", pillar: "hybrid" },
 
   // Tier 3 -> Tier 4
   { id: "psc-apex", source: "playmaking-shot-creator", target: "all-around-threat", pillar: "apex" },
   { id: "3d-apex", source: "3-and-d-specialist", target: "all-around-threat", pillar: "apex" },
-  { id: "fg-apex", source: "two-way-floor-general", target: "all-around-threat", pillar: "apex" },
+  { id: "fc-apex", source: "floor-commander", target: "all-around-threat", pillar: "apex" },
 ];
 
 export const SKILL_TREE_NODES: Record<ArchetypeNodeId, ArchetypeNodeMeta> = {
@@ -255,7 +257,7 @@ export const SKILL_TREE_NODES: Record<ArchetypeNodeId, ArchetypeNodeMeta> = {
       "All 3 Core Pillars at Silver+ (Sharpshooter/Bucket, Floor General, Lockdown)",
       "At least 2 Gold+ Pillars (or 1 Hall of Fame)",
     ],
-    parents: ["playmaking-shot-creator", "3-and-d-specialist", "two-way-floor-general"],
+    parents: ["playmaking-shot-creator", "3-and-d-specialist", "floor-commander"],
     children: [],
   },
 
@@ -294,9 +296,26 @@ export const SKILL_TREE_NODES: Record<ArchetypeNodeId, ArchetypeNodeMeta> = {
     parents: ["two-way-shooter", "two-way-slasher", "two-way-force"],
     children: ["all-around-threat"],
   },
+  "floor-commander": {
+    id: "floor-commander",
+    title: "Floor Commander",
+    emoji: "🛡️",
+    tier: 3,
+    pillar: "hybrid",
+    pillarLabel: "Assist 🪄 + Defense 🛡️",
+    summary:
+      "Commands the offense with crisp distribution while anchoring the perimeter with tenacious lockdown defense.",
+    requirements: [
+      "25+ Games Played",
+      "Gold Assist + Silver Defense OR Gold Defense + Silver Assist",
+      "E.g., 110 AST / 1.8 APG & 45 stocks / 1.3 stocks/gm",
+    ],
+    parents: ["two-way-playmaker", "defensive-anchor"],
+    children: ["all-around-threat"],
+  },
   "two-way-floor-general": {
-    id: "two-way-floor-general",
-    title: "Two-Way Floor General",
+    id: "floor-commander",
+    title: "Floor Commander",
     emoji: "🛡️",
     tier: 3,
     pillar: "hybrid",
@@ -358,7 +377,7 @@ export const SKILL_TREE_NODES: Record<ArchetypeNodeId, ArchetypeNodeMeta> = {
       "OR Silver Defense (45 stocks) + Bronze Assist (10 AST or 1.0 APG)",
     ],
     parents: ["floor-general", "lockdown-specialist"],
-    children: ["two-way-floor-general"],
+    children: ["floor-commander"],
   },
   "two-way-slasher": {
     id: "two-way-slasher",
@@ -388,7 +407,7 @@ export const SKILL_TREE_NODES: Record<ArchetypeNodeId, ArchetypeNodeMeta> = {
       "OR Silver Defense + Rebounding presence (2.5+ RPG)",
     ],
     parents: ["paint-beast", "lockdown-specialist"],
-    children: ["two-way-floor-general"],
+    children: ["floor-commander"],
   },
   "two-way-force": {
     id: "two-way-force",
@@ -599,8 +618,9 @@ export function archetypeTitleToId(title: string): ArchetypeNodeId {
       return "playmaking-shot-creator";
     case "3-and-d specialist":
       return "3-and-d-specialist";
+    case "floor commander":
     case "two-way floor general":
-      return "two-way-floor-general";
+      return "floor-commander";
     case "combo guard":
       return "combo-guard";
     case "two-way shooter":
