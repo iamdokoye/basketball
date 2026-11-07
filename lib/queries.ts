@@ -1,7 +1,7 @@
 import "server-only";
 import { cache } from "react";
 import { db, fetchAll } from "./supabase";
-import { gameContext, played, rateLine } from "./rating";
+import { gameContext, lengthScale, played, rateLine } from "./rating";
 import { isShotZone } from "./shotZones";
 import {
   boxScore,
@@ -258,8 +258,22 @@ const SUMMED: (keyof StatLine)[] = [
   "plusMinus",
 ];
 
-/** Season/career totals per player across finished games. */
-export function careerTotals(games: Game[], players: Player[]): CareerLine[] {
+/** Counting stats that grow with game length (everything summed except court time). */
+const LENGTH_SCALED: (keyof StatLine)[] = SUMMED.filter((k) => k !== "sec");
+
+/**
+ * Season/career totals per player across finished games.
+ *
+ * With `standardize`, every game's counting stats are scaled to a "standard" game to 20 (the same
+ * `lengthScale` the 3-10 rating uses), so a 40-minute timed game or a game to 11 contributes like
+ * one first-to-20 game. Use it for anything that compares players against fixed bars (badges,
+ * archetypes); leave it off for real box-score totals. Games played, wins and rating are unchanged.
+ */
+export function careerTotals(
+  games: Game[],
+  players: Player[],
+  opts: { standardize?: boolean } = {},
+): CareerLine[] {
   const injuredMap = new Map<number, boolean>(players.map((p) => [p.id, p.injured]));
   const byId = new Map<number, CareerLine>();
   const get = (id: number, name: string): CareerLine => {
@@ -292,14 +306,28 @@ export function careerTotals(games: Game[], players: Player[]): CareerLine[] {
         c.ratingSum += r.rating * r.weight;
         c.ratingW += r.weight;
       }
-      for (const k of SUMMED) (c[k] as number) += line[k] as number;
+      const scale = opts.standardize ? lengthScale(ctx.target) : 1;
+      for (const k of SUMMED) {
+        (c[k] as number) += (line[k] as number) * (k === "sec" ? 1 : scale);
+      }
       const mine = g.score[line.team];
       const theirs = g.score[line.team === "A" ? "B" : "A"];
       if (mine > theirs) c.wins++;
       else if (mine < theirs) c.losses++;
     }
   }
-  return [...byId.values()];
+
+  const lines = [...byId.values()];
+  if (opts.standardize) {
+    // Whole numbers keep badge progress text clean ("22 threes", not "21.75").
+    for (const c of lines) {
+      for (const k of LENGTH_SCALED) (c[k] as number) = Math.round(c[k] as number);
+      c.reb = c.oreb + c.dreb;
+      c.fgm = c.fg2m + c.fg3m;
+      c.fga = c.fg2a + c.fg3a;
+    }
+  }
+  return lines;
 }
 
 export type VotedAward = {

@@ -153,7 +153,10 @@ export default async function MePage() {
   const seasonGames = currentSeason ? currentSeason.games : [];
 
   const clutch = clutchTotals(games).find((x) => x.playerId === playerId);
-  const allTimeArchetype = computePlayerArchetype(c, clutch, finalGames.length);
+  // Archetypes compare against fixed bars, so feed them stats standardized to a game to 20.
+  const standardAllTime =
+    careerTotals(games, players, { standardize: true }).find((x) => x.playerId === playerId) ?? c;
+  const allTimeArchetype = computePlayerArchetype(standardAllTime, clutch, finalGames.length);
 
   const seasonCareer = careerTotals(seasonGames, players);
   const seasonC = seasonCareer.find((x) => x.playerId === playerId) ?? {
@@ -177,7 +180,10 @@ export default async function MePage() {
     plusMinus: 0,
   };
   const seasonClutch = clutchTotals(seasonGames).find((x) => x.playerId === playerId);
-  const seasonArchetype = computePlayerArchetype(seasonC, seasonClutch, seasonGames.length);
+  const standardSeason =
+    careerTotals(seasonGames, players, { standardize: true }).find((x) => x.playerId === playerId) ??
+    seasonC;
+  const seasonArchetype = computePlayerArchetype(standardSeason, seasonClutch, seasonGames.length);
 
   const archetypeView = {
     seasonLabel: `${sLabel} Season`,

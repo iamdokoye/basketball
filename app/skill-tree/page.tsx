@@ -38,13 +38,14 @@ export default async function SkillTreePage({
 
   // All-time data
   const finalGames = games.filter((g) => g.status === "final");
-  const allTimeTotals = careerTotals(finalGames, players);
+  // Standardized so timed games and games to other targets compare fairly against the fixed bars.
+  const allTimeTotals = careerTotals(finalGames, players, { standardize: true });
   const allTimeClutch = clutchTotals(finalGames);
   const allTimeCareerMap = new Map(allTimeTotals.map((c) => [c.playerId, c]));
   const allTimeClutchMap = new Map(allTimeClutch.map((c) => [c.playerId, c]));
 
   // Season data
-  const seasonTotals = careerTotals(seasonGames, players);
+  const seasonTotals = careerTotals(seasonGames, players, { standardize: true });
   const seasonClutch = clutchTotals(seasonGames);
   const seasonCareerMap = new Map(seasonTotals.map((c) => [c.playerId, c]));
   const seasonClutchMap = new Map(seasonClutch.map((c) => [c.playerId, c]));
