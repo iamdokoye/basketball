@@ -740,6 +740,9 @@ function GraphicalTreeCanvas({
   // Hovered roster popover state for nodes with multiple/overflow players
   const [hoveredRosterNodeId, setHoveredRosterNodeId] = useState<ArchetypeNodeId | null>(null);
 
+  // Hovered badge state for node occupants count circle
+  const [hoveredBadgeNodeId, setHoveredBadgeNodeId] = useState<ArchetypeNodeId | null>(null);
+
   // Compute active target node for highlighted player
   const targetNodeId = useMemo(() => {
     if (!activeFocusPlayer || !activeFocusPlayer.activeRoad) return null;
@@ -796,15 +799,29 @@ function GraphicalTreeCanvas({
     return { leftPct, topPct };
   }, [hoveredRosterNodeId, viewBoxX, viewBoxY, viewBoxW, viewBoxH]);
 
-  // Node tooltip position (when a node is hovered without a player dot)
+  // Badge tooltip position (when hovering the occupants circle badge on a card)
+  const badgeTooltipPos = useMemo(() => {
+    if (!hoveredBadgeNodeId) return null;
+    const coord = SKILL_TREE_COORDS[hoveredBadgeNodeId];
+    const node = SKILL_TREE_NODES[hoveredBadgeNodeId];
+    if (!coord || !node) return null;
+    const dim = getNodeDimensions(node.tier);
+    const badgeX = coord.x + dim.width / 2 - 11;
+    const badgeY = coord.y - dim.height / 2 + 11;
+    const leftPct = ((badgeX - viewBoxX) / viewBoxW) * 100;
+    const topPct = ((badgeY - viewBoxY) / viewBoxH) * 100;
+    return { leftPct, topPct };
+  }, [hoveredBadgeNodeId, viewBoxX, viewBoxY, viewBoxW, viewBoxH]);
+
+  // Node tooltip position (when a node is hovered without a player dot or badge)
   const nodeTooltipPos = useMemo(() => {
-    if (!hoveredNodeId || hoveredPlayer || hoveredRosterNodeId) return null;
+    if (!hoveredNodeId || hoveredPlayer || hoveredRosterNodeId || hoveredBadgeNodeId) return null;
     const coord = SKILL_TREE_COORDS[hoveredNodeId];
     if (!coord) return null;
     const leftPct = ((coord.x - viewBoxX) / viewBoxW) * 100;
     const topPct = ((coord.y - viewBoxY) / viewBoxH) * 100;
     return { leftPct, topPct };
-  }, [hoveredNodeId, hoveredPlayer, hoveredRosterNodeId, viewBoxX, viewBoxY, viewBoxW, viewBoxH]);
+  }, [hoveredNodeId, hoveredPlayer, hoveredRosterNodeId, hoveredBadgeNodeId, viewBoxX, viewBoxY, viewBoxW, viewBoxH]);
 
   return (
     <div
@@ -818,8 +835,8 @@ function GraphicalTreeCanvas({
         isDragging ? "cursor-grabbing" : zoomScale > 1.0 ? "cursor-grab" : "cursor-default"
       }`}
     >
-      {/* Top Bar with Legend & Integrated Zoom Controls */}
-      <div className="flex flex-wrap items-center justify-between gap-3 pb-3 mb-2 border-b border-black/[0.06] bg-white/70 backdrop-blur-md px-3.5 py-2 rounded-2xl">
+      {/* Top Bar with Legend */}
+      <div className="flex items-center justify-between gap-3 pb-3 mb-2 border-b border-black/[0.06] bg-white/70 backdrop-blur-md px-3.5 py-2 rounded-2xl">
         <div className="flex items-center gap-2">
           <span className="text-base" aria-hidden>
             ✨
@@ -829,81 +846,78 @@ function GraphicalTreeCanvas({
             <span className="text-court-ink font-black">player dot</span> to inspect their road!
           </span>
         </div>
-
-        <div className="flex items-center gap-3">
-          <div className="hidden lg:flex items-center gap-3 text-[11px] font-bold text-muted">
-            <span className="flex items-center gap-1">
-              <span className="h-2 w-2 rounded-full bg-emerald-500" /> Apex (T4)
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="h-2 w-2 rounded-full bg-purple-500" /> Pinnacle (T3)
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="h-2 w-2 rounded-full bg-amber-500" /> Hybrid (T2)
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="h-2 w-2 rounded-full bg-sky-500" /> Specialist (T1)
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="h-2 w-2 rounded-full bg-slate-400" /> Root (T0)
-            </span>
-          </div>
-
-          {/* Integrated Zoom Controls (Top Bar avoids card overlaps!) */}
-          <div className="flex items-center gap-1 rounded-xl bg-black/[0.04] p-1 ring-1 ring-black/5">
-            <button
-              type="button"
-              onClick={() => onZoom(-0.2)}
-              disabled={zoomScale <= 1.0}
-              title="Zoom Out (−)"
-              className={`grid h-7 w-7 place-items-center rounded-lg text-sm font-black transition-colors ${
-                zoomScale <= 1.0
-                  ? "text-muted/30 cursor-not-allowed"
-                  : "text-ink hover:bg-black/10 cursor-pointer"
-              }`}
-            >
-              −
-            </button>
-            <span className="tabular px-1.5 text-xs font-black text-ink select-none min-w-[42px] text-center">
-              {Math.round(zoomScale * 100)}%
-            </span>
-            <button
-              type="button"
-              onClick={() => onZoom(0.2)}
-              disabled={zoomScale >= 2.2}
-              title="Zoom In (+)"
-              className={`grid h-7 w-7 place-items-center rounded-lg text-sm font-black transition-colors ${
-                zoomScale >= 2.2
-                  ? "text-muted/30 cursor-not-allowed"
-                  : "text-ink hover:bg-black/10 cursor-pointer"
-              }`}
-            >
-              +
-            </button>
-            <div className="h-3.5 w-px bg-black/15 mx-0.5" />
-            <button
-              type="button"
-              onClick={onFitScreen}
-              title="Fit tree directly inside placeholder container"
-              className={`flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-black transition-colors cursor-pointer ${
-                zoomScale === 1.0 && pan.x === 0 && pan.y === 0
-                  ? "bg-court-ink text-white shadow-xs"
-                  : "bg-court-ink/10 text-court-ink hover:bg-court-ink hover:text-white"
-              }`}
-            >
-              <span>⤢</span>
-              <span>Fit Screen</span>
-            </button>
-            <button
-              type="button"
-              onClick={onResetZoom}
-              title="Reset to 100%"
-              className="rounded-lg bg-black/[0.05] px-2 py-1 text-xs font-bold text-muted hover:text-ink transition-colors cursor-pointer"
-            >
-              100%
-            </button>
-          </div>
+        <div className="hidden sm:flex items-center gap-3 text-[11px] font-bold text-muted">
+          <span className="flex items-center gap-1">
+            <span className="h-2 w-2 rounded-full bg-emerald-500" /> Apex (T4)
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="h-2 w-2 rounded-full bg-purple-500" /> Pinnacle (T3)
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="h-2 w-2 rounded-full bg-amber-500" /> Hybrid (T2)
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="h-2 w-2 rounded-full bg-sky-500" /> Specialist (T1)
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="h-2 w-2 rounded-full bg-slate-400" /> Root (T0)
+          </span>
         </div>
+      </div>
+
+      {/* Floating Zoom & Pan HUD Controls (Reverted to bottom-right) */}
+      <div className="absolute bottom-4 right-4 z-40 flex items-center gap-1 rounded-2xl glass-3 p-1.5 shadow-xl ring-1 ring-black/10 bg-white/90 backdrop-blur-md">
+        <button
+          type="button"
+          onClick={() => onZoom(-0.2)}
+          disabled={zoomScale <= 1.0}
+          title="Zoom Out (−)"
+          className={`grid h-8 w-8 place-items-center rounded-xl text-sm font-black transition-colors ${
+            zoomScale <= 1.0
+              ? "text-muted/30 cursor-not-allowed"
+              : "text-ink hover:bg-black/10 cursor-pointer"
+          }`}
+        >
+          −
+        </button>
+        <span className="tabular px-2 text-xs font-black text-ink select-none min-w-[46px] text-center">
+          {Math.round(zoomScale * 100)}%
+        </span>
+        <button
+          type="button"
+          onClick={() => onZoom(0.2)}
+          disabled={zoomScale >= 2.2}
+          title="Zoom In (+)"
+          className={`grid h-8 w-8 place-items-center rounded-xl text-sm font-black transition-colors ${
+            zoomScale >= 2.2
+              ? "text-muted/30 cursor-not-allowed"
+              : "text-ink hover:bg-black/10 cursor-pointer"
+          }`}
+        >
+          +
+        </button>
+        <div className="h-4 w-px bg-black/15 mx-0.5" />
+        <button
+          type="button"
+          onClick={onFitScreen}
+          title="Fit tree directly inside placeholder container"
+          className={`flex items-center gap-1 rounded-xl px-2.5 py-1.5 text-xs font-black transition-colors cursor-pointer ${
+            zoomScale === 1.0 && pan.x === 0 && pan.y === 0
+              ? "bg-court-ink text-white shadow-xs"
+              : "bg-court-ink/10 text-court-ink hover:bg-court-ink hover:text-white"
+          }`}
+        >
+          <span>⤢</span>
+          <span>Fit Screen</span>
+        </button>
+        <button
+          type="button"
+          onClick={onResetZoom}
+          title="Reset to 100%"
+          className="rounded-xl bg-black/[0.05] px-2 py-1.5 text-xs font-bold text-muted hover:text-ink transition-colors cursor-pointer"
+        >
+          100%
+        </button>
       </div>
 
       {/* Responsive SVG Canvas (Container IS the canvas!) */}
@@ -1164,50 +1178,52 @@ function GraphicalTreeCanvas({
                   {node.pillarLabel.split("+")[0].trim()}
                 </text>
 
-                {/* Occupants Counter Tag */}
-                {isOccupied ? (
-                  <g
-                    className="cursor-pointer"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setHoveredRosterNodeId((prev) => (prev === nodeId ? null : nodeId));
-                    }}
-                  >
-                    <rect
-                      x={coord.x - (occupants.length > 9 ? 29 : 25)}
-                      y={coord.y + dim.height / 2 - 13.5}
-                      width={occupants.length > 9 ? 58 : 50}
-                      height={12.5}
-                      rx={6}
-                      fill="#ea580c"
-                      filter="url(#dotShadow)"
-                    />
-                    <text
-                      x={coord.x}
-                      y={coord.y + dim.height / 2 - 4.5}
-                      textAnchor="middle"
-                      fontSize={7.5}
-                      fontWeight="800"
-                      fill="#ffffff"
-                      className="select-none pointer-events-none"
+                {/* Occupants Badge: Circle with number at top-right of card */}
+                {(() => {
+                  const badgeX = coord.x + dim.width / 2 - 11;
+                  const badgeY = coord.y - dim.height / 2 + 11;
+                  const badgeR = occupants.length > 9 ? 10 : 8.5;
+
+                  return (
+                    <g
+                      className="cursor-pointer group/badge"
+                      onMouseEnter={() => setHoveredBadgeNodeId(nodeId)}
+                      onMouseLeave={() => setHoveredBadgeNodeId(null)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (occupants.length > 0) {
+                          setHoveredRosterNodeId((prev) => (prev === nodeId ? null : nodeId));
+                        }
+                      }}
                     >
-                      {occupants.length} {occupants.length === 1 ? "player" : "players"}
-                    </text>
-                  </g>
-                ) : (
-                  /* Clean, subtle empty status without heavy pill background */
-                  <text
-                    x={coord.x}
-                    y={coord.y + dim.height / 2 - 5}
-                    textAnchor="middle"
-                    fontSize={7.5}
-                    fontWeight="600"
-                    fill="#a8a29e"
-                    className="select-none pointer-events-none"
-                  >
-                    0 players
-                  </text>
-                )}
+                      <circle
+                        cx={badgeX}
+                        cy={badgeY}
+                        r={badgeR}
+                        fill={isOccupied ? "#ea580c" : "rgba(0, 0, 0, 0.04)"}
+                        stroke={isOccupied ? "#ffffff" : "rgba(0, 0, 0, 0.08)"}
+                        strokeWidth={isOccupied ? 1.5 : 1}
+                        filter={isOccupied ? "url(#dotShadow)" : undefined}
+                        className="transition-transform duration-150 group-hover/badge:scale-110"
+                      />
+                      <text
+                        x={badgeX}
+                        y={badgeY}
+                        textAnchor="middle"
+                        dominantBaseline="central"
+                        fontSize={occupants.length > 9 ? 7.5 : 8}
+                        fontWeight="900"
+                        fill={isOccupied ? "#ffffff" : "#a8a29e"}
+                        className="select-none pointer-events-none"
+                      >
+                        {occupants.length}
+                      </text>
+                      <title>
+                        {occupants.length} {occupants.length === 1 ? "player" : "players"}
+                      </title>
+                    </g>
+                  );
+                })()}
 
                 {/* Focus Badges */}
                 {isCurrentForFocus && (
@@ -1429,6 +1445,35 @@ function GraphicalTreeCanvas({
 
           <div className="mt-2 pt-1.5 border-t border-black/[0.05] text-[9px] font-bold text-muted text-center italic">
             Click any player to inspect evolution path
+          </div>
+        </div>
+      )}
+
+      {/* ----------------------------------------------------------- */}
+      {/* HTML TOOLTIP FOR HOVERED OCCUPANTS COUNT BADGE              */}
+      {/* ----------------------------------------------------------- */}
+      {hoveredBadgeNodeId && badgeTooltipPos && !hoveredPlayer && !hoveredRosterNodeId && (
+        <div
+          className="absolute z-50 pointer-events-none -translate-x-1/2 -translate-y-full pb-2 transition-all animate-in fade-in zoom-in-95 duration-150"
+          style={{
+            left: `${Math.max(8, Math.min(92, badgeTooltipPos.leftPct))}%`,
+            top: `${Math.max(5, Math.min(92, badgeTooltipPos.topPct))}%`,
+          }}
+        >
+          <div className="rounded-xl bg-slate-900/95 text-white px-2.5 py-1 text-[11px] font-extrabold shadow-lg backdrop-blur-md flex items-center gap-1.5 whitespace-nowrap">
+            <span
+              className={`h-1.5 w-1.5 rounded-full ${
+                (playersByNode.get(hoveredBadgeNodeId) ?? []).length > 0
+                  ? "bg-court-ink"
+                  : "bg-slate-400"
+              }`}
+            />
+            <span>
+              {(playersByNode.get(hoveredBadgeNodeId) ?? []).length}{" "}
+              {(playersByNode.get(hoveredBadgeNodeId) ?? []).length === 1
+                ? "player"
+                : "players"}
+            </span>
           </div>
         </div>
       )}
