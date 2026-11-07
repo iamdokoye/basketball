@@ -25,7 +25,7 @@ const BASE_VB_HEIGHT = 880;
 // Hover card placement (SVG viewBox units unless suffixed _PX)
 const HOVER_GAP_PX = 8; // breathing room between a card and what it describes
 const HOVER_CARD_HALF_WIDTH_PX = 152; // w-72 (288px) / 2 plus a little edge padding
-const HOVER_FLIP_BELOW_Y = 300; // anchors above this Y open their card below instead
+const HOVER_FLIP_BELOW_Y = 480; // anchors above this Y (Tiers 4, 3, 2) open below; Tiers 1 and 0 open above
 const DOT_ANCHOR_OFFSET = 13; // dot radius (10 hovered) + ping ring headroom
 const DOT_ROW_CLEARANCE = 28; // card top -> top of the player-dot row
 const FOCUS_LABEL_CLEARANCE = 14; // height of the "CURRENT" / "NEXT TARGET" label
@@ -1032,15 +1032,15 @@ function GraphicalTreeCanvas({
         {/* Tier 2 Hybrid Bridge */}
         <rect
           x="12"
-          y="332"
+          y="326"
           width="976"
-          height="156"
+          height="162"
           rx="20"
           fill="rgba(245, 158, 11, 0.03)"
           stroke="rgba(245, 158, 11, 0.16)"
           strokeDasharray="4 4"
         />
-        <text x="28" y="354" fill="#b45309" fontSize="11" fontWeight="800" letterSpacing="0.08em">
+        <text x="28" y="342" fill="#b45309" fontSize="10.5" fontWeight="800" letterSpacing="0.08em">
           TIER 2 · HYBRID ROLES
         </text>
 
@@ -1055,7 +1055,7 @@ function GraphicalTreeCanvas({
           stroke="rgba(14, 165, 233, 0.16)"
           strokeDasharray="4 4"
         />
-        <text x="28" y="526" fill="#0369a1" fontSize="11" fontWeight="800" letterSpacing="0.08em">
+        <text x="28" y="522" fill="#0369a1" fontSize="10.5" fontWeight="800" letterSpacing="0.08em">
           TIER 1 · SPECIALIZED DISCIPLINES
         </text>
 
