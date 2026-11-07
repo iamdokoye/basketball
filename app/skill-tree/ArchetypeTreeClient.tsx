@@ -11,6 +11,7 @@ import {
   SKILL_TREE_TIERS,
   SKILL_TREE_COORDS,
   SKILL_TREE_BRANCHES,
+  TOTAL_ARCHETYPES,
   archetypeTitleToId,
 } from "@/lib/skillTree";
 import { ARCHETYPE_TIER_META, type ArchetypeTier } from "@/lib/badges";
@@ -20,6 +21,14 @@ type TimeMode = "season" | "allTime";
 
 const BASE_VB_WIDTH = 1000;
 const BASE_VB_HEIGHT = 880;
+
+// Hover card placement (SVG viewBox units unless suffixed _PX)
+const HOVER_GAP_PX = 8; // breathing room between a card and what it describes
+const HOVER_CARD_HALF_WIDTH_PX = 152; // w-72 (288px) / 2 plus a little edge padding
+const HOVER_FLIP_BELOW_Y = 300; // anchors above this Y open their card below instead
+const DOT_ANCHOR_OFFSET = 13; // dot radius (10 hovered) + ping ring headroom
+const DOT_ROW_CLEARANCE = 28; // card top -> top of the player-dot row
+const FOCUS_LABEL_CLEARANCE = 14; // height of the "CURRENT" / "NEXT TARGET" label
 
 export function ArchetypeTreeClient({
   seasonPlayers,
@@ -185,7 +194,7 @@ export function ArchetypeTreeClient({
               </h1>
             </div>
             <p className="mt-1 max-w-2xl text-xs font-medium leading-relaxed text-muted sm:text-sm">
-              Explore all 18 playstyle archetypes on the expanded tree canvas. Hover over any{" "}
+              Explore all {TOTAL_ARCHETYPES} playstyle archetypes on the expanded tree canvas. Hover over any{" "}
               <strong className="text-court-ink">player dot</strong> on the branches to inspect
               who is stationed there, their completion percentage, and what they need to level up!
             </p>
@@ -293,7 +302,9 @@ export function ArchetypeTreeClient({
           <div className="glass-1 flex flex-col justify-between rounded-2xl p-3.5">
             <div className="flex items-center justify-between text-[11px] font-black uppercase tracking-wider text-muted">
               <span>Archetypes Discovered</span>
-              <span>{unlockedArchetypeCount} / 18</span>
+              <span>
+                {unlockedArchetypeCount} / {TOTAL_ARCHETYPES}
+              </span>
             </div>
             <div className="mt-2 flex items-center gap-3">
               <span className="text-2xl" aria-hidden>
@@ -301,7 +312,7 @@ export function ArchetypeTreeClient({
               </span>
               <div>
                 <div className="text-base font-black text-ink">
-                  {Math.round((unlockedArchetypeCount / 18) * 100)}% of Tree Unlocked
+                  {Math.round((unlockedArchetypeCount / TOTAL_ARCHETYPES) * 100)}% of Tree Unlocked
                 </div>
                 <div className="text-[11px] font-medium text-muted">
                   Across {totalActivePlayers} active players
@@ -309,7 +320,7 @@ export function ArchetypeTreeClient({
               </div>
             </div>
             <div className="mt-2 flex gap-1">
-              {Array.from({ length: 18 }).map((_, i) => (
+              {Array.from({ length: TOTAL_ARCHETYPES }).map((_, i) => (
                 <div
                   key={i}
                   className={`h-1.5 flex-1 rounded-full ${
@@ -583,15 +594,14 @@ function splitNodeTitle(title: string): [string, string?] {
   if (title === "Playmaking Shot Creator") return ["Playmaking", "Shot Creator"];
   if (title === "3-and-D Specialist") return ["3-and-D", "Specialist"];
   if (title === "Floor Commander") return ["Floor", "Commander"];
-  if (title === "Two-Way Floor General") return ["Floor", "Commander"];
+  if (title === "Two-Way Combo") return ["Two-Way", "Combo"];
   if (title === "Lockdown Specialist") return ["Lockdown", "Specialist"];
   if (title === "Defensive Anchor") return ["Defensive", "Anchor"];
   if (title === "Two-Way Playmaker") return ["Two-Way", "Playmaker"];
-  if (title === "Two-Way Slasher") return ["Two-Way", "Slasher"];
+  if (title === "Two-Way Scorer") return ["Two-Way", "Scorer"];
   if (title === "Two-Way Shooter") return ["Two-Way", "Shooter"];
   if (title === "Two-Way Force") return ["Two-Way", "Force"];
   if (title === "Clutch Assassin") return ["Clutch", "Assassin"];
-  if (title === "Rebound Dynamo") return ["Rebound", "Dynamo"];
   if (title === "Hustle Engine") return ["Hustle", "Engine"];
   return [title];
 }
@@ -778,26 +788,50 @@ function GraphicalTreeCanvas({
     return getPlayerDotCoords(coord, dim.height, slotIndex, totalSlots);
   }, [hoveredPlayer, playersByNode]);
 
-  // Convert SVG coordinates to container percentages for HTML popover
-  const popoverPos = useMemo(() => {
-    if (!hoveredDotCoord) return null;
-    const leftPct = ((hoveredDotCoord.x - viewBoxX) / viewBoxW) * 100;
-    const topPct = ((hoveredDotCoord.y - viewBoxY) / viewBoxH) * 100;
-    return { leftPct, topPct };
-  }, [hoveredDotCoord, viewBoxX, viewBoxY, viewBoxW, viewBoxH]);
+  // Hover cards are positioned inside a wrapper that has exactly the SVG's aspect
+  // ratio, so a viewBox coordinate maps 1:1 onto a percentage of that wrapper.
+  // The card is then pushed away from its anchor by a fixed HOVER_GAP_PX.
+  const anchorStyle = (x: number, y: number, below: boolean): React.CSSProperties => {
+    const leftPct = ((x - viewBoxX) / viewBoxW) * 100;
+    const topPct = ((y - viewBoxY) / viewBoxH) * 100;
+    return {
+      // Keep the 288px card fully inside the canvas horizontally
+      left: `clamp(${HOVER_CARD_HALF_WIDTH_PX}px, ${leftPct}%, calc(100% - ${HOVER_CARD_HALF_WIDTH_PX}px))`,
+      top: `${topPct}%`,
+      transform: below
+        ? `translate(-50%, ${HOVER_GAP_PX}px)`
+        : `translate(-50%, calc(-100% - ${HOVER_GAP_PX}px))`,
+    };
+  };
 
-  // Roster popover position (when an archetype node with overflow roster is hovered)
-  const rosterPopoverPos = useMemo(() => {
-    if (!hoveredRosterNodeId) return null;
-    const coord = SKILL_TREE_COORDS[hoveredRosterNodeId];
-    const node = SKILL_TREE_NODES[hoveredRosterNodeId];
-    if (!coord || !node) return null;
-    const dim = getNodeDimensions(node.tier);
-    const dotCoord = getPlayerDotCoords(coord, dim.height, 3, 4);
-    const leftPct = ((dotCoord.x - viewBoxX) / viewBoxW) * 100;
-    const topPct = ((dotCoord.y - viewBoxY) / viewBoxH) * 100;
-    return { leftPct, topPct };
-  }, [hoveredRosterNodeId, viewBoxX, viewBoxY, viewBoxW, viewBoxH]);
+  // Player-dot popover: hugs the dot, opens below it for nodes near the top edge
+  const dotPopoverStyle = hoveredDotCoord
+    ? (() => {
+        const below = hoveredDotCoord.y < HOVER_FLIP_BELOW_Y;
+        return anchorStyle(
+          hoveredDotCoord.x,
+          hoveredDotCoord.y + (below ? DOT_ANCHOR_OFFSET : -DOT_ANCHOR_OFFSET),
+          below,
+        );
+      })()
+    : null;
+
+  // Roster popover (archetype node with overflow roster): anchored to the "+N" dot
+  const rosterPopoverStyle = hoveredRosterNodeId
+    ? (() => {
+        const coord = SKILL_TREE_COORDS[hoveredRosterNodeId];
+        const node = SKILL_TREE_NODES[hoveredRosterNodeId];
+        if (!coord || !node) return null;
+        const dim = getNodeDimensions(node.tier);
+        const dotCoord = getPlayerDotCoords(coord, dim.height, 3, 4);
+        const below = dotCoord.y < HOVER_FLIP_BELOW_Y;
+        return anchorStyle(
+          dotCoord.x,
+          dotCoord.y + (below ? DOT_ANCHOR_OFFSET : -DOT_ANCHOR_OFFSET),
+          below,
+        );
+      })()
+    : null;
 
   // Badge tooltip position (when hovering the occupants circle badge on a card)
   const badgeTooltipPos = useMemo(() => {
@@ -813,24 +847,27 @@ function GraphicalTreeCanvas({
     return { leftPct, topPct };
   }, [hoveredBadgeNodeId, viewBoxX, viewBoxY, viewBoxW, viewBoxH]);
 
-  // Node tooltip position (when an empty node is hovered without occupants, player dot, or badge)
-  const nodeTooltipPos = useMemo(() => {
+  // Archetype description card: shown for ANY hovered node, occupied or not, unless the
+  // pointer is on a player dot, the count badge, or the roster popover (they have their own card).
+  const nodeTooltipStyle = (() => {
     if (!hoveredNodeId || hoveredPlayer || hoveredRosterNodeId || hoveredBadgeNodeId) return null;
-    const occupants = playersByNode.get(hoveredNodeId) ?? [];
-    if (occupants.length > 0) return null; // Requirements tooltip only appears for unoccupied archetypes
     const coord = SKILL_TREE_COORDS[hoveredNodeId];
     const node = SKILL_TREE_NODES[hoveredNodeId];
     if (!coord || !node) return null;
     const dim = getNodeDimensions(node.tier);
+    const isOccupied = (playersByNode.get(hoveredNodeId)?.length ?? 0) > 0;
+    const below = coord.y < HOVER_FLIP_BELOW_Y;
 
-    // If near the top (Tier 4), anchor right below the card; otherwise anchor right above the card
-    const isNearTop = coord.y < 160;
-    const anchorY = isNearTop ? coord.y + dim.height / 2 + 8 : coord.y - dim.height / 2 - 8;
-
-    const leftPct = ((coord.x - viewBoxX) / viewBoxW) * 100;
-    const topPct = ((anchorY - viewBoxY) / viewBoxH) * 100;
-    return { leftPct, topPct, isNearTop };
-  }, [hoveredNodeId, hoveredPlayer, hoveredRosterNodeId, hoveredBadgeNodeId, playersByNode, viewBoxX, viewBoxY, viewBoxW, viewBoxH]);
+    // Occupied cards carry a row of player dots above them: anchor above that row so the card
+    // never covers a dot. "CURRENT"/"NEXT TARGET" labels sit under the card: clear them when below.
+    const hasFocusLabel =
+      !!activeFocusPlayer &&
+      (activeFocusPlayer.nodeId === hoveredNodeId || targetNodeId === hoveredNodeId);
+    const anchorY = below
+      ? coord.y + dim.height / 2 + (hasFocusLabel ? FOCUS_LABEL_CLEARANCE : 0)
+      : coord.y - dim.height / 2 - (isOccupied ? DOT_ROW_CLEARANCE : 0);
+    return anchorStyle(coord.x, anchorY, below);
+  })();
 
   return (
     <div
@@ -929,11 +966,15 @@ function GraphicalTreeCanvas({
         </button>
       </div>
 
-      {/* Responsive SVG Canvas (Container IS the canvas!) */}
+      {/* Canvas wrapper: same aspect ratio as the viewBox (never letterboxed), so the
+          hover cards below can be positioned with plain percentages. */}
+      <div
+        className="relative mx-auto w-full"
+        style={{ maxWidth: `calc(82vh * ${BASE_VB_WIDTH} / ${BASE_VB_HEIGHT})` }}
+      >
       <svg
         viewBox={`${viewBoxX} ${viewBoxY} ${viewBoxW} ${viewBoxH}`}
         className="w-full h-auto block select-none"
-        style={{ minHeight: "620px", maxHeight: "82vh" }}
       >
         <defs>
           <linearGradient id="activeBranchGrad" x1="0%" y1="100%" x2="0%" y2="0%">
@@ -1205,6 +1246,8 @@ function GraphicalTreeCanvas({
                       onMouseLeave={(e) => {
                         e.stopPropagation();
                         setHoveredBadgeNodeId(null);
+                        // Still over the card itself: bring its description card back
+                        onHoverNode(nodeId);
                       }}
                       onClick={(e) => {
                         e.stopPropagation();
@@ -1233,9 +1276,6 @@ function GraphicalTreeCanvas({
                       >
                         {occupants.length}
                       </text>
-                      <title>
-                        {occupants.length} {occupants.length === 1 ? "player" : "players"}
-                      </title>
                     </g>
                   );
                 })()}
@@ -1390,25 +1430,10 @@ function GraphicalTreeCanvas({
       {/* ----------------------------------------------------------- */}
       {/* HTML ROSTER POPOVER FOR ARCHETYPE WITH OVERFLOW PLAYERS     */}
       {/* ----------------------------------------------------------- */}
-      {hoveredRosterNodeId && rosterPopoverPos && !hoveredPlayer && (
+      {hoveredRosterNodeId && rosterPopoverStyle && !hoveredPlayer && (
         <div
-          className="absolute z-50 w-72 rounded-3xl bg-white/85 backdrop-blur-xl p-3.5 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.2)] ring-1 ring-black/10 border border-white/60 pointer-events-auto transition-all animate-in fade-in zoom-in-95 duration-150"
-          style={{
-            left: `${Math.max(12, Math.min(88, rosterPopoverPos.leftPct))}%`,
-            top: `${Math.max(5, Math.min(85, rosterPopoverPos.topPct))}%`,
-            transform:
-              rosterPopoverPos.topPct < 25
-                ? rosterPopoverPos.leftPct > 70
-                  ? "translate(-85%, 20px)"
-                  : rosterPopoverPos.leftPct < 30
-                    ? "translate(-15%, 20px)"
-                    : "translate(-50%, 20px)"
-                : rosterPopoverPos.leftPct > 70
-                  ? "translate(-85%, calc(-100% - 20px))"
-                  : rosterPopoverPos.leftPct < 30
-                    ? "translate(-15%, calc(-100% - 20px))"
-                    : "translate(-50%, calc(-100% - 20px))",
-          }}
+          className="glass-pop absolute z-50 w-72 rounded-3xl p-3.5 pointer-events-auto"
+          style={rosterPopoverStyle}
           onMouseEnter={() => setHoveredRosterNodeId(hoveredRosterNodeId)}
           onMouseLeave={() => setHoveredRosterNodeId(null)}
         >
@@ -1491,25 +1516,10 @@ function GraphicalTreeCanvas({
       {/* ----------------------------------------------------------- */}
       {/* HTML HOVER POPOVER CARD FOR HOVERED PLAYER DOT               */}
       {/* ----------------------------------------------------------- */}
-      {hoveredPlayer && popoverPos && (
+      {hoveredPlayer && dotPopoverStyle && (
         <div
-          className="absolute z-50 w-72 rounded-3xl bg-white/85 backdrop-blur-xl p-4 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.2)] ring-1 ring-black/10 border border-white/60 pointer-events-auto transition-all animate-in fade-in zoom-in-95 duration-150"
-          style={{
-            left: `${Math.max(12, Math.min(88, popoverPos.leftPct))}%`,
-            top: `${Math.max(5, Math.min(85, popoverPos.topPct))}%`,
-            transform:
-              popoverPos.topPct < 22
-                ? popoverPos.leftPct > 70
-                  ? "translate(-85%, 20px)"
-                  : popoverPos.leftPct < 30
-                    ? "translate(-15%, 20px)"
-                    : "translate(-50%, 20px)"
-                : popoverPos.leftPct > 70
-                  ? "translate(-85%, calc(-100% - 20px))"
-                  : popoverPos.leftPct < 30
-                    ? "translate(-15%, calc(-100% - 20px))"
-                    : "translate(-50%, calc(-100% - 20px))",
-          }}
+          className="glass-pop absolute z-50 w-72 rounded-3xl p-4 pointer-events-none"
+          style={dotPopoverStyle}
         >
           <div className="flex items-center gap-2.5">
             <Avatar name={hoveredPlayer.name} size="md" />
@@ -1575,26 +1585,12 @@ function GraphicalTreeCanvas({
       )}
 
       {/* ----------------------------------------------------------- */}
-      {/* HTML TOOLTIP FOR HOVERED ARCHETYPE NODE (WITHOUT OCCUPANTS)  */}
+      {/* HTML DESCRIPTION CARD FOR HOVERED ARCHETYPE NODE            */}
       {/* ----------------------------------------------------------- */}
-      {hoveredNodeId && !hoveredPlayer && nodeTooltipPos && (
+      {hoveredNodeId && !hoveredPlayer && nodeTooltipStyle && (
         <div
-          className="absolute z-50 w-72 rounded-3xl bg-white/85 backdrop-blur-xl p-4 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.2)] ring-1 ring-black/10 border border-white/60 pointer-events-none transition-all animate-in fade-in zoom-in-95 duration-150"
-          style={{
-            left: `${Math.max(10, Math.min(90, nodeTooltipPos.leftPct))}%`,
-            top: `${nodeTooltipPos.topPct}%`,
-            transform: nodeTooltipPos.isNearTop
-              ? nodeTooltipPos.leftPct > 72
-                ? "translate(-85%, 0)"
-                : nodeTooltipPos.leftPct < 28
-                  ? "translate(-15%, 0)"
-                  : "translate(-50%, 0)"
-              : nodeTooltipPos.leftPct > 72
-                ? "translate(-85%, -100%)"
-                : nodeTooltipPos.leftPct < 28
-                  ? "translate(-15%, -100%)"
-                  : "translate(-50%, -100%)",
-          }}
+          className="glass-pop absolute z-50 w-72 rounded-3xl p-4 pointer-events-none"
+          style={nodeTooltipStyle}
         >
           <div className="flex items-center gap-2.5">
             <span className="text-2xl select-none" aria-hidden>
@@ -1625,6 +1621,7 @@ function GraphicalTreeCanvas({
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }

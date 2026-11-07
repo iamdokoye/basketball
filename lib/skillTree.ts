@@ -13,11 +13,10 @@ export type ArchetypeNodeId =
   | "playmaking-shot-creator"
   | "3-and-d-specialist"
   | "floor-commander"
-  | "two-way-floor-general"
-  | "combo-guard"
+  | "two-way-combo"
   | "two-way-shooter"
   | "two-way-playmaker"
-  | "two-way-slasher"
+  | "two-way-scorer"
   | "defensive-anchor"
   | "two-way-force"
   | "pure-scorer"
@@ -26,7 +25,6 @@ export type ArchetypeNodeId =
   | "lockdown-specialist"
   | "paint-beast"
   | "clutch-assassin"
-  | "rebound-dynamo"
   | "hustle-engine"
   | "rookie"
   | "prospect"
@@ -87,7 +85,7 @@ export const SKILL_TREE_TIERS: TierMeta[] = [
     label: "Tier 3",
     title: "Pinnacle Dual-Pillars",
     tagline: "Elite Mastery of Two Core Pillars",
-    requirementSummary: "25+ GP, 1 Gold+ Pillar AND 1 Silver+ Pillar (Shoot, Assist, or Defense)",
+    requirementSummary: "35+ GP, 1 Gold+ Pillar AND 1 Silver+ Pillar (Shoot, Assist, or Defense)",
     badgeClass: ARCHETYPE_TIER_META[3].badgeClass,
     dotClass: ARCHETYPE_TIER_META[3].dotClass,
     glowColor: "rgba(168, 85, 247, 0.22)",
@@ -100,17 +98,17 @@ export const SKILL_TREE_TIERS: TierMeta[] = [
     label: "Tier 2",
     title: "Hybrid Roles",
     tagline: "Expanded Skillsets & Two-Way Weapons",
-    requirementSummary: "1 Primary Silver+ Pillar AND 1 Secondary Bronze+ Skill (or 2 Silvers)",
+    requirementSummary: "1 Primary Silver+ Pillar AND 1 Secondary Skill (~60% of Silver, or a 2nd Silver)",
     badgeClass: ARCHETYPE_TIER_META[2].badgeClass,
     dotClass: ARCHETYPE_TIER_META[2].dotClass,
     glowColor: "rgba(245, 158, 11, 0.2)",
     borderColor: "border-amber-500/35",
     accentBg: "bg-amber-500/10",
     nodeIds: [
-      "combo-guard",
+      "two-way-combo",
       "two-way-shooter",
       "two-way-playmaker",
-      "two-way-slasher",
+      "two-way-scorer",
       "defensive-anchor",
       "two-way-force",
     ],
@@ -133,7 +131,6 @@ export const SKILL_TREE_TIERS: TierMeta[] = [
       "lockdown-specialist",
       "paint-beast",
       "clutch-assassin",
-      "rebound-dynamo",
       "hustle-engine",
     ],
   },
@@ -162,25 +159,23 @@ export const SKILL_TREE_COORDS: Record<ArchetypeNodeId, NodeCoord> = {
   "playmaking-shot-creator": { x: 250, y: 248 },
   "3-and-d-specialist": { x: 500, y: 248 },
   "floor-commander": { x: 750, y: 248 },
-  "two-way-floor-general": { x: 750, y: 248 },
 
   // Tier 2 · Hybrid (Y = 418)
-  "combo-guard": { x: 75, y: 418 },
+  "two-way-combo": { x: 75, y: 418 },
   "two-way-force": { x: 245, y: 418 },
   "two-way-shooter": { x: 415, y: 418 },
-  "two-way-slasher": { x: 585, y: 418 },
+  "two-way-scorer": { x: 585, y: 418 },
   "two-way-playmaker": { x: 755, y: 418 },
   "defensive-anchor": { x: 925, y: 418 },
 
   // Tier 1 · Specialist (Y = 600)
-  "pure-scorer": { x: 60, y: 600 },
-  "sharpshooter": { x: 186, y: 600 },
-  "clutch-assassin": { x: 312, y: 600 },
-  "floor-general": { x: 438, y: 600 },
-  "hustle-engine": { x: 562, y: 600 },
-  "lockdown-specialist": { x: 688, y: 600 },
-  "paint-beast": { x: 814, y: 600 },
-  "rebound-dynamo": { x: 940, y: 600 },
+  "pure-scorer": { x: 80, y: 600 },
+  "sharpshooter": { x: 220, y: 600 },
+  "clutch-assassin": { x: 360, y: 600 },
+  "floor-general": { x: 500, y: 600 },
+  "hustle-engine": { x: 640, y: 600 },
+  "lockdown-specialist": { x: 780, y: 600 },
+  "paint-beast": { x: 920, y: 600 },
 
   // Tier 0 · Foundation (Y = 785)
   "rookie": { x: 280, y: 785 },
@@ -206,31 +201,29 @@ export const SKILL_TREE_BRANCHES: TreeBranch[] = [
   { id: "prospect-lock", source: "prospect", target: "lockdown-specialist", pillar: "defense" },
   { id: "glue-lock", source: "glue-player", target: "lockdown-specialist", pillar: "defense" },
   { id: "glue-paint", source: "glue-player", target: "paint-beast", pillar: "paint" },
-  { id: "glue-rebound", source: "glue-player", target: "rebound-dynamo", pillar: "paint" },
 
   // Tier 1 -> Tier 2
-  { id: "scorer-combo", source: "pure-scorer", target: "combo-guard", pillar: "hybrid" },
+  { id: "scorer-combo", source: "pure-scorer", target: "two-way-combo", pillar: "hybrid" },
   { id: "scorer-force", source: "pure-scorer", target: "two-way-force", pillar: "hybrid" },
-  { id: "sharp-combo", source: "sharpshooter", target: "combo-guard", pillar: "hybrid" },
+  { id: "sharp-combo", source: "sharpshooter", target: "two-way-combo", pillar: "hybrid" },
   { id: "sharp-shooter", source: "sharpshooter", target: "two-way-shooter", pillar: "hybrid" },
-  { id: "clutch-combo", source: "clutch-assassin", target: "combo-guard", pillar: "hybrid" },
-  { id: "floor-combo", source: "floor-general", target: "combo-guard", pillar: "hybrid" },
+  { id: "clutch-combo", source: "clutch-assassin", target: "two-way-combo", pillar: "hybrid" },
+  { id: "floor-combo", source: "floor-general", target: "two-way-combo", pillar: "hybrid" },
   { id: "floor-playmaker", source: "floor-general", target: "two-way-playmaker", pillar: "hybrid" },
   { id: "hustle-playmaker", source: "hustle-engine", target: "two-way-playmaker", pillar: "hybrid" },
   { id: "lock-shooter", source: "lockdown-specialist", target: "two-way-shooter", pillar: "hybrid" },
-  { id: "lock-slasher", source: "lockdown-specialist", target: "two-way-slasher", pillar: "hybrid" },
+  { id: "lock-scorer", source: "lockdown-specialist", target: "two-way-scorer", pillar: "hybrid" },
   { id: "lock-playmaker", source: "lockdown-specialist", target: "two-way-playmaker", pillar: "hybrid" },
   { id: "lock-anchor", source: "lockdown-specialist", target: "defensive-anchor", pillar: "hybrid" },
   { id: "paint-force", source: "paint-beast", target: "two-way-force", pillar: "hybrid" },
   { id: "paint-anchor", source: "paint-beast", target: "defensive-anchor", pillar: "hybrid" },
-  { id: "rebound-anchor", source: "rebound-dynamo", target: "defensive-anchor", pillar: "hybrid" },
 
   // Tier 2 -> Tier 3
-  { id: "combo-psc", source: "combo-guard", target: "playmaking-shot-creator", pillar: "hybrid" },
+  { id: "combo-psc", source: "two-way-combo", target: "playmaking-shot-creator", pillar: "hybrid" },
   { id: "force-psc", source: "two-way-force", target: "playmaking-shot-creator", pillar: "hybrid" },
   { id: "force-3d", source: "two-way-force", target: "3-and-d-specialist", pillar: "hybrid" },
   { id: "shooter-3d", source: "two-way-shooter", target: "3-and-d-specialist", pillar: "hybrid" },
-  { id: "slasher-3d", source: "two-way-slasher", target: "3-and-d-specialist", pillar: "hybrid" },
+  { id: "scorer-3d", source: "two-way-scorer", target: "3-and-d-specialist", pillar: "hybrid" },
   { id: "playmaker-psc", source: "two-way-playmaker", target: "playmaking-shot-creator", pillar: "hybrid" },
   { id: "playmaker-fc", source: "two-way-playmaker", target: "floor-commander", pillar: "hybrid" },
   { id: "anchor-fc", source: "defensive-anchor", target: "floor-commander", pillar: "hybrid" },
@@ -272,11 +265,11 @@ export const SKILL_TREE_NODES: Record<ArchetypeNodeId, ArchetypeNodeMeta> = {
     summary:
       "Deadly perimeter scoring threat who also slices defenses open with elite playmaking and floor vision.",
     requirements: [
-      "25+ Games Played",
+      "35+ Games Played (Gold badge gate)",
       "Gold Shoot + Silver Assist OR Gold Assist + Silver Shoot",
       "E.g., 60 3PM / 420 pts & 40 AST / 1.4 APG",
     ],
-    parents: ["combo-guard", "two-way-force"],
+    parents: ["two-way-combo", "two-way-force"],
     children: ["all-around-threat"],
   },
   "3-and-d-specialist": {
@@ -289,11 +282,11 @@ export const SKILL_TREE_NODES: Record<ArchetypeNodeId, ArchetypeNodeMeta> = {
     summary:
       "Spreads the floor with elite perimeter shooting while locking down opposing ball-handlers on defense.",
     requirements: [
-      "25+ Games Played",
+      "35+ Games Played (Gold badge gate)",
       "Gold Shoot + Silver Defense OR Gold Defense + Silver Shoot",
       "E.g., 60 3PM / 420 pts & 45 stocks / 1.3 stocks/gm",
     ],
-    parents: ["two-way-shooter", "two-way-slasher", "two-way-force"],
+    parents: ["two-way-shooter", "two-way-scorer", "two-way-force"],
     children: ["all-around-threat"],
   },
   "floor-commander": {
@@ -306,35 +299,17 @@ export const SKILL_TREE_NODES: Record<ArchetypeNodeId, ArchetypeNodeMeta> = {
     summary:
       "Commands the offense with crisp distribution while anchoring the perimeter with tenacious lockdown defense.",
     requirements: [
-      "25+ Games Played",
+      "35+ Games Played (Gold badge gate)",
       "Gold Assist + Silver Defense OR Gold Defense + Silver Assist",
       "E.g., 110 AST / 1.8 APG & 45 stocks / 1.3 stocks/gm",
     ],
     parents: ["two-way-playmaker", "defensive-anchor"],
     children: ["all-around-threat"],
   },
-  "two-way-floor-general": {
-    id: "floor-commander",
-    title: "Floor Commander",
-    emoji: "🛡️",
-    tier: 3,
-    pillar: "hybrid",
-    pillarLabel: "Assist 🪄 + Defense 🛡️",
-    summary:
-      "Commands the offense with crisp distribution while anchoring the perimeter with tenacious lockdown defense.",
-    requirements: [
-      "25+ Games Played",
-      "Gold Assist + Silver Defense OR Gold Defense + Silver Assist",
-      "E.g., 110 AST / 1.8 APG & 45 stocks / 1.3 stocks/gm",
-    ],
-    parents: ["two-way-playmaker", "defensive-anchor"],
-    children: ["all-around-threat"],
-  },
-
   // Tier 2
-  "combo-guard": {
-    id: "combo-guard",
-    title: "Combo Guard",
+  "two-way-combo": {
+    id: "two-way-combo",
+    title: "Two-Way Combo",
     emoji: "🪄",
     tier: 2,
     pillar: "hybrid",
@@ -342,8 +317,8 @@ export const SKILL_TREE_NODES: Record<ArchetypeNodeId, ArchetypeNodeMeta> = {
     summary:
       "Dynamic perimeter threat who scores from outside while creating scoring opportunities for teammates.",
     requirements: [
-      "Silver Shoot (22 3PM / 160 pts) + Bronze Assist (10 AST or 1.0 APG)",
-      "OR Silver Assist (40 AST) + Bronze Scoring (5 3PM or 4.0 PPG)",
+      "Silver Shoot (22 3PM / 160 pts) + Secondary Assist (24 AST & 0.85 APG)",
+      "OR Silver Assist (40 AST) + Secondary Scoring (13 3PM, or 96 pts & 3.3 PPG)",
     ],
     parents: ["pure-scorer", "sharpshooter", "floor-general"],
     children: ["playmaking-shot-creator"],
@@ -358,7 +333,7 @@ export const SKILL_TREE_NODES: Record<ArchetypeNodeId, ArchetypeNodeMeta> = {
     summary:
       "Perimeter marksman who also disrupts ball-handlers with active defensive pressure.",
     requirements: [
-      "Silver Shoot (22 3PM or 160 pts) + Bronze Defense (12 stocks or 1.0 stock/gm)",
+      "Silver Shoot (22 3PM or 160 pts) + Secondary Defense (27 stocks & 0.8 stocks/gm)",
     ],
     parents: ["sharpshooter", "pure-scorer"],
     children: ["3-and-d-specialist"],
@@ -373,23 +348,23 @@ export const SKILL_TREE_NODES: Record<ArchetypeNodeId, ArchetypeNodeMeta> = {
     summary:
       "Floor general who distributes with precision while applying disciplined on-ball defensive pressure.",
     requirements: [
-      "Silver Assist (40 AST) + Bronze Defense (12 stocks or 1.0 stock/gm)",
-      "OR Silver Defense (45 stocks) + Bronze Assist (10 AST or 1.0 APG)",
+      "Silver Assist (40 AST) + Secondary Defense (27 stocks & 0.8 stocks/gm)",
+      "OR Silver Defense (45 stocks) + Secondary Assist (24 AST & 0.85 APG)",
     ],
     parents: ["floor-general", "lockdown-specialist"],
     children: ["floor-commander"],
   },
-  "two-way-slasher": {
-    id: "two-way-slasher",
-    title: "Two-Way Slasher",
+  "two-way-scorer": {
+    id: "two-way-scorer",
+    title: "Two-Way Scorer",
     emoji: "⚔️",
     tier: 2,
     pillar: "hybrid",
-    pillarLabel: "Defense + Transition Attack",
+    pillarLabel: "Defense + Scoring",
     summary:
-      "Disruptive lockdown defender who pushes the pace and scores in transition.",
+      "Lockdown defender who also brings dependable scoring at the other end.",
     requirements: [
-      "Silver Defense (45 stocks) + Bronze Scoring (5 3PM or 4.0 PPG)",
+      "Silver Defense (45 stocks) + Secondary Scoring (13 3PM, or 96 pts & 3.3 PPG)",
     ],
     parents: ["lockdown-specialist", "pure-scorer"],
     children: ["3-and-d-specialist"],
@@ -403,8 +378,9 @@ export const SKILL_TREE_NODES: Record<ArchetypeNodeId, ArchetypeNodeMeta> = {
     pillarLabel: "Interior Paint + Rim Protection",
     summary: "Controls the paint, dominates the glass, and protects the rim.",
     requirements: [
-      "Silver Paint Beast (100 REB / 3.4 RPG) + Bronze Defense (12 stocks)",
-      "OR Silver Defense + Rebounding presence (2.5+ RPG)",
+      "Silver Paint Beast (100 REB / 3.4 RPG) + Secondary Defense (27 stocks & 0.8 stocks/gm)",
+      "OR Silver Defense + Rebounding presence (60 REB & 2.0 RPG)",
+      "Both routes need rim protection: 6+ blocks & 0.25+ BPG",
     ],
     parents: ["paint-beast", "lockdown-specialist"],
     children: ["floor-commander"],
@@ -419,6 +395,7 @@ export const SKILL_TREE_NODES: Record<ArchetypeNodeId, ArchetypeNodeMeta> = {
     summary: "Powerful scoring and rebounding presence on the interior.",
     requirements: [
       "Silver Bucket (160 pts & 5.5 PPG) + Silver Paint Beast (or 3.4+ RPG)",
+      "Checked before the shooting hybrids so Paint power isn't overshadowed",
     ],
     parents: ["pure-scorer", "paint-beast"],
     children: ["playmaking-shot-creator", "3-and-d-specialist"],
@@ -439,7 +416,7 @@ export const SKILL_TREE_NODES: Record<ArchetypeNodeId, ArchetypeNodeMeta> = {
       "≥ 5.5 PPG (Silver Bucket badge)",
     ],
     parents: ["rookie", "prospect", "glue-player"],
-    children: ["combo-guard", "two-way-shooter", "two-way-slasher", "two-way-force"],
+    children: ["two-way-combo", "two-way-shooter", "two-way-scorer", "two-way-force"],
   },
   sharpshooter: {
     id: "sharpshooter",
@@ -455,7 +432,7 @@ export const SKILL_TREE_NODES: Record<ArchetypeNodeId, ArchetypeNodeMeta> = {
       "≥ 28% 3PT shooting (Silver Sharpshooter badge)",
     ],
     parents: ["rookie", "prospect", "glue-player"],
-    children: ["combo-guard", "two-way-shooter"],
+    children: ["two-way-combo", "two-way-shooter"],
   },
   "floor-general": {
     id: "floor-general",
@@ -471,7 +448,7 @@ export const SKILL_TREE_NODES: Record<ArchetypeNodeId, ArchetypeNodeMeta> = {
       "≥ 1.4 APG (Silver Floor General badge)",
     ],
     parents: ["rookie", "prospect", "glue-player"],
-    children: ["combo-guard", "two-way-playmaker"],
+    children: ["two-way-combo", "two-way-playmaker"],
   },
   "lockdown-specialist": {
     id: "lockdown-specialist",
@@ -487,7 +464,7 @@ export const SKILL_TREE_NODES: Record<ArchetypeNodeId, ArchetypeNodeMeta> = {
       "≥ 1.3 Stocks/gm (Silver Lockdown badge)",
     ],
     parents: ["rookie", "prospect", "glue-player"],
-    children: ["two-way-playmaker", "two-way-slasher", "defensive-anchor"],
+    children: ["two-way-playmaker", "two-way-scorer", "defensive-anchor"],
   },
   "paint-beast": {
     id: "paint-beast",
@@ -497,7 +474,7 @@ export const SKILL_TREE_NODES: Record<ArchetypeNodeId, ArchetypeNodeMeta> = {
     pillar: "paint",
     pillarLabel: "Interior Glass & Paint",
     summary:
-      "Physical force on the interior who owns the boards and finishes through contact.",
+      "Physical force on the interior who owns the glass and guarantees extra possessions.",
     requirements: [
       "12+ Games Played",
       "100+ Rebounds",
@@ -516,22 +493,10 @@ export const SKILL_TREE_NODES: Record<ArchetypeNodeId, ArchetypeNodeMeta> = {
     summary: "Ice in their veins; delivers game-winners and decisive late-game plays.",
     requirements: [
       "Silver Clutch Gene Badge",
-      "2+ Game-Winning shots and 10+ Clutch points",
+      "3+ Game-Winning shots and 15+ Clutch points",
     ],
     parents: ["rookie", "prospect", "glue-player"],
-    children: ["combo-guard"],
-  },
-  "rebound-dynamo": {
-    id: "rebound-dynamo",
-    title: "Rebound Dynamo",
-    emoji: "🦍",
-    tier: 1,
-    pillar: "paint",
-    pillarLabel: "Glass Crasher",
-    summary: "High-motor rebounder who guarantees extra possessions.",
-    requirements: ["100+ Career Rebounds & ≥ 3.4 RPG"],
-    parents: ["rookie", "prospect", "glue-player"],
-    children: ["defensive-anchor"],
+    children: ["two-way-combo"],
   },
   "hustle-engine": {
     id: "hustle-engine",
@@ -541,7 +506,10 @@ export const SKILL_TREE_NODES: Record<ArchetypeNodeId, ArchetypeNodeMeta> = {
     pillar: "defense",
     pillarLabel: "Energy & Deflections",
     summary: "Brings continuous effort, winning plays, and game-changing momentum.",
-    requirements: ["Silver Sparkplug Badge (35+ Deflections)"],
+    requirements: [
+      "12+ Games Played",
+      "Silver Sparkplug Badge (≥ 1.6 +/- per game & ≥ 1.2 deflections/gm)",
+    ],
     parents: ["rookie", "prospect", "glue-player"],
     children: ["two-way-playmaker"],
   },
@@ -609,6 +577,8 @@ export const SKILL_TREE_NODES: Record<ArchetypeNodeId, ArchetypeNodeMeta> = {
   },
 };
 
+export const TOTAL_ARCHETYPES = Object.keys(SKILL_TREE_NODES).length;
+
 export function archetypeTitleToId(title: string): ArchetypeNodeId {
   const norm = title.trim().toLowerCase();
   switch (norm) {
@@ -619,16 +589,18 @@ export function archetypeTitleToId(title: string): ArchetypeNodeId {
     case "3-and-d specialist":
       return "3-and-d-specialist";
     case "floor commander":
-    case "two-way floor general":
+    case "two-way floor general": // legacy title
       return "floor-commander";
-    case "combo guard":
-      return "combo-guard";
+    case "combo guard": // legacy title
+    case "two-way combo":
+      return "two-way-combo";
     case "two-way shooter":
       return "two-way-shooter";
     case "two-way playmaker":
       return "two-way-playmaker";
-    case "two-way slasher":
-      return "two-way-slasher";
+    case "two-way slasher": // legacy title
+    case "two-way scorer":
+      return "two-way-scorer";
     case "defensive anchor":
       return "defensive-anchor";
     case "two-way force":
@@ -642,11 +614,10 @@ export function archetypeTitleToId(title: string): ArchetypeNodeId {
     case "lockdown specialist":
       return "lockdown-specialist";
     case "paint beast":
+    case "rebound dynamo": // legacy title (merged into Paint Beast)
       return "paint-beast";
     case "clutch assassin":
       return "clutch-assassin";
-    case "rebound dynamo":
-      return "rebound-dynamo";
     case "hustle engine":
       return "hustle-engine";
     case "rookie":

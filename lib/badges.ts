@@ -90,6 +90,28 @@ const TIER_LABELS: Record<BadgeTier, string> = {
 };
 
 /**
+ * "Secondary skill" bar used for Tier 2 Hybrids: roughly 60% of the matching Silver badge,
+ * so a one-discipline Silver player stays a Tier 1 Specialist until they genuinely
+ * develop a second skill (the old Bronze-level bar was met by almost everyone).
+ */
+export const SECONDARY_BAR = {
+  threes: 13, // 60% of Silver Deadeye (22 3PM)
+  pts: 96, // 60% of Silver Bucket (160 pts)
+  ppg: 3.3, // 60% of 5.5 PPG
+  ast: 24, // 60% of Silver Floor General (40 AST)
+  apg: 0.85, // ~60% of 1.4 APG
+  stocks: 27, // 60% of Silver Lockdown (45 stocks)
+  stockPg: 0.8, // ~60% of 1.3 stocks/gm
+  reb: 60, // 60% of Silver Paint Beast (100 REB)
+  rpg: 2.0, // ~60% of 3.4 RPG
+  blk: 6, // rim-protection floor for Defensive Anchor
+  bpg: 0.25,
+} as const;
+
+/** Tier 3 minimum games: matches the Gold badge gate (35 GP), which Tier 3 requires. */
+export const TIER3_MIN_GP = 35;
+
+/**
  * Computes all 2K-style badges and the player's playstyle archetype.
  * Calibrated for a 1-year season (3-6 games weekly, ~150-250 games total)
  * playing games to 20 points.
@@ -613,10 +635,14 @@ export function computePlayerArchetype(
   const hasSilverPaint = hasBadge("paint-beast", "silver");
   const hasGoldPaint = hasBadge("paint-beast", "gold");
 
-  // Secondary Skills (Bronze level threshold)
-  const hasSecondaryShoot = hasBadge("sharpshooter", "bronze") || hasBadge("bucket", "bronze") || career.fg3m >= 5 || ppg >= 4.0;
-  const hasSecondaryAssist = hasBadge("floor-general", "bronze") || career.ast >= 10 || apg >= 1.0;
-  const hasSecondaryDefense = hasBadge("lockdown", "bronze") || stocks >= 12 || stockPg >= 1.0;
+  // Secondary Skills (~60% of the Silver bar, see SECONDARY_BAR)
+  const hasSecondaryShoot =
+    career.fg3m >= SECONDARY_BAR.threes ||
+    (career.pts >= SECONDARY_BAR.pts && ppg >= SECONDARY_BAR.ppg);
+  const hasSecondaryAssist = career.ast >= SECONDARY_BAR.ast && apg >= SECONDARY_BAR.apg;
+  const hasSecondaryDefense = stocks >= SECONDARY_BAR.stocks && stockPg >= SECONDARY_BAR.stockPg;
+  const hasSecondaryRebound = career.reb >= SECONDARY_BAR.reb && rpg >= SECONDARY_BAR.rpg;
+  const hasRimProtection = career.blk >= SECONDARY_BAR.blk && bpg >= SECONDARY_BAR.bpg;
 
   // Count Gold+ and Silver+ pillars
   let goldPillars = 0;
@@ -658,10 +684,10 @@ export function computePlayerArchetype(
   }
   // -------------------------------------------------------------
   // TIER 3: PINNACLE DUAL-PILLARS
-  // Requires: 1 Gold+ Pillar AND 1 Silver+ Pillar (min 25 GP)
+  // Requires: 1 Gold+ Pillar AND 1 Silver+ Pillar (min 35 GP, the Gold badge gate)
   // -------------------------------------------------------------
   // 1. Shoot + Assist (1 Gold, 1 Silver)
-  else if (career.gp >= 25 && ((hasGoldShoot && hasSilverAssist) || (hasGoldAssist && hasSilverShoot))) {
+  else if (career.gp >= TIER3_MIN_GP && ((hasGoldShoot && hasSilverAssist) || (hasGoldAssist && hasSilverShoot))) {
     archetypeTitle = "Playmaking Shot Creator";
     archetypeEmoji = "🪄";
     archetypeDesc =
@@ -669,7 +695,7 @@ export function computePlayerArchetype(
     archetypeTier = 3;
   }
   // 2. Shoot + Defense (1 Gold, 1 Silver)
-  else if (career.gp >= 25 && ((hasGoldShoot && hasSilverDefense) || (hasGoldDefense && hasSilverShoot))) {
+  else if (career.gp >= TIER3_MIN_GP && ((hasGoldShoot && hasSilverDefense) || (hasGoldDefense && hasSilverShoot))) {
     archetypeTitle = "3-and-D Specialist";
     archetypeEmoji = "🎯";
     archetypeDesc =
@@ -677,7 +703,7 @@ export function computePlayerArchetype(
     archetypeTier = 3;
   }
   // 3. Assist + Defense (1 Gold, 1 Silver)
-  else if (career.gp >= 25 && ((hasGoldAssist && hasSilverDefense) || (hasGoldDefense && hasSilverAssist))) {
+  else if (career.gp >= TIER3_MIN_GP && ((hasGoldAssist && hasSilverDefense) || (hasGoldDefense && hasSilverAssist))) {
     archetypeTitle = "Floor Commander";
     archetypeEmoji = "🛡️";
     archetypeDesc =
@@ -686,14 +712,22 @@ export function computePlayerArchetype(
   }
   // -------------------------------------------------------------
   // TIER 2: HYBRID ROLES
-  // Requires: 1 Primary Silver+ Pillar AND 1 Secondary Bronze+ Skill (or 2 Silvers)
+  // Requires: 1 Primary Silver+ Pillar AND 1 Secondary Skill (~60% of Silver)
   // -------------------------------------------------------------
+  // Scoring + Paint power is checked first: it is the rarest pairing, and the shooting
+  // branches below would otherwise always claim a Silver Bucket player before it.
+  else if (hasBadge("bucket", "silver") && (hasSilverPaint || rpg >= 3.4)) {
+    archetypeTitle = "Two-Way Force";
+    archetypeEmoji = "👑";
+    archetypeDesc = "Powerful scoring and rebounding presence on the interior.";
+    archetypeTier = 2;
+  }
   // Shoot primary + secondary skills:
   else if (hasSilverShoot && hasSecondaryAssist && hasSecondaryDefense) {
     const astRate = Math.min(career.ast / 40, apg / 1.4);
     const defRate = Math.min(stocks / 45, stockPg / 1.3);
     if (astRate >= defRate) {
-      archetypeTitle = "Combo Guard";
+      archetypeTitle = "Two-Way Combo";
       archetypeEmoji = "🪄";
       archetypeDesc =
         "Dynamic perimeter threat who scores from outside while creating scoring opportunities for teammates.";
@@ -706,7 +740,7 @@ export function computePlayerArchetype(
       archetypeTier = 2;
     }
   } else if (hasSilverShoot && hasSecondaryAssist) {
-    archetypeTitle = "Combo Guard";
+    archetypeTitle = "Two-Way Combo";
     archetypeEmoji = "🪄";
     archetypeDesc =
       "Dynamic perimeter threat who scores from outside while creating scoring opportunities for teammates.";
@@ -723,7 +757,7 @@ export function computePlayerArchetype(
     const shootRate = Math.min(career.fg3m / 22, ppg / 5.5);
     const defRate = Math.min(stocks / 45, stockPg / 1.3);
     if (shootRate >= defRate) {
-      archetypeTitle = "Combo Guard";
+      archetypeTitle = "Two-Way Combo";
       archetypeEmoji = "🪄";
       archetypeDesc =
         "Floor general who commands the pace while keeping defenses honest with scoring threat.";
@@ -736,7 +770,7 @@ export function computePlayerArchetype(
       archetypeTier = 2;
     }
   } else if (hasSilverAssist && hasSecondaryShoot) {
-    archetypeTitle = "Combo Guard";
+    archetypeTitle = "Two-Way Combo";
     archetypeEmoji = "🪄";
     archetypeDesc =
       "Floor general who commands the pace while keeping defenses honest with scoring threat.";
@@ -759,17 +793,17 @@ export function computePlayerArchetype(
         "Defensive stopper who facilitates offense and creates transition opportunities.";
       archetypeTier = 2;
     } else {
-      archetypeTitle = "Two-Way Slasher";
+      archetypeTitle = "Two-Way Scorer";
       archetypeEmoji = "⚔️";
       archetypeDesc =
-        "Disruptive lockdown defender who pushes the pace and scores in transition.";
+        "Lockdown defender who also brings dependable scoring at the other end.";
       archetypeTier = 2;
     }
   } else if (hasSilverDefense && hasSecondaryShoot) {
-    archetypeTitle = "Two-Way Slasher";
+    archetypeTitle = "Two-Way Scorer";
     archetypeEmoji = "⚔️";
     archetypeDesc =
-      "Disruptive lockdown defender who pushes the pace and scores in transition.";
+      "Lockdown defender who also brings dependable scoring at the other end.";
     archetypeTier = 2;
   } else if (hasSilverDefense && hasSecondaryAssist) {
     archetypeTitle = "Two-Way Playmaker";
@@ -778,17 +812,12 @@ export function computePlayerArchetype(
       "Defensive stopper who facilitates offense and creates transition opportunities.";
     archetypeTier = 2;
   } else if (
-    (hasSilverPaint && (hasSecondaryDefense || stocks >= 12 || stockPg >= 1.0)) ||
-    (hasSilverDefense && (hasBadge("paint-beast", "bronze") || rpg >= 2.5))
+    hasRimProtection &&
+    ((hasSilverPaint && hasSecondaryDefense) || (hasSilverDefense && hasSecondaryRebound))
   ) {
     archetypeTitle = "Defensive Anchor";
     archetypeEmoji = "🏰";
     archetypeDesc = "Controls the paint, dominates the glass, and protects the rim.";
-    archetypeTier = 2;
-  } else if (hasBadge("bucket", "silver") && (hasSilverPaint || rpg >= 3.4)) {
-    archetypeTitle = "Two-Way Force";
-    archetypeEmoji = "👑";
-    archetypeDesc = "Powerful scoring and rebounding presence on the interior.";
     archetypeTier = 2;
   }
   // -------------------------------------------------------------
@@ -817,17 +846,12 @@ export function computePlayerArchetype(
   } else if (hasSilverPaint) {
     archetypeTitle = "Paint Beast";
     archetypeEmoji = "🦏";
-    archetypeDesc = "Physical force on the interior who owns the boards and finishes through contact.";
+    archetypeDesc = "Physical force on the interior who owns the glass and guarantees extra possessions.";
     archetypeTier = 1;
   } else if (hasBadge("clutch-gene", "silver")) {
     archetypeTitle = "Clutch Assassin";
     archetypeEmoji = "🧊";
     archetypeDesc = "Ice in their veins; delivers game-winners and decisive late-game plays.";
-    archetypeTier = 1;
-  } else if (hasBadge("paint-beast", "silver") || (rpg >= 3.4 && career.reb >= 100)) {
-    archetypeTitle = "Rebound Dynamo";
-    archetypeEmoji = "🦍";
-    archetypeDesc = "High-motor rebounder who guarantees extra possessions.";
     archetypeTier = 1;
   } else if (hasBadge("sparkplug", "silver")) {
     archetypeTitle = "Hustle Engine";
@@ -1108,133 +1132,137 @@ function computeArchetypeUpgrades(ctx: UpgradeContext): ArchetypeUpgrade[] {
 
   // -------------------------------------------------------------
   // TARGET TIER 2: Hybrids (Only shown to Tier 1 players)
-  // Requires: 1 Primary Silver+ Pillar AND 1 Secondary Bronze+ Skill
+  // Requires: 1 Primary Silver+ Pillar AND 1 Secondary Skill (~60% of Silver, see SECONDARY_BAR)
   // -------------------------------------------------------------
   if (targetTier === 2) {
-    const secAstProg = Math.min(1, Math.max(ctx.career.ast / 10, ctx.apg / 1.0));
-    const secDefProg = Math.min(1, Math.max(ctx.stocks / 12, ctx.stockPg / 1.0));
-    const secShootProg = Math.min(1, Math.max(ctx.career.fg3m / 5, ctx.ppg / 4.0));
+    const B = SECONDARY_BAR;
+    // Progress towards each secondary skill (0 to 1). Shooting is "3PM OR scoring"; the rest need
+    // both the total and the per-game rate, matching how the archetype is actually assigned.
+    const secAstProg = Math.min(1, ctx.career.ast / B.ast, ctx.apg / B.apg);
+    const secDefProg = Math.min(1, ctx.stocks / B.stocks, ctx.stockPg / B.stockPg);
+    const secShootProg = Math.min(
+      1,
+      Math.max(ctx.career.fg3m / B.threes, Math.min(ctx.career.pts / B.pts, ctx.ppg / B.ppg)),
+    );
+    const secRebProg = Math.min(1, ctx.career.reb / B.reb, ctx.rpg / B.rpg);
+    const rimProg = Math.min(1, ctx.career.blk / B.blk, ctx.bpg / B.bpg);
+    const pct = (...parts: number[]) =>
+      Math.min(99, Math.round((parts.reduce((a, b) => a + b, 0) / parts.length) * 100));
+
+    const reqAst = `Develop secondary playmaking: ${Math.max(1, B.ast - ctx.career.ast)} more ast (${ctx.career.ast}/${B.ast}) & ≥${B.apg} APG (${ctx.apg.toFixed(1)} curr)`;
+    const reqDef = `Develop secondary defense: ${Math.max(1, B.stocks - ctx.stocks)} more stocks (${ctx.stocks}/${B.stocks}) & ≥${B.stockPg} stocks/gm (${ctx.stockPg.toFixed(1)} curr)`;
+    const reqShoot = `Develop secondary scoring: ${Math.max(1, B.threes - ctx.career.fg3m)} more 3PM (${ctx.career.fg3m}/${B.threes}) or ${B.pts} pts & ≥${B.ppg} PPG (${ctx.ppg.toFixed(1)} curr)`;
+    const reqRim = `${Math.max(1, B.blk - ctx.career.blk)} more blocks (${ctx.career.blk}/${B.blk}) & ≥${B.bpg} BPG`;
+    const hasSilverBucket = ctx.badges.some(
+      (b) => b.id === "bucket" && TIER_ORDER[b.tier] >= TIER_ORDER.silver,
+    );
 
     if (ctx.hasSilverShoot) {
-      // 1. Combo Guard (Shoot + Secondary Assist)
-      const comboPct = Math.min(
-        99,
-        Math.round(((1.0 + secAstProg) / 2) * 100),
-      );
+      // 1. Two-Way Combo (Shoot + Secondary Assist)
       candidates.push({
-        title: "Combo Guard",
+        title: "Two-Way Combo",
         emoji: "🪄",
         tier: 2,
         tierLabel: ARCHETYPE_TIER_META[2].label,
-        progressPct: comboPct,
-        requirement: `Develop secondary playmaking: ${Math.max(1, 10 - ctx.career.ast)} more ast (${ctx.career.ast}/10) or ≥1.0 APG`,
+        progressPct: pct(1, secAstProg),
+        requirement: reqAst,
         description:
           "Dynamic backcourt threat who balances scoring instincts with playmaking for teammates.",
       });
 
       // 2. Two-Way Shooter (Shoot + Secondary Defense)
-      const twoWayShootPct = Math.min(
-        99,
-        Math.round(((1.0 + secDefProg) / 2) * 100),
-      );
       candidates.push({
         title: "Two-Way Shooter",
         emoji: "🎯",
         tier: 2,
         tierLabel: ARCHETYPE_TIER_META[2].label,
-        progressPct: twoWayShootPct,
-        requirement: `Develop secondary defense: ${Math.max(1, 12 - ctx.stocks)} more stocks (${ctx.stocks}/12) or ≥1.0 stocks/gm`,
+        progressPct: pct(1, secDefProg),
+        requirement: reqDef,
         description:
           "Perimeter marksman who also disrupts ball-handlers with active defensive pressure.",
       });
+
+      // 3. Two-Way Force (Silver Bucket + Paint power)
+      if (hasSilverBucket) {
+        const paintProg = Math.min(1, ctx.career.reb / 100, ctx.rpg / 3.4);
+        candidates.push({
+          title: "Two-Way Force",
+          emoji: "👑",
+          tier: 2,
+          tierLabel: ARCHETYPE_TIER_META[2].label,
+          progressPct: pct(1, paintProg),
+          requirement: `Needs Silver Paint: ${Math.max(1, 100 - ctx.career.reb)} more reb (${ctx.career.reb}/100) & ≥3.4 RPG (${ctx.rpg.toFixed(1)} curr)`,
+          description: "Powerful scoring and rebounding presence on the interior.",
+        });
+      }
     } else if (ctx.hasSilverAssist) {
-      // 1. Combo Guard (Assist + Secondary Scoring)
-      const comboPct = Math.min(
-        99,
-        Math.round(((1.0 + secShootProg) / 2) * 100),
-      );
+      // 1. Two-Way Combo (Assist + Secondary Scoring)
       candidates.push({
-        title: "Combo Guard",
+        title: "Two-Way Combo",
         emoji: "🪄",
         tier: 2,
         tierLabel: ARCHETYPE_TIER_META[2].label,
-        progressPct: comboPct,
-        requirement: `Develop secondary scoring: ${Math.max(1, 5 - ctx.career.fg3m)} more 3PM (${ctx.career.fg3m}/5) or ≥4.0 PPG`,
+        progressPct: pct(1, secShootProg),
+        requirement: reqShoot,
         description:
           "Floor general who commands the pace while keeping defenses honest with scoring threat.",
       });
 
       // 2. Two-Way Playmaker (Assist + Secondary Defense)
-      const twoWayPlayPct = Math.min(
-        99,
-        Math.round(((1.0 + secDefProg) / 2) * 100),
-      );
       candidates.push({
         title: "Two-Way Playmaker",
         emoji: "🛡️",
         tier: 2,
         tierLabel: ARCHETYPE_TIER_META[2].label,
-        progressPct: twoWayPlayPct,
-        requirement: `Develop secondary defense: ${Math.max(1, 12 - ctx.stocks)} more stocks (${ctx.stocks}/12) or ≥1.0 stocks/gm`,
+        progressPct: pct(1, secDefProg),
+        requirement: reqDef,
         description:
           "Floor general who distributes with precision while applying disciplined on-ball defensive pressure.",
       });
     } else if (ctx.hasSilverDefense) {
-      // 1. Two-Way Slasher (Defense + Secondary Scoring)
-      const twoWayShootPct = Math.min(
-        99,
-        Math.round(((1.0 + secShootProg) / 2) * 100),
-      );
+      // 1. Two-Way Scorer (Defense + Secondary Scoring)
       candidates.push({
-        title: "Two-Way Slasher",
+        title: "Two-Way Scorer",
         emoji: "⚔️",
         tier: 2,
         tierLabel: ARCHETYPE_TIER_META[2].label,
-        progressPct: twoWayShootPct,
-        requirement: `Develop secondary scoring: ${Math.max(1, 5 - ctx.career.fg3m)} more 3PM or ≥4.0 PPG (${ctx.ppg.toFixed(1)} curr)`,
+        progressPct: pct(1, secShootProg),
+        requirement: reqShoot,
         description:
-          "Disruptive lockdown defender who pushes the pace and scores in transition.",
+          "Lockdown defender who also brings dependable scoring at the other end.",
       });
 
       // 2. Two-Way Playmaker (Defense + Secondary Assist)
-      const twoWayPlayPct = Math.min(
-        99,
-        Math.round(((1.0 + secAstProg) / 2) * 100),
-      );
       candidates.push({
         title: "Two-Way Playmaker",
         emoji: "🛡️",
         tier: 2,
         tierLabel: ARCHETYPE_TIER_META[2].label,
-        progressPct: twoWayPlayPct,
-        requirement: `Develop secondary playmaking: ${Math.max(1, 10 - ctx.career.ast)} more ast (${ctx.career.ast}/10) or ≥1.0 APG`,
+        progressPct: pct(1, secAstProg),
+        requirement: reqAst,
         description:
           "Defensive stopper who facilitates offense and creates transition opportunities.",
       });
 
-      // 3. Defensive Anchor (Defense + Secondary Rebounding)
-      const secRebProg = Math.min(1, Math.max(ctx.career.reb / 20, ctx.rpg / 2.5));
-      const anchorPct = Math.min(
-        99,
-        Math.round(((1.0 + secRebProg) / 2) * 100),
-      );
+      // 3. Defensive Anchor (Defense + Secondary Rebounding + rim protection)
       candidates.push({
         title: "Defensive Anchor",
         emoji: "🏰",
         tier: 2,
         tierLabel: ARCHETYPE_TIER_META[2].label,
-        progressPct: anchorPct,
-        requirement: `Develop glass presence: ${Math.max(1, 20 - ctx.career.reb)} more reb (${ctx.career.reb}/20) or ≥2.5 RPG`,
+        progressPct: pct(1, secRebProg, rimProg),
+        requirement: `Develop glass presence: ${Math.max(1, B.reb - ctx.career.reb)} more reb (${ctx.career.reb}/${B.reb}) & ≥${B.rpg} RPG, plus ${reqRim}`,
         description: "Controls the paint, dominates the glass, and protects the rim.",
       });
     } else if (ctx.hasSilverPaint) {
+      // Paint-first players: Anchor (needs defense + blocks) or Force (needs Silver Bucket)
       candidates.push({
         title: "Defensive Anchor",
         emoji: "🏰",
         tier: 2,
         tierLabel: ARCHETYPE_TIER_META[2].label,
-        progressPct: Math.min(99, Math.round(((1.0 + secDefProg) / 2) * 100)),
-        requirement: `Develop secondary defense: ${Math.max(1, 12 - ctx.stocks)} more stocks (${ctx.stocks}/12)`,
+        progressPct: pct(1, secDefProg, rimProg),
+        requirement: `${reqDef}, plus ${reqRim}`,
         description: "Controls the paint, dominates the glass, and protects the rim.",
       });
       candidates.push({
@@ -1242,18 +1270,18 @@ function computeArchetypeUpgrades(ctx: UpgradeContext): ArchetypeUpgrade[] {
         emoji: "👑",
         tier: 2,
         tierLabel: ARCHETYPE_TIER_META[2].label,
-        progressPct: Math.min(99, Math.round(((1.0 + Math.min(1, ctx.ppg / 5.5)) / 2) * 100)),
-        requirement: `Needs ≥5.5 PPG (${ctx.ppg.toFixed(1)} curr) & 160 pts`,
+        progressPct: pct(1, Math.min(1, ctx.career.pts / 160, ctx.ppg / 5.5)),
+        requirement: `Needs Silver Bucket: ${Math.max(1, 160 - ctx.career.pts)} more pts (${ctx.career.pts}/160) & ≥5.5 PPG (${ctx.ppg.toFixed(1)} curr)`,
         description: "Powerful scoring and rebounding presence on the interior.",
       });
     } else {
       candidates.push({
-        title: "Combo Guard",
+        title: "Two-Way Combo",
         emoji: "🪄",
         tier: 2,
         tierLabel: ARCHETYPE_TIER_META[2].label,
-        progressPct: Math.min(99, Math.round(((secShootProg + secAstProg) / 2) * 100)),
-        requirement: `Develop secondary playmaking: ${Math.max(1, 10 - ctx.career.ast)} more ast (${ctx.career.ast}/10)`,
+        progressPct: pct(secShootProg, secAstProg),
+        requirement: reqAst,
         description:
           "Dynamic backcourt threat who balances scoring instincts with playmaking for teammates.",
       });
@@ -1262,8 +1290,8 @@ function computeArchetypeUpgrades(ctx: UpgradeContext): ArchetypeUpgrade[] {
         emoji: "🎯",
         tier: 2,
         tierLabel: ARCHETYPE_TIER_META[2].label,
-        progressPct: Math.min(99, Math.round(((secShootProg + secDefProg) / 2) * 100)),
-        requirement: `Develop secondary defense: ${Math.max(1, 12 - ctx.stocks)} more stocks (${ctx.stocks}/12)`,
+        progressPct: pct(secShootProg, secDefProg),
+        requirement: reqDef,
         description:
           "Perimeter marksman who also disrupts ball-handlers with active defensive pressure.",
       });
@@ -1334,7 +1362,7 @@ function computeArchetypeUpgrades(ctx: UpgradeContext): ArchetypeUpgrade[] {
       tierLabel: ARCHETYPE_TIER_META[1].label,
       progressPct: rebPct,
       requirement: `Needs ${Math.max(1, 100 - ctx.career.reb)} more reb (${ctx.career.reb}/100) & ≥3.4 RPG (${ctx.rpg.toFixed(1)} curr, min 12 GP)`,
-      description: "Physical force on the interior who owns the boards and finishes through contact.",
+      description: "Physical force on the interior who owns the glass and guarantees extra possessions.",
     });
 
     // Lockdown Specialist
