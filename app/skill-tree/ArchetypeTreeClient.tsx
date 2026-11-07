@@ -18,8 +18,8 @@ import { ARCHETYPE_TIER_META, type ArchetypeTier } from "@/lib/badges";
 type ViewMode = "diagram" | "table";
 type TimeMode = "season" | "allTime";
 
-const CANVAS_WIDTH = 1200;
-const CANVAS_HEIGHT = 960;
+const CANVAS_WIDTH = 1600;
+const CANVAS_HEIGHT = 1060;
 
 export function ArchetypeTreeClient({
   seasonPlayers,
@@ -42,7 +42,7 @@ export function ArchetypeTreeClient({
   const [tierFilter, setTierFilter] = useState<"all" | ArchetypeTier>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [hideArchived, setHideArchived] = useState(true);
-  const [zoomScale, setZoomScale] = useState(1);
+  const [zoomScale, setZoomScale] = useState(0.85);
 
   // Table tree tier accordion state
   const [expandedTiers, setExpandedTiers] = useState<Record<number, boolean>>({
@@ -127,7 +127,23 @@ export function ArchetypeTreeClient({
     return unique.size;
   }, [activePlayers, hideArchived]);
 
-  // Auto center on initial player if provided
+  // Auto center or smart fit on initial load
+  useEffect(() => {
+    if (scrollContainerRef.current) {
+      const containerW = scrollContainerRef.current.clientWidth;
+      let initialScale = 0.85;
+      if (containerW > 0 && containerW < CANVAS_WIDTH) {
+        initialScale = Math.max(0.55, Math.min(0.85, (containerW - 32) / CANVAS_WIDTH));
+        setZoomScale(Number(initialScale.toFixed(2)));
+      }
+      scrollContainerRef.current.scrollTo({
+        left: Math.max(0, (CANVAS_WIDTH * initialScale - containerW) / 2),
+        top: 0,
+      });
+    }
+  }, []);
+
+  // Auto center on initial player if provided via URL
   useEffect(() => {
     if (initialPlayerId && scrollContainerRef.current) {
       const p = activePlayers.find((x) => x.id === initialPlayerId);
@@ -136,27 +152,44 @@ export function ArchetypeTreeClient({
         if (coord) {
           const container = scrollContainerRef.current;
           container.scrollTo({
-            left: coord.x - container.clientWidth / 2,
-            top: coord.y - container.clientHeight / 2,
+            left: coord.x * zoomScale - container.clientWidth / 2,
+            top: coord.y * zoomScale - container.clientHeight / 2,
             behavior: "smooth",
           });
         }
       }
     }
-  }, [initialPlayerId, activePlayers]);
+  }, [initialPlayerId, activePlayers, zoomScale]);
 
   const toggleTierAccordion = (tier: number) => {
     setExpandedTiers((prev) => ({ ...prev, [tier]: !prev[tier] }));
   };
 
   const handleZoom = (delta: number) => {
-    setZoomScale((prev) => Math.max(0.65, Math.min(1.4, Number((prev + delta).toFixed(2)))));
+    setZoomScale((prev) => Math.max(0.45, Math.min(1.6, Number((prev + delta).toFixed(2)))));
   };
 
   const handleResetZoom = () => {
     setZoomScale(1);
     if (scrollContainerRef.current) {
-      scrollContainerRef.current.scrollTo({ left: (CANVAS_WIDTH - scrollContainerRef.current.clientWidth) / 2, top: 0, behavior: "smooth" });
+      scrollContainerRef.current.scrollTo({
+        left: Math.max(0, (CANVAS_WIDTH - scrollContainerRef.current.clientWidth) / 2),
+        top: 0,
+        behavior: "smooth",
+      });
+    }
+  };
+
+  const handleFitScreen = () => {
+    if (scrollContainerRef.current) {
+      const containerW = scrollContainerRef.current.clientWidth - 48;
+      const fit = Math.max(0.45, Math.min(1.0, containerW / CANVAS_WIDTH));
+      setZoomScale(Number(fit.toFixed(2)));
+      scrollContainerRef.current.scrollTo({
+        left: 0,
+        top: 0,
+        behavior: "smooth",
+      });
     }
   };
 
@@ -175,7 +208,7 @@ export function ArchetypeTreeClient({
               </h1>
             </div>
             <p className="mt-1 max-w-2xl text-xs font-medium leading-relaxed text-muted sm:text-sm">
-              Explore all 18 playstyle archetypes on the tree. Hover over any{" "}
+              Explore all 18 playstyle archetypes on the expanded tree canvas. Hover over any{" "}
               <strong className="text-court-ink">player dot</strong> on the branches to inspect
               who is stationed there, their completion percentage, and what they need to level up!
             </p>
@@ -361,7 +394,7 @@ export function ArchetypeTreeClient({
         </div>
       </section>
 
-      {/* Filter, Search & Zoom Toolbar */}
+      {/* Filter, Search & Quick Controls Toolbar */}
       <section className="glass-1 flex flex-col gap-3 rounded-2xl p-3 sm:flex-row sm:items-center sm:justify-between">
         {/* Tier Quick-Filter Pills */}
         <div className="flex flex-wrap items-center gap-1.5">
@@ -398,32 +431,39 @@ export function ArchetypeTreeClient({
 
         {/* Search, Zoom & Archived */}
         <div className="flex flex-wrap items-center gap-2">
-          {/* Zoom Controls for Diagram View */}
           {viewMode === "diagram" && (
             <div className="inline-flex items-center rounded-xl bg-black/[0.05] p-0.5 text-xs font-black">
               <button
                 type="button"
-                onClick={() => handleZoom(-0.1)}
-                title="Zoom Out"
-                className="px-2 py-1 text-muted hover:text-ink transition-colors"
+                onClick={() => handleZoom(-0.15)}
+                title="Zoom Out (−)"
+                className="px-2 py-1 text-muted hover:text-ink transition-colors cursor-pointer"
               >
                 −
               </button>
               <button
                 type="button"
                 onClick={handleResetZoom}
-                title="Reset Zoom"
-                className="px-2 py-1 text-[11px] text-muted hover:text-ink transition-colors"
+                title="Reset Zoom to 100%"
+                className="px-2 py-1 text-[11px] text-muted hover:text-ink transition-colors cursor-pointer"
               >
                 {Math.round(zoomScale * 100)}%
               </button>
               <button
                 type="button"
-                onClick={() => handleZoom(0.1)}
-                title="Zoom In"
-                className="px-2 py-1 text-muted hover:text-ink transition-colors"
+                onClick={() => handleZoom(0.15)}
+                title="Zoom In (+)"
+                className="px-2 py-1 text-muted hover:text-ink transition-colors cursor-pointer"
               >
                 +
+              </button>
+              <button
+                type="button"
+                onClick={handleFitScreen}
+                title="Fit to Screen"
+                className="border-l border-black/10 px-2 py-1 text-[10px] text-court-ink hover:text-court-dark transition-colors cursor-pointer"
+              >
+                Fit
               </button>
             </div>
           )}
@@ -479,7 +519,7 @@ export function ArchetypeTreeClient({
                   onMouseEnter={() => setHoveredPlayerId(p.id)}
                   onMouseLeave={() => setHoveredPlayerId(null)}
                   onClick={() => setSelectedPlayerId(p.id)}
-                  className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold transition-all shrink-0 ${
+                  className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold transition-all shrink-0 cursor-pointer ${
                     isSelected
                       ? "bg-court-ink text-white ring-2 ring-court-ink shadow-xs"
                       : isHovered
@@ -520,6 +560,10 @@ export function ArchetypeTreeClient({
           onHoverNode={setHoveredNodeId}
           tierFilter={tierFilter}
           zoomScale={zoomScale}
+          setZoomScale={setZoomScale}
+          onZoom={handleZoom}
+          onFitScreen={handleFitScreen}
+          onResetZoom={handleResetZoom}
           scrollContainerRef={scrollContainerRef}
         />
       ) : (
@@ -544,7 +588,7 @@ export function ArchetypeTreeClient({
 }
 
 // ---------------------------------------------------------------------------
-// VIEW 1: GRAPHICAL TREE CANVAS WITH DOTS AND HOVER POPOVERS
+// VIEW 1: EXPANDED GRAPHICAL TREE CANVAS WITH ZOOM & PAN CONTROLS
 // ---------------------------------------------------------------------------
 function GraphicalTreeCanvas({
   playersByNode,
@@ -556,6 +600,10 @@ function GraphicalTreeCanvas({
   onHoverNode,
   tierFilter,
   zoomScale,
+  setZoomScale,
+  onZoom,
+  onFitScreen,
+  onResetZoom,
   scrollContainerRef,
 }: {
   playersByNode: Map<ArchetypeNodeId, PlayerTreeItem[]>;
@@ -567,9 +615,51 @@ function GraphicalTreeCanvas({
   onHoverNode: (id: ArchetypeNodeId | null) => void;
   tierFilter: "all" | ArchetypeTier;
   zoomScale: number;
+  setZoomScale: React.Dispatch<React.SetStateAction<number>>;
+  onZoom: (delta: number) => void;
+  onFitScreen: () => void;
+  onResetZoom: () => void;
   scrollContainerRef: React.RefObject<HTMLDivElement | null>;
 }) {
   const activeFocusPlayer = hoveredPlayer ?? selectedPlayer;
+
+  // Drag-to-pan state
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0, scrollLeft: 0, scrollTop: 0 });
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if ((e.target as HTMLElement).closest("button, a, input")) return;
+    if (!scrollContainerRef.current) return;
+    setIsDragging(true);
+    setDragStart({
+      x: e.clientX,
+      y: e.clientY,
+      scrollLeft: scrollContainerRef.current.scrollLeft,
+      scrollTop: scrollContainerRef.current.scrollTop,
+    });
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging || !scrollContainerRef.current) return;
+    e.preventDefault();
+    const dx = e.clientX - dragStart.x;
+    const dy = e.clientY - dragStart.y;
+    scrollContainerRef.current.scrollLeft = dragStart.scrollLeft - dx;
+    scrollContainerRef.current.scrollTop = dragStart.scrollTop - dy;
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  // Wheel zoom handling with Ctrl/Meta or trackpad pinch
+  const handleWheel = (e: React.WheelEvent) => {
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault();
+      const delta = -e.deltaY * 0.005;
+      setZoomScale((prev) => Math.max(0.45, Math.min(1.6, Number((prev + delta).toFixed(2)))));
+    }
+  };
 
   // Compute active target node for highlighted player
   const targetNodeId = useMemo(() => {
@@ -583,7 +673,6 @@ function GraphicalTreeCanvas({
     const ids = new Set<string>();
     const currentNode = activeFocusPlayer.nodeId;
 
-    // Branches entering this player's current node
     for (const b of SKILL_TREE_BRANCHES) {
       if (b.target === currentNode) ids.add(b.id);
       if (b.source === currentNode && targetNodeId && b.target === targetNodeId) {
@@ -596,17 +685,24 @@ function GraphicalTreeCanvas({
   return (
     <div
       ref={scrollContainerRef}
-      className="glass-2 relative overflow-x-auto rounded-3xl p-4 shadow-xl ring-1 ring-black/10 select-none cursor-default"
-      style={{ minHeight: "720px" }}
+      onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={handleMouseUp}
+      onWheel={handleWheel}
+      className={`glass-2 relative overflow-auto rounded-3xl p-4 shadow-xl ring-1 ring-black/10 select-none ${
+        isDragging ? "cursor-grabbing" : "cursor-grab"
+      }`}
+      style={{ minHeight: "750px", maxHeight: "88vh" }}
     >
-      {/* Canvas Header & Legend Hint */}
-      <div className="sticky left-0 top-0 z-30 flex items-center justify-between gap-3 pb-3 mb-2 border-b border-black/[0.06] bg-white/40 backdrop-blur-md px-3 rounded-2xl">
+      {/* Sticky Top Bar & Legend */}
+      <div className="sticky left-0 top-0 z-30 flex items-center justify-between gap-3 pb-3 mb-2 border-b border-black/[0.06] bg-white/60 backdrop-blur-md px-3 rounded-2xl">
         <div className="flex items-center gap-2">
           <span className="text-base" aria-hidden>
             ✨
           </span>
           <span className="text-xs font-bold text-ink">
-            Interactive Tree Graph · Hover on any{" "}
+            Interactive Tree Graph ({CANVAS_WIDTH}px canvas) · Hover on any{" "}
             <span className="text-court-ink font-black">player dot</span> to inspect their road!
           </span>
         </div>
@@ -629,9 +725,50 @@ function GraphicalTreeCanvas({
         </div>
       </div>
 
+      {/* Floating Zoom & Pan HUD Controls */}
+      <div className="sticky bottom-4 right-4 z-40 ml-auto flex items-center gap-1.5 rounded-2xl glass-3 p-1.5 shadow-2xl ring-1 ring-black/15 w-fit bg-white/90 backdrop-blur-md">
+        <button
+          type="button"
+          onClick={() => onZoom(-0.15)}
+          title="Zoom Out (−)"
+          className="grid h-8 w-8 place-items-center rounded-xl bg-black/[0.05] text-base font-black text-ink hover:bg-black/10 transition-colors cursor-pointer"
+        >
+          −
+        </button>
+        <span className="tabular px-2 text-xs font-black text-ink select-none min-w-[50px] text-center">
+          {Math.round(zoomScale * 100)}%
+        </span>
+        <button
+          type="button"
+          onClick={() => onZoom(0.15)}
+          title="Zoom In (+)"
+          className="grid h-8 w-8 place-items-center rounded-xl bg-black/[0.05] text-base font-black text-ink hover:bg-black/10 transition-colors cursor-pointer"
+        >
+          +
+        </button>
+        <div className="h-4 w-px bg-black/15 mx-0.5" />
+        <button
+          type="button"
+          onClick={onFitScreen}
+          title="Fit whole tree into screen"
+          className="flex items-center gap-1 rounded-xl bg-court-ink/10 px-2.5 py-1.5 text-xs font-black text-court-ink hover:bg-court-ink hover:text-white transition-colors cursor-pointer"
+        >
+          <span>⤢</span>
+          <span>Fit Screen</span>
+        </button>
+        <button
+          type="button"
+          onClick={onResetZoom}
+          title="Reset to 100%"
+          className="rounded-xl bg-black/[0.05] px-2.5 py-1.5 text-xs font-bold text-muted hover:text-ink transition-colors cursor-pointer"
+        >
+          100%
+        </button>
+      </div>
+
       {/* Scalable Coordinate Container */}
       <div
-        className="relative mx-auto transition-transform duration-200 origin-top"
+        className="relative mx-auto transition-transform duration-150 origin-top"
         style={{
           width: `${CANVAS_WIDTH}px`,
           height: `${CANVAS_HEIGHT}px`,
@@ -647,12 +784,12 @@ function GraphicalTreeCanvas({
           <defs>
             {/* Gradients for Glowing Active Branches */}
             <linearGradient id="activeBranchGrad" x1="0%" y1="100%" x2="0%" y2="0%">
-              <stop offset="0%" stopColor="#ea580c" stopOpacity="0.9" />
-              <stop offset="100%" stopColor="#10b981" stopOpacity="0.9" />
+              <stop offset="0%" stopColor="#ea580c" stopOpacity="0.95" />
+              <stop offset="100%" stopColor="#10b981" stopOpacity="0.95" />
             </linearGradient>
 
             <filter id="branchGlow" x="-20%" y="-20%" width="140%" height="140%">
-              <feGaussianBlur stdDeviation="3" result="blur" />
+              <feGaussianBlur stdDeviation="3.5" result="blur" />
               <feMerge>
                 <feMergeNode in="blur" />
                 <feMergeNode in="SourceGraphic" />
@@ -664,75 +801,75 @@ function GraphicalTreeCanvas({
           {/* Tier 4 Apex Summit */}
           <rect
             x="40"
-            y="30"
-            width="1120"
-            height="130"
+            y="25"
+            width="1520"
+            height="150"
             rx="24"
             fill="rgba(16, 185, 129, 0.04)"
-            stroke="rgba(16, 185, 129, 0.15)"
+            stroke="rgba(16, 185, 129, 0.18)"
             strokeDasharray="4 4"
           />
-          <text x="60" y="60" fill="#065f46" fontSize="12" fontWeight="800" letterSpacing="0.08em">
+          <text x="70" y="55" fill="#065f46" fontSize="13" fontWeight="800" letterSpacing="0.08em">
             TIER 4 · THE SUPREME APEX
           </text>
 
           {/* Tier 3 Pinnacle Ridge */}
           <rect
             x="40"
-            y="215"
-            width="1120"
-            height="145"
+            y="235"
+            width="1520"
+            height="160"
             rx="24"
             fill="rgba(168, 85, 247, 0.03)"
-            stroke="rgba(168, 85, 247, 0.12)"
+            stroke="rgba(168, 85, 247, 0.14)"
             strokeDasharray="4 4"
           />
-          <text x="60" y="245" fill="#7e22ce" fontSize="12" fontWeight="800" letterSpacing="0.08em">
+          <text x="70" y="265" fill="#7e22ce" fontSize="13" fontWeight="800" letterSpacing="0.08em">
             TIER 3 · PINNACLE DUAL-PILLARS
           </text>
 
           {/* Tier 2 Hybrid Bridge */}
           <rect
             x="40"
-            y="410"
-            width="1120"
-            height="150"
+            y="450"
+            width="1520"
+            height="170"
             rx="24"
             fill="rgba(245, 158, 11, 0.03)"
-            stroke="rgba(245, 158, 11, 0.12)"
+            stroke="rgba(245, 158, 11, 0.14)"
             strokeDasharray="4 4"
           />
-          <text x="60" y="440" fill="#b45309" fontSize="12" fontWeight="800" letterSpacing="0.08em">
+          <text x="70" y="480" fill="#b45309" fontSize="13" fontWeight="800" letterSpacing="0.08em">
             TIER 2 · HYBRID ROLES
           </text>
 
           {/* Tier 1 Specialist Meadow */}
           <rect
             x="40"
-            y="610"
-            width="1120"
-            height="150"
+            y="670"
+            width="1520"
+            height="170"
             rx="24"
             fill="rgba(14, 165, 233, 0.03)"
-            stroke="rgba(14, 165, 233, 0.12)"
+            stroke="rgba(14, 165, 233, 0.14)"
             strokeDasharray="4 4"
           />
-          <text x="60" y="640" fill="#0369a1" fontSize="12" fontWeight="800" letterSpacing="0.08em">
+          <text x="70" y="700" fill="#0369a1" fontSize="13" fontWeight="800" letterSpacing="0.08em">
             TIER 1 · SPECIALIZED DISCIPLINES
           </text>
 
           {/* Tier 0 Foundation Ground */}
           <rect
             x="40"
-            y="810"
-            width="1120"
-            height="130"
+            y="870"
+            width="1520"
+            height="160"
             rx="24"
             fill="rgba(148, 163, 184, 0.04)"
-            stroke="rgba(148, 163, 184, 0.15)"
+            stroke="rgba(148, 163, 184, 0.16)"
             strokeDasharray="4 4"
           />
-          <text x="60" y="840" fill="#475569" fontSize="12" fontWeight="800" letterSpacing="0.08em">
+          <text x="70" y="900" fill="#475569" fontSize="13" fontWeight="800" letterSpacing="0.08em">
             TIER 0 · FOUNDATIONS & ROOTS
           </text>
 
@@ -745,7 +882,7 @@ function GraphicalTreeCanvas({
             const isHighlighted = activeBranchIds.has(branch.id);
             const isFaded = activeFocusPlayer && !isHighlighted;
 
-            // Smooth vertical Bezier curve from source (higher Y) to target (lower Y)
+            // Smooth vertical Bezier curve from source to target
             const dy = Math.abs(sourceCoord.y - targetCoord.y);
             const cy1 = sourceCoord.y - dy * 0.45;
             const cy2 = targetCoord.y + dy * 0.45;
@@ -756,11 +893,11 @@ function GraphicalTreeCanvas({
                 key={branch.id}
                 d={pathData}
                 fill="none"
-                stroke={isHighlighted ? "url(#activeBranchGrad)" : "rgba(0, 0, 0, 0.12)"}
-                strokeWidth={isHighlighted ? 3.5 : 1.8}
+                stroke={isHighlighted ? "url(#activeBranchGrad)" : "rgba(0, 0, 0, 0.13)"}
+                strokeWidth={isHighlighted ? 4 : 2}
                 strokeDasharray={isHighlighted ? "6 3" : undefined}
                 filter={isHighlighted ? "url(#branchGlow)" : undefined}
-                opacity={isFaded ? 0.25 : 1}
+                opacity={isFaded ? 0.22 : 1}
                 className={isHighlighted ? "animate-[dash_1.5s_linear_infinite]" : "transition-opacity duration-300"}
               />
             );
@@ -793,7 +930,7 @@ function GraphicalTreeCanvas({
                 left: `${coord.x}px`,
                 top: `${coord.y}px`,
                 transform: "translate(-50%, -50%)",
-                width: "128px",
+                width: "144px",
               }}
             >
               {/* ------------------------------------------------------------- */}
@@ -820,7 +957,7 @@ function GraphicalTreeCanvas({
                         <button
                           type="button"
                           aria-label={`Player ${p.name}`}
-                          className={`relative grid h-6 w-6 place-items-center rounded-full text-[9px] font-black uppercase transition-all duration-200 cursor-pointer ${
+                          className={`relative grid h-6.5 w-6.5 place-items-center rounded-full text-[9px] font-black uppercase transition-all duration-200 cursor-pointer ${
                             isDotSelected
                               ? "bg-court-ink text-white ring-3 ring-court-ink ring-offset-2 scale-125 shadow-lg"
                               : isDotHovered
@@ -845,12 +982,12 @@ function GraphicalTreeCanvas({
                         {isDotHovered && (
                           <div
                             className={`absolute z-50 w-72 rounded-2xl glass-3 p-4 shadow-2xl ring-1 ring-black/15 pointer-events-auto transition-all animate-in fade-in zoom-in-95 duration-150 ${
-                              coord.x > 750
+                              coord.x > 1100
                                 ? "right-0 translate-x-4"
-                                : coord.x < 450
+                                : coord.x < 500
                                   ? "left-0 -translate-x-4"
                                   : "left-1/2 -translate-x-1/2"
-                            } ${coord.y < 350 ? "top-8" : "bottom-8"}`}
+                            } ${coord.y < 400 ? "top-8" : "bottom-8"}`}
                           >
                             <div className="flex items-center gap-2.5">
                               <Avatar name={p.name} size="md" />
@@ -921,16 +1058,16 @@ function GraphicalTreeCanvas({
 
               {/* Archetype Node Badge */}
               <div
-                className={`relative flex flex-col items-center justify-center rounded-2xl p-2.5 transition-all text-center ${
+                className={`relative flex flex-col items-center justify-center rounded-2xl p-3 transition-all text-center ${
                   isCurrentForFocus
                     ? "bg-court-ink/15 ring-3 ring-court-ink shadow-lg scale-110"
                     : isTargetForFocus
                       ? "bg-emerald-500/15 ring-2 ring-emerald-500 shadow-lg scale-110 animate-pulse"
                       : isOccupied
-                        ? "bg-white/85 ring-1 ring-black/15 shadow-sm hover:scale-105 hover:ring-court-ink/50"
-                        : "bg-white/50 ring-1 ring-dashed ring-black/15 hover:bg-white/70"
+                        ? "bg-white/90 ring-1 ring-black/15 shadow-sm hover:scale-105 hover:ring-court-ink/50"
+                        : "bg-white/55 ring-1 ring-dashed ring-black/15 hover:bg-white/75"
                 }`}
-                style={{ width: "116px" }}
+                style={{ width: "136px" }}
               >
                 {/* Node Emoji */}
                 <span className="text-2xl" aria-hidden>
@@ -938,7 +1075,7 @@ function GraphicalTreeCanvas({
                 </span>
 
                 {/* Node Title */}
-                <span className="mt-0.5 text-[11px] font-extrabold text-ink leading-tight line-clamp-2">
+                <span className="mt-0.5 text-xs font-extrabold text-ink leading-tight line-clamp-2">
                   {node.title}
                 </span>
 
@@ -949,7 +1086,7 @@ function GraphicalTreeCanvas({
 
                 {/* Occupant Counter */}
                 <span
-                  className={`mt-1 tabular rounded-full px-1.5 py-0.2 text-[9px] font-extrabold ring-1 ring-inset ${
+                  className={`mt-1 tabular rounded-full px-2 py-0.5 text-[9px] font-extrabold ring-1 ring-inset ${
                     isOccupied
                       ? "bg-court-ink text-white ring-court-ink"
                       : "bg-black/[0.04] text-muted ring-black/10"
@@ -975,7 +1112,7 @@ function GraphicalTreeCanvas({
               {hoveredNodeId === nodeId && !hoveredPlayer && (
                 <div
                   className={`absolute z-40 w-64 rounded-2xl glass-3 p-3.5 shadow-2xl ring-1 ring-black/15 pointer-events-none transition-all animate-in fade-in zoom-in-95 duration-150 ${
-                    coord.y < 350 ? "top-20" : "bottom-20"
+                    coord.y < 400 ? "top-20" : "bottom-20"
                   }`}
                 >
                   <div className="flex items-center gap-2">
@@ -1049,7 +1186,7 @@ function TableTreeView({
             <button
               type="button"
               onClick={() => onToggleTier(tierMeta.tier)}
-              className="flex w-full items-center justify-between p-4 text-left transition-colors hover:bg-black/[0.02]"
+              className="flex w-full items-center justify-between p-4 text-left transition-colors hover:bg-black/[0.02] cursor-pointer"
             >
               <div className="flex items-center gap-3">
                 <span
@@ -1110,7 +1247,7 @@ function TableTreeView({
                                 <div>
                                   <div className="font-extrabold text-ink flex items-center gap-1.5">
                                     <span>{player.name}</span>
-                                    {player.injured && <InjuredBadge />}
+                                    {player.injured && <InjuredBadge size="xs" />}
                                   </div>
                                   <div className="text-[10px] font-semibold text-muted">
                                     {player.gp} GP · {player.ppg.toFixed(1)} pts · {player.apg.toFixed(1)} ast
@@ -1182,7 +1319,7 @@ function TableTreeView({
                                   e.stopPropagation();
                                   onSelectPlayer(player);
                                 }}
-                                className="rounded-lg bg-court-ink px-2.5 py-1 text-[11px] font-black text-white shadow-xs transition-all hover:bg-court-dark"
+                                className="rounded-lg bg-court-ink px-2.5 py-1 text-[11px] font-black text-white shadow-xs transition-all hover:bg-court-dark cursor-pointer"
                               >
                                 Inspect Road 🔍
                               </button>
@@ -1231,7 +1368,7 @@ function PlayerRoadInspector({
           type="button"
           onClick={onClose}
           aria-label="Close inspector"
-          className="absolute right-4 top-4 grid h-8 w-8 place-items-center rounded-full bg-black/[0.06] text-sm font-black text-muted transition-colors hover:bg-black/10 hover:text-ink"
+          className="absolute right-4 top-4 grid h-8 w-8 place-items-center rounded-full bg-black/[0.06] text-sm font-black text-muted transition-colors hover:bg-black/10 hover:text-ink cursor-pointer"
         >
           ✕
         </button>
@@ -1242,7 +1379,7 @@ function PlayerRoadInspector({
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 flex-wrap">
               <h2 className="text-xl font-black text-ink">{player.name}</h2>
-              {player.injured && <InjuredBadge />}
+              {player.injured && <InjuredBadge size="xs" />}
               <span
                 className={`tabular inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${currentTierMeta.badgeClass}`}
               >
@@ -1477,7 +1614,7 @@ function PlayerRoadInspector({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-xl bg-black/[0.05] px-4 py-2 text-xs font-bold text-muted transition-colors hover:text-ink"
+            className="rounded-xl bg-black/[0.05] px-4 py-2 text-xs font-bold text-muted transition-colors hover:text-ink cursor-pointer"
           >
             Close Inspector
           </button>

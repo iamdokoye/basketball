@@ -154,36 +154,36 @@ export const SKILL_TREE_TIERS: TierMeta[] = [
 export type NodeCoord = { x: number; y: number };
 
 export const SKILL_TREE_COORDS: Record<ArchetypeNodeId, NodeCoord> = {
-  // Tier 4 · Apex (Y = 95)
-  "all-around-threat": { x: 600, y: 95 },
+  // Tier 4 · Apex (Y = 100)
+  "all-around-threat": { x: 800, y: 100 },
 
-  // Tier 3 · Pinnacle (Y = 285)
-  "playmaking-shot-creator": { x: 300, y: 285 },
-  "3-and-d-specialist": { x: 600, y: 285 },
-  "two-way-floor-general": { x: 900, y: 285 },
+  // Tier 3 · Pinnacle (Y = 310)
+  "playmaking-shot-creator": { x: 400, y: 310 },
+  "3-and-d-specialist": { x: 800, y: 310 },
+  "two-way-floor-general": { x: 1200, y: 310 },
 
-  // Tier 2 · Hybrid (Y = 485)
-  "combo-guard": { x: 160, y: 485 },
-  "two-way-force": { x: 336, y: 485 },
-  "two-way-shooter": { x: 512, y: 485 },
-  "two-way-slasher": { x: 688, y: 485 },
-  "two-way-playmaker": { x: 864, y: 485 },
-  "defensive-anchor": { x: 1040, y: 485 },
+  // Tier 2 · Hybrid (Y = 530)
+  "combo-guard": { x: 200, y: 530 },
+  "two-way-force": { x: 440, y: 530 },
+  "two-way-shooter": { x: 680, y: 530 },
+  "two-way-slasher": { x: 920, y: 530 },
+  "two-way-playmaker": { x: 1160, y: 530 },
+  "defensive-anchor": { x: 1400, y: 530 },
 
-  // Tier 1 · Specialist (Y = 685)
-  "pure-scorer": { x: 110, y: 685 },
-  "sharpshooter": { x: 250, y: 685 },
-  "clutch-assassin": { x: 390, y: 685 },
-  "floor-general": { x: 530, y: 685 },
-  "hustle-engine": { x: 670, y: 685 },
-  "lockdown-specialist": { x: 810, y: 685 },
-  "paint-beast": { x: 950, y: 685 },
-  "rebound-dynamo": { x: 1090, y: 685 },
+  // Tier 1 · Specialist (Y = 750)
+  "pure-scorer": { x: 140, y: 750 },
+  "sharpshooter": { x: 330, y: 750 },
+  "clutch-assassin": { x: 520, y: 750 },
+  "floor-general": { x: 710, y: 750 },
+  "hustle-engine": { x: 890, y: 750 },
+  "lockdown-specialist": { x: 1080, y: 750 },
+  "paint-beast": { x: 1270, y: 750 },
+  "rebound-dynamo": { x: 1460, y: 750 },
 
-  // Tier 0 · Foundation (Y = 875)
-  "rookie": { x: 360, y: 875 },
-  "prospect": { x: 600, y: 875 },
-  "glue-player": { x: 840, y: 875 },
+  // Tier 0 · Foundation (Y = 950)
+  "rookie": { x: 480, y: 950 },
+  "prospect": { x: 800, y: 950 },
+  "glue-player": { x: 1120, y: 950 },
 };
 
 export type TreeBranch = {
