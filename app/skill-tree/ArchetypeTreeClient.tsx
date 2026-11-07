@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { Avatar, shortName } from "@/app/components/Avatar";
 import { InjuredBadge } from "@/app/components/InjuredBadge";
@@ -9,11 +9,17 @@ import {
   type PlayerTreeItem,
   SKILL_TREE_NODES,
   SKILL_TREE_TIERS,
+  SKILL_TREE_COORDS,
+  SKILL_TREE_BRANCHES,
+  archetypeTitleToId,
 } from "@/lib/skillTree";
 import { ARCHETYPE_TIER_META, type ArchetypeTier } from "@/lib/badges";
 
 type ViewMode = "diagram" | "table";
 type TimeMode = "season" | "allTime";
+
+const CANVAS_WIDTH = 1200;
+const CANVAS_HEIGHT = 960;
 
 export function ArchetypeTreeClient({
   seasonPlayers,
@@ -31,11 +37,14 @@ export function ArchetypeTreeClient({
   const [selectedPlayerId, setSelectedPlayerId] = useState<number | null>(
     initialPlayerId ?? null,
   );
+  const [hoveredPlayerId, setHoveredPlayerId] = useState<number | null>(null);
+  const [hoveredNodeId, setHoveredNodeId] = useState<ArchetypeNodeId | null>(null);
   const [tierFilter, setTierFilter] = useState<"all" | ArchetypeTier>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [hideArchived, setHideArchived] = useState(true);
+  const [zoomScale, setZoomScale] = useState(1);
 
-  // Expanded state for table tree tiers (all open by default)
+  // Table tree tier accordion state
   const [expandedTiers, setExpandedTiers] = useState<Record<number, boolean>>({
     4: true,
     3: true,
@@ -43,6 +52,8 @@ export function ArchetypeTreeClient({
     1: true,
     0: true,
   });
+
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const activePlayers = timeMode === "season" ? seasonPlayers : allTimePlayers;
 
@@ -63,13 +74,19 @@ export function ArchetypeTreeClient({
     });
   }, [activePlayers, hideArchived, tierFilter, searchQuery]);
 
-  // Selected player object
+  // Selected player
   const selectedPlayer = useMemo(() => {
     if (!selectedPlayerId) return null;
     return activePlayers.find((p) => p.id === selectedPlayerId) ?? null;
   }, [activePlayers, selectedPlayerId]);
 
-  // Map of players grouped by node ID
+  // Hovered player
+  const hoveredPlayer = useMemo(() => {
+    if (!hoveredPlayerId) return null;
+    return activePlayers.find((p) => p.id === hoveredPlayerId) ?? null;
+  }, [activePlayers, hoveredPlayerId]);
+
+  // Players grouped by archetype node
   const playersByNode = useMemo(() => {
     const map = new Map<ArchetypeNodeId, PlayerTreeItem[]>();
     for (const p of filteredPlayers) {
@@ -92,7 +109,7 @@ export function ArchetypeTreeClient({
 
   const totalActivePlayers = Object.values(tierCounts).reduce((a, b) => a + b, 0);
 
-  // Player closest to next tier graduation ("On the Cusp")
+  // Player closest to next tier graduation
   const closestToGraduation = useMemo(() => {
     const eligible = activePlayers
       .filter((p) => (!hideArchived || !p.archived) && p.archetype.tier < 4 && p.roadProgressPct < 100)
@@ -100,7 +117,7 @@ export function ArchetypeTreeClient({
     return eligible[0] ?? null;
   }, [activePlayers, hideArchived]);
 
-  // Total unique archetypes unlocked by at least one player
+  // Unique archetypes discovered
   const unlockedArchetypeCount = useMemo(() => {
     const unique = new Set<string>();
     for (const p of activePlayers) {
@@ -110,8 +127,37 @@ export function ArchetypeTreeClient({
     return unique.size;
   }, [activePlayers, hideArchived]);
 
+  // Auto center on initial player if provided
+  useEffect(() => {
+    if (initialPlayerId && scrollContainerRef.current) {
+      const p = activePlayers.find((x) => x.id === initialPlayerId);
+      if (p) {
+        const coord = SKILL_TREE_COORDS[p.nodeId];
+        if (coord) {
+          const container = scrollContainerRef.current;
+          container.scrollTo({
+            left: coord.x - container.clientWidth / 2,
+            top: coord.y - container.clientHeight / 2,
+            behavior: "smooth",
+          });
+        }
+      }
+    }
+  }, [initialPlayerId, activePlayers]);
+
   const toggleTierAccordion = (tier: number) => {
     setExpandedTiers((prev) => ({ ...prev, [tier]: !prev[tier] }));
+  };
+
+  const handleZoom = (delta: number) => {
+    setZoomScale((prev) => Math.max(0.65, Math.min(1.4, Number((prev + delta).toFixed(2)))));
+  };
+
+  const handleResetZoom = () => {
+    setZoomScale(1);
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTo({ left: (CANVAS_WIDTH - scrollContainerRef.current.clientWidth) / 2, top: 0, behavior: "smooth" });
+    }
   };
 
   return (
@@ -129,10 +175,9 @@ export function ArchetypeTreeClient({
               </h1>
             </div>
             <p className="mt-1 max-w-2xl text-xs font-medium leading-relaxed text-muted sm:text-sm">
-              The complete progression roadmap from{" "}
-              <strong className="text-ink">Tier 0 Foundations</strong> to the supreme{" "}
-              <strong className="text-emerald-700">Tier 4 Apex</strong>. Track each
-              player&apos;s active road, milestone percentages, and exact requirements.
+              Explore all 18 playstyle archetypes on the tree. Hover over any{" "}
+              <strong className="text-court-ink">player dot</strong> on the branches to inspect
+              who is stationed there, their completion percentage, and what they need to level up!
             </p>
           </div>
 
@@ -175,8 +220,8 @@ export function ArchetypeTreeClient({
                     : "text-muted hover:text-ink"
                 }`}
               >
-                <span>🎨</span>
-                <span>Diagram Tree</span>
+                <span>🌳</span>
+                <span>Graphical Tree</span>
               </button>
               <button
                 type="button"
@@ -205,7 +250,7 @@ export function ArchetypeTreeClient({
               <div className="flex items-center justify-between gap-2">
                 <span className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider text-court-ink">
                   <span>⚡</span>
-                  <span>On the Cusp of Tier Up</span>
+                  <span>Closest to Next Tier</span>
                 </span>
                 <span className="tabular rounded-full bg-court-soft/10 px-2 py-0.5 text-xs font-black text-court-ink ring-1 ring-inset ring-court-ink/20">
                   {closestToGraduation.roadProgressPct}%
@@ -225,7 +270,6 @@ export function ArchetypeTreeClient({
                   </div>
                 </div>
               </div>
-              {/* Mini progress bar */}
               <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-black/[0.06]">
                 <div
                   className="h-full rounded-full bg-court-ink transition-all duration-500"
@@ -282,7 +326,6 @@ export function ArchetypeTreeClient({
               <span className="text-muted/40">·</span>
               <span className="text-slate-600">T0: {tierCounts[0] ?? 0}</span>
             </div>
-            {/* Visual segmented bar */}
             <div className="mt-2 flex h-2 w-full overflow-hidden rounded-full bg-black/[0.06]">
               {totalActivePlayers > 0 && (
                 <>
@@ -318,7 +361,7 @@ export function ArchetypeTreeClient({
         </div>
       </section>
 
-      {/* Filter and Search Bar */}
+      {/* Filter, Search & Zoom Toolbar */}
       <section className="glass-1 flex flex-col gap-3 rounded-2xl p-3 sm:flex-row sm:items-center sm:justify-between">
         {/* Tier Quick-Filter Pills */}
         <div className="flex flex-wrap items-center gap-1.5">
@@ -353,14 +396,44 @@ export function ArchetypeTreeClient({
           })}
         </div>
 
-        {/* Search input & Archived toggle */}
-        <div className="flex items-center gap-2">
-          <div className="relative flex-1 sm:w-56">
+        {/* Search, Zoom & Archived */}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Zoom Controls for Diagram View */}
+          {viewMode === "diagram" && (
+            <div className="inline-flex items-center rounded-xl bg-black/[0.05] p-0.5 text-xs font-black">
+              <button
+                type="button"
+                onClick={() => handleZoom(-0.1)}
+                title="Zoom Out"
+                className="px-2 py-1 text-muted hover:text-ink transition-colors"
+              >
+                −
+              </button>
+              <button
+                type="button"
+                onClick={handleResetZoom}
+                title="Reset Zoom"
+                className="px-2 py-1 text-[11px] text-muted hover:text-ink transition-colors"
+              >
+                {Math.round(zoomScale * 100)}%
+              </button>
+              <button
+                type="button"
+                onClick={() => handleZoom(0.1)}
+                title="Zoom In"
+                className="px-2 py-1 text-muted hover:text-ink transition-colors"
+              >
+                +
+              </button>
+            </div>
+          )}
+
+          <div className="relative flex-1 sm:w-52">
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search player or road..."
+              placeholder="Search player or archetype..."
               className="w-full rounded-xl bg-black/[0.05] px-3 py-1.5 text-xs font-medium text-ink placeholder:text-muted/60 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-court-ink/30"
             />
             {searchQuery && (
@@ -373,6 +446,7 @@ export function ArchetypeTreeClient({
               </button>
             )}
           </div>
+
           <button
             type="button"
             onClick={() => setHideArchived(!hideArchived)}
@@ -388,13 +462,65 @@ export function ArchetypeTreeClient({
         </div>
       </section>
 
-      {/* Main View Area: Diagram or Table */}
+      {/* Player Quick-Selector Strip */}
+      <section className="glass-1 overflow-x-auto rounded-2xl p-2.5">
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] font-black uppercase tracking-wider text-muted shrink-0 pl-1">
+            Active Players:
+          </span>
+          <div className="flex items-center gap-1.5">
+            {filteredPlayers.map((p) => {
+              const isSelected = selectedPlayerId === p.id;
+              const isHovered = hoveredPlayerId === p.id;
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  onMouseEnter={() => setHoveredPlayerId(p.id)}
+                  onMouseLeave={() => setHoveredPlayerId(null)}
+                  onClick={() => setSelectedPlayerId(p.id)}
+                  className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold transition-all shrink-0 ${
+                    isSelected
+                      ? "bg-court-ink text-white ring-2 ring-court-ink shadow-xs"
+                      : isHovered
+                        ? "bg-white text-ink ring-2 ring-court-ink/40 shadow-xs scale-105"
+                        : "bg-black/[0.04] text-ink hover:bg-black/[0.07]"
+                  }`}
+                >
+                  <Avatar name={p.name} size="sm" />
+                  <span>{shortName(p.name)}</span>
+                  <span className="text-[10px] opacity-75 font-normal">
+                    {p.archetype.emoji}
+                  </span>
+                  {p.roadProgressPct < 100 && (
+                    <span
+                      className={`tabular rounded-full px-1 text-[9px] font-black ${
+                        isSelected ? "bg-white/20 text-white" : "bg-black/[0.06] text-court-ink"
+                      }`}
+                    >
+                      {p.roadProgressPct}%
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* Main View Area: Graphical Tree or Table Tree */}
       {viewMode === "diagram" ? (
-        <DiagramTreeView
+        <GraphicalTreeCanvas
           playersByNode={playersByNode}
           selectedPlayer={selectedPlayer}
+          hoveredPlayer={hoveredPlayer}
+          hoveredNodeId={hoveredNodeId}
+          onHoverPlayer={setHoveredPlayerId}
           onSelectPlayer={(p) => setSelectedPlayerId(p.id)}
+          onHoverNode={setHoveredNodeId}
           tierFilter={tierFilter}
+          zoomScale={zoomScale}
+          scrollContainerRef={scrollContainerRef}
         />
       ) : (
         <TableTreeView
@@ -406,7 +532,7 @@ export function ArchetypeTreeClient({
         />
       )}
 
-      {/* Selected Player Road Inspector Drawer/Modal */}
+      {/* Selected Player Road Inspector Drawer / Modal */}
       {selectedPlayer && (
         <PlayerRoadInspector
           player={selectedPlayer}
@@ -418,214 +544,463 @@ export function ArchetypeTreeClient({
 }
 
 // ---------------------------------------------------------------------------
-// VIEW 1: DIAGRAM TREE VIEW
+// VIEW 1: GRAPHICAL TREE CANVAS WITH DOTS AND HOVER POPOVERS
 // ---------------------------------------------------------------------------
-function DiagramTreeView({
+function GraphicalTreeCanvas({
   playersByNode,
   selectedPlayer,
+  hoveredPlayer,
+  hoveredNodeId,
+  onHoverPlayer,
   onSelectPlayer,
+  onHoverNode,
   tierFilter,
+  zoomScale,
+  scrollContainerRef,
 }: {
   playersByNode: Map<ArchetypeNodeId, PlayerTreeItem[]>;
   selectedPlayer: PlayerTreeItem | null;
-  onSelectPlayer: (player: PlayerTreeItem) => void;
+  hoveredPlayer: PlayerTreeItem | null;
+  hoveredNodeId: ArchetypeNodeId | null;
+  onHoverPlayer: (id: number | null) => void;
+  onSelectPlayer: (p: PlayerTreeItem) => void;
+  onHoverNode: (id: ArchetypeNodeId | null) => void;
   tierFilter: "all" | ArchetypeTier;
+  zoomScale: number;
+  scrollContainerRef: React.RefObject<HTMLDivElement | null>;
 }) {
-  const tiersToRender = SKILL_TREE_TIERS.filter(
-    (t) => tierFilter === "all" || t.tier === tierFilter,
-  );
+  const activeFocusPlayer = hoveredPlayer ?? selectedPlayer;
+
+  // Compute active target node for highlighted player
+  const targetNodeId = useMemo(() => {
+    if (!activeFocusPlayer || !activeFocusPlayer.activeRoad) return null;
+    return archetypeTitleToId(activeFocusPlayer.activeRoad.title);
+  }, [activeFocusPlayer]);
+
+  // Compute active branches for the focused player
+  const activeBranchIds = useMemo(() => {
+    if (!activeFocusPlayer) return new Set<string>();
+    const ids = new Set<string>();
+    const currentNode = activeFocusPlayer.nodeId;
+
+    // Branches entering this player's current node
+    for (const b of SKILL_TREE_BRANCHES) {
+      if (b.target === currentNode) ids.add(b.id);
+      if (b.source === currentNode && targetNodeId && b.target === targetNodeId) {
+        ids.add(b.id);
+      }
+    }
+    return ids;
+  }, [activeFocusPlayer, targetNodeId]);
 
   return (
-    <div className="relative space-y-8">
-      {tiersToRender.map((tierMeta, tierIndex) => {
-        return (
-          <div key={tierMeta.tier} className="relative">
-            {/* Visual connector line between tiers */}
-            {tierIndex < tiersToRender.length - 1 && (
-              <div
-                aria-hidden
-                className="absolute -bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center justify-center pointer-events-none"
-              >
-                <div className="h-8 w-0.5 bg-gradient-to-b from-black/15 to-black/5" />
-                <div className="text-[10px] text-muted/60 font-black">▼</div>
-              </div>
-            )}
+    <div
+      ref={scrollContainerRef}
+      className="glass-2 relative overflow-x-auto rounded-3xl p-4 shadow-xl ring-1 ring-black/10 select-none cursor-default"
+      style={{ minHeight: "720px" }}
+    >
+      {/* Canvas Header & Legend Hint */}
+      <div className="sticky left-0 top-0 z-30 flex items-center justify-between gap-3 pb-3 mb-2 border-b border-black/[0.06] bg-white/40 backdrop-blur-md px-3 rounded-2xl">
+        <div className="flex items-center gap-2">
+          <span className="text-base" aria-hidden>
+            ✨
+          </span>
+          <span className="text-xs font-bold text-ink">
+            Interactive Tree Graph · Hover on any{" "}
+            <span className="text-court-ink font-black">player dot</span> to inspect their road!
+          </span>
+        </div>
+        <div className="flex items-center gap-3 text-[11px] font-bold text-muted">
+          <span className="flex items-center gap-1">
+            <span className="h-2 w-2 rounded-full bg-emerald-500" /> Apex (T4)
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="h-2 w-2 rounded-full bg-purple-500" /> Pinnacle (T3)
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="h-2 w-2 rounded-full bg-amber-500" /> Hybrid (T2)
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="h-2 w-2 rounded-full bg-sky-500" /> Specialist (T1)
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="h-2 w-2 rounded-full bg-slate-400" /> Root (T0)
+          </span>
+        </div>
+      </div>
 
-            {/* Tier Card Container */}
+      {/* Scalable Coordinate Container */}
+      <div
+        className="relative mx-auto transition-transform duration-200 origin-top"
+        style={{
+          width: `${CANVAS_WIDTH}px`,
+          height: `${CANVAS_HEIGHT}px`,
+          transform: `scale(${zoomScale})`,
+          transformOrigin: "top center",
+        }}
+      >
+        {/* SVG Layer: Tier Bands and Connector Branches */}
+        <svg
+          className="absolute inset-0 w-full h-full pointer-events-none"
+          viewBox={`0 0 ${CANVAS_WIDTH} ${CANVAS_HEIGHT}`}
+        >
+          <defs>
+            {/* Gradients for Glowing Active Branches */}
+            <linearGradient id="activeBranchGrad" x1="0%" y1="100%" x2="0%" y2="0%">
+              <stop offset="0%" stopColor="#ea580c" stopOpacity="0.9" />
+              <stop offset="100%" stopColor="#10b981" stopOpacity="0.9" />
+            </linearGradient>
+
+            <filter id="branchGlow" x="-20%" y="-20%" width="140%" height="140%">
+              <feGaussianBlur stdDeviation="3" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+          </defs>
+
+          {/* Horizontal Tier Region Backdrops */}
+          {/* Tier 4 Apex Summit */}
+          <rect
+            x="40"
+            y="30"
+            width="1120"
+            height="130"
+            rx="24"
+            fill="rgba(16, 185, 129, 0.04)"
+            stroke="rgba(16, 185, 129, 0.15)"
+            strokeDasharray="4 4"
+          />
+          <text x="60" y="60" fill="#065f46" fontSize="12" fontWeight="800" letterSpacing="0.08em">
+            TIER 4 · THE SUPREME APEX
+          </text>
+
+          {/* Tier 3 Pinnacle Ridge */}
+          <rect
+            x="40"
+            y="215"
+            width="1120"
+            height="145"
+            rx="24"
+            fill="rgba(168, 85, 247, 0.03)"
+            stroke="rgba(168, 85, 247, 0.12)"
+            strokeDasharray="4 4"
+          />
+          <text x="60" y="245" fill="#7e22ce" fontSize="12" fontWeight="800" letterSpacing="0.08em">
+            TIER 3 · PINNACLE DUAL-PILLARS
+          </text>
+
+          {/* Tier 2 Hybrid Bridge */}
+          <rect
+            x="40"
+            y="410"
+            width="1120"
+            height="150"
+            rx="24"
+            fill="rgba(245, 158, 11, 0.03)"
+            stroke="rgba(245, 158, 11, 0.12)"
+            strokeDasharray="4 4"
+          />
+          <text x="60" y="440" fill="#b45309" fontSize="12" fontWeight="800" letterSpacing="0.08em">
+            TIER 2 · HYBRID ROLES
+          </text>
+
+          {/* Tier 1 Specialist Meadow */}
+          <rect
+            x="40"
+            y="610"
+            width="1120"
+            height="150"
+            rx="24"
+            fill="rgba(14, 165, 233, 0.03)"
+            stroke="rgba(14, 165, 233, 0.12)"
+            strokeDasharray="4 4"
+          />
+          <text x="60" y="640" fill="#0369a1" fontSize="12" fontWeight="800" letterSpacing="0.08em">
+            TIER 1 · SPECIALIZED DISCIPLINES
+          </text>
+
+          {/* Tier 0 Foundation Ground */}
+          <rect
+            x="40"
+            y="810"
+            width="1120"
+            height="130"
+            rx="24"
+            fill="rgba(148, 163, 184, 0.04)"
+            stroke="rgba(148, 163, 184, 0.15)"
+            strokeDasharray="4 4"
+          />
+          <text x="60" y="840" fill="#475569" fontSize="12" fontWeight="800" letterSpacing="0.08em">
+            TIER 0 · FOUNDATIONS & ROOTS
+          </text>
+
+          {/* SVG Tree Connector Branches */}
+          {SKILL_TREE_BRANCHES.map((branch) => {
+            const sourceCoord = SKILL_TREE_COORDS[branch.source];
+            const targetCoord = SKILL_TREE_COORDS[branch.target];
+            if (!sourceCoord || !targetCoord) return null;
+
+            const isHighlighted = activeBranchIds.has(branch.id);
+            const isFaded = activeFocusPlayer && !isHighlighted;
+
+            // Smooth vertical Bezier curve from source (higher Y) to target (lower Y)
+            const dy = Math.abs(sourceCoord.y - targetCoord.y);
+            const cy1 = sourceCoord.y - dy * 0.45;
+            const cy2 = targetCoord.y + dy * 0.45;
+            const pathData = `M ${sourceCoord.x} ${sourceCoord.y} C ${sourceCoord.x} ${cy1}, ${targetCoord.x} ${cy2}, ${targetCoord.x} ${targetCoord.y}`;
+
+            return (
+              <path
+                key={branch.id}
+                d={pathData}
+                fill="none"
+                stroke={isHighlighted ? "url(#activeBranchGrad)" : "rgba(0, 0, 0, 0.12)"}
+                strokeWidth={isHighlighted ? 3.5 : 1.8}
+                strokeDasharray={isHighlighted ? "6 3" : undefined}
+                filter={isHighlighted ? "url(#branchGlow)" : undefined}
+                opacity={isFaded ? 0.25 : 1}
+                className={isHighlighted ? "animate-[dash_1.5s_linear_infinite]" : "transition-opacity duration-300"}
+              />
+            );
+          })}
+        </svg>
+
+        {/* HTML Layer: All 18 Archetype Nodes and Interactive Player Dots */}
+        {(Object.keys(SKILL_TREE_NODES) as ArchetypeNodeId[]).map((nodeId) => {
+          const node = SKILL_TREE_NODES[nodeId];
+          const coord = SKILL_TREE_COORDS[nodeId];
+          const occupants = playersByNode.get(nodeId) ?? [];
+          const isOccupied = occupants.length > 0;
+
+          // Check if this node is relevant to the active focused player
+          const isCurrentForFocus = activeFocusPlayer && activeFocusPlayer.nodeId === nodeId;
+          const isTargetForFocus = activeFocusPlayer && targetNodeId === nodeId;
+          const isDimmed =
+            (tierFilter !== "all" && node.tier !== tierFilter) ||
+            (activeFocusPlayer && !isCurrentForFocus && !isTargetForFocus);
+
+          return (
             <div
-              className={`glass-2 relative overflow-hidden rounded-3xl p-5 ring-1 ${tierMeta.borderColor} transition-all`}
+              key={nodeId}
+              onMouseEnter={() => onHoverNode(nodeId)}
+              onMouseLeave={() => onHoverNode(null)}
+              className={`absolute flex flex-col items-center transition-all duration-300 ${
+                isDimmed ? "opacity-35 scale-95" : "opacity-100 scale-100"
+              }`}
               style={{
-                boxShadow: `0 4px 24px ${tierMeta.glowColor}`,
+                left: `${coord.x}px`,
+                top: `${coord.y}px`,
+                transform: "translate(-50%, -50%)",
+                width: "128px",
               }}
             >
-              {/* Tier Header */}
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-b border-black/[0.06] pb-3 mb-4">
-                <div className="flex items-center gap-2.5">
-                  <span
-                    className={`tabular inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-black uppercase tracking-wider ${tierMeta.badgeClass}`}
-                  >
-                    <span className={`h-2 w-2 rounded-full ${tierMeta.dotClass}`} />
-                    {tierMeta.label} · {tierMeta.title}
-                  </span>
-                  <span className="text-xs font-semibold text-muted">
-                    {tierMeta.tagline}
-                  </span>
-                </div>
-                <div className="text-[11px] font-bold text-muted bg-black/[0.04] px-2.5 py-1 rounded-xl">
-                  {tierMeta.requirementSummary}
-                </div>
-              </div>
+              {/* ------------------------------------------------------------- */}
+              {/* PLAYER DOTS ON THE TREE (Positioned directly above the node) */}
+              {/* ------------------------------------------------------------- */}
+              {isOccupied && (
+                <div className="absolute -top-7 flex items-center justify-center gap-1.5 z-20">
+                  {occupants.map((p) => {
+                    const isDotSelected = selectedPlayer?.id === p.id;
+                    const isDotHovered = hoveredPlayer?.id === p.id;
 
-              {/* Archetype Nodes Grid */}
-              <div
-                className={`grid gap-3.5 ${
-                  tierMeta.tier === 4
-                    ? "grid-cols-1 max-w-xl mx-auto"
-                    : tierMeta.tier === 3
-                      ? "grid-cols-1 md:grid-cols-3"
-                      : tierMeta.tier === 2
-                        ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
-                        : tierMeta.tier === 1
-                          ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4"
-                          : "grid-cols-1 md:grid-cols-3"
-                }`}
-              >
-                {tierMeta.nodeIds.map((nodeId) => {
-                  const node = SKILL_TREE_NODES[nodeId];
-                  const occupants = playersByNode.get(nodeId) ?? [];
-                  const isOccupied = occupants.length > 0;
+                    return (
+                      <div
+                        key={p.id}
+                        className="relative group/dot"
+                        onMouseEnter={() => onHoverPlayer(p.id)}
+                        onMouseLeave={() => onHoverPlayer(null)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onSelectPlayer(p);
+                        }}
+                      >
+                        {/* The Interactive Glowing Player Dot */}
+                        <button
+                          type="button"
+                          aria-label={`Player ${p.name}`}
+                          className={`relative grid h-6 w-6 place-items-center rounded-full text-[9px] font-black uppercase transition-all duration-200 cursor-pointer ${
+                            isDotSelected
+                              ? "bg-court-ink text-white ring-3 ring-court-ink ring-offset-2 scale-125 shadow-lg"
+                              : isDotHovered
+                                ? "bg-court-ink text-white ring-2 ring-court-ink ring-offset-1 scale-125 shadow-md"
+                                : "bg-ink text-paper ring-2 ring-white shadow-xs hover:scale-115 hover:bg-court-ink"
+                          }`}
+                        >
+                          {/* Dot Initials */}
+                          <span>{p.name.slice(0, 2).toUpperCase()}</span>
 
-                  // Highlighting logic for selected player
-                  const isCurrentForSelected =
-                    selectedPlayer && selectedPlayer.nodeId === nodeId;
-                  const isActiveTargetForSelected =
-                    selectedPlayer &&
-                    selectedPlayer.activeRoad &&
-                    selectedPlayer.targetTitle === node.title;
-
-                  let nodeRingClass = "ring-black/[0.08]";
-                  if (isCurrentForSelected) {
-                    nodeRingClass = "ring-3 ring-court-ink bg-court-ink/[0.04] shadow-md";
-                  } else if (isActiveTargetForSelected) {
-                    nodeRingClass = "ring-2 ring-emerald-500 bg-emerald-500/[0.04] animate-pulse";
-                  }
-
-                  return (
-                    <div
-                      key={nodeId}
-                      className={`glass-1 relative flex flex-col justify-between rounded-2xl p-4 transition-all hover:scale-[1.01] hover:ring-2 hover:ring-court-ink/40 ${nodeRingClass}`}
-                    >
-                      <div>
-                        {/* Node Header */}
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex items-center gap-2">
-                            <span className="text-2xl" aria-hidden>
-                              {node.emoji}
-                            </span>
-                            <div>
-                              <div className="font-extrabold text-ink leading-snug">
-                                {node.title}
-                              </div>
-                              <span className="text-[10px] font-bold uppercase tracking-wider text-muted">
-                                {node.pillarLabel}
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* Occupants count */}
+                          {/* Pulsing Aura */}
                           <span
-                            className={`tabular shrink-0 rounded-full px-2 py-0.5 text-[10px] font-extrabold ring-1 ring-inset ${
-                              isOccupied
-                                ? "bg-court-ink text-white ring-court-ink"
-                                : "bg-black/[0.04] text-muted ring-black/10"
+                            className={`absolute inset-0 rounded-full animate-ping opacity-30 ${
+                              isDotSelected ? "bg-court-ink" : "bg-emerald-400"
                             }`}
+                          />
+                        </button>
+
+                        {/* --------------------------------------------------------- */}
+                        {/* HOVER POPOVER CARD: Displays when user hovers on this dot */}
+                        {/* --------------------------------------------------------- */}
+                        {isDotHovered && (
+                          <div
+                            className={`absolute z-50 w-72 rounded-2xl glass-3 p-4 shadow-2xl ring-1 ring-black/15 pointer-events-auto transition-all animate-in fade-in zoom-in-95 duration-150 ${
+                              coord.x > 750
+                                ? "right-0 translate-x-4"
+                                : coord.x < 450
+                                  ? "left-0 -translate-x-4"
+                                  : "left-1/2 -translate-x-1/2"
+                            } ${coord.y < 350 ? "top-8" : "bottom-8"}`}
                           >
-                            {occupants.length} {occupants.length === 1 ? "player" : "players"}
-                          </span>
-                        </div>
-
-                        {/* Player state badges if selected */}
-                        {isCurrentForSelected && (
-                          <div className="mt-2 inline-flex items-center gap-1 rounded-md bg-court-ink px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-white">
-                            <span>📍</span> Current Archetype
-                          </div>
-                        )}
-                        {isActiveTargetForSelected && (
-                          <div className="mt-2 inline-flex items-center gap-1 rounded-md bg-emerald-600 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-white">
-                            <span>🎯</span> Target Road ({selectedPlayer.roadProgressPct}%)
-                          </div>
-                        )}
-
-                        {/* Node Summary */}
-                        <p className="mt-2.5 text-[11px] font-medium leading-relaxed text-muted line-clamp-2">
-                          {node.summary}
-                        </p>
-
-                        {/* Requirements checklist preview */}
-                        <div className="mt-2 space-y-0.5">
-                          {node.requirements.map((req, rIdx) => (
-                            <div
-                              key={rIdx}
-                              className="text-[10px] font-medium text-court-ink/90 flex items-start gap-1"
-                            >
-                              <span className="text-muted/60 shrink-0">•</span>
-                              <span className="leading-tight">{req}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Occupants Roster Chips */}
-                      <div className="mt-4 border-t border-black/[0.06] pt-3">
-                        {isOccupied ? (
-                          <div className="flex flex-wrap gap-1.5">
-                            {occupants.map((p) => {
-                              const isSelected = selectedPlayer?.id === p.id;
-                              return (
-                                <button
-                                  key={p.id}
-                                  type="button"
-                                  onClick={() => onSelectPlayer(p)}
-                                  className={`group flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold transition-all ${
-                                    isSelected
-                                      ? "bg-court-ink text-white shadow-xs ring-2 ring-court-ink"
-                                      : "bg-white/80 text-ink ring-1 ring-black/10 hover:bg-white hover:ring-court-ink/40"
-                                  }`}
-                                >
-                                  <Avatar name={p.name} size="sm" />
-                                  <span className="truncate max-w-[90px]">
-                                    {shortName(p.name)}
+                            <div className="flex items-center gap-2.5">
+                              <Avatar name={p.name} size="md" />
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="font-extrabold text-sm text-ink truncate">
+                                    {p.name}
                                   </span>
-                                  {p.injured && <InjuredBadge />}
-                                  {p.roadProgressPct < 100 && (
-                                    <span
-                                      className={`tabular rounded-full px-1.5 text-[9px] font-extrabold ${
-                                        isSelected
-                                          ? "bg-white/20 text-white"
-                                          : "bg-black/[0.06] text-court-ink"
-                                      }`}
-                                    >
-                                      {p.roadProgressPct}%
-                                    </span>
-                                  )}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        ) : (
-                          <div className="text-[11px] font-medium italic text-muted/60">
-                            Unclaimed territory ⚡
+                                  {p.injured && <InjuredBadge size="xs" />}
+                                </div>
+                                <div className="text-[11px] font-bold text-muted truncate">
+                                  {p.archetype.emoji} {p.archetype.title} · Tier {p.archetype.tier}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Stat snapshot */}
+                            <div className="mt-2.5 grid grid-cols-4 gap-1 text-center bg-black/[0.04] p-1.5 rounded-xl text-[10px]">
+                              <div>
+                                <div className="text-muted font-bold">GP</div>
+                                <div className="font-extrabold text-ink">{p.gp}</div>
+                              </div>
+                              <div>
+                                <div className="text-muted font-bold">PPG</div>
+                                <div className="font-extrabold text-ink">{p.ppg.toFixed(1)}</div>
+                              </div>
+                              <div>
+                                <div className="text-muted font-bold">APG</div>
+                                <div className="font-extrabold text-ink">{p.apg.toFixed(1)}</div>
+                              </div>
+                              <div>
+                                <div className="text-muted font-bold">STOCKS</div>
+                                <div className="font-extrabold text-ink">{p.stockPg.toFixed(1)}</div>
+                              </div>
+                            </div>
+
+                            {/* Active Road to Next Tier */}
+                            <div className="mt-2.5 border-t border-black/[0.06] pt-2">
+                              <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-court-ink">
+                                <span>Road to Tier {p.targetTier}</span>
+                                <span>{p.roadProgressPct}%</span>
+                              </div>
+                              <div className="mt-1 flex items-center gap-1.5 text-xs font-black text-ink">
+                                <span>{p.targetEmoji}</span>
+                                <span>{p.targetTitle}</span>
+                              </div>
+                              <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-black/[0.08]">
+                                <div
+                                  className="h-full rounded-full bg-court-ink transition-all duration-300"
+                                  style={{ width: `${Math.max(6, p.roadProgressPct)}%` }}
+                                />
+                              </div>
+                              <div className="mt-1.5 text-[10px] font-medium text-court-ink leading-tight">
+                                🎯 {p.deltaSummary}
+                              </div>
+                            </div>
+
+                            <div className="mt-2 text-[9px] font-bold text-muted text-center italic">
+                              Click dot to inspect full evolution path
+                            </div>
                           </div>
                         )}
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Archetype Node Badge */}
+              <div
+                className={`relative flex flex-col items-center justify-center rounded-2xl p-2.5 transition-all text-center ${
+                  isCurrentForFocus
+                    ? "bg-court-ink/15 ring-3 ring-court-ink shadow-lg scale-110"
+                    : isTargetForFocus
+                      ? "bg-emerald-500/15 ring-2 ring-emerald-500 shadow-lg scale-110 animate-pulse"
+                      : isOccupied
+                        ? "bg-white/85 ring-1 ring-black/15 shadow-sm hover:scale-105 hover:ring-court-ink/50"
+                        : "bg-white/50 ring-1 ring-dashed ring-black/15 hover:bg-white/70"
+                }`}
+                style={{ width: "116px" }}
+              >
+                {/* Node Emoji */}
+                <span className="text-2xl" aria-hidden>
+                  {node.emoji}
+                </span>
+
+                {/* Node Title */}
+                <span className="mt-0.5 text-[11px] font-extrabold text-ink leading-tight line-clamp-2">
+                  {node.title}
+                </span>
+
+                {/* Pillar / Tier tag */}
+                <span className="mt-1 text-[9px] font-bold uppercase tracking-wider text-muted">
+                  {node.pillarLabel.split("+")[0].trim()}
+                </span>
+
+                {/* Occupant Counter */}
+                <span
+                  className={`mt-1 tabular rounded-full px-1.5 py-0.2 text-[9px] font-extrabold ring-1 ring-inset ${
+                    isOccupied
+                      ? "bg-court-ink text-white ring-court-ink"
+                      : "bg-black/[0.04] text-muted ring-black/10"
+                  }`}
+                >
+                  {occupants.length} {occupants.length === 1 ? "player" : "players"}
+                </span>
+
+                {/* Status Badges for Active Focused Player */}
+                {isCurrentForFocus && (
+                  <span className="mt-1 text-[8px] font-black uppercase text-court-ink bg-court-soft/10 px-1 rounded-sm">
+                    📍 Current
+                  </span>
+                )}
+                {isTargetForFocus && (
+                  <span className="mt-1 text-[8px] font-black uppercase text-emerald-700 bg-emerald-500/15 px-1 rounded-sm">
+                    🎯 Next Target
+                  </span>
+                )}
               </div>
+
+              {/* Archetype Hover Info Tooltip (When node itself is hovered and no dot is hovered) */}
+              {hoveredNodeId === nodeId && !hoveredPlayer && (
+                <div
+                  className={`absolute z-40 w-64 rounded-2xl glass-3 p-3.5 shadow-2xl ring-1 ring-black/15 pointer-events-none transition-all animate-in fade-in zoom-in-95 duration-150 ${
+                    coord.y < 350 ? "top-20" : "bottom-20"
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-2xl" aria-hidden>{node.emoji}</span>
+                    <div>
+                      <div className="font-extrabold text-xs text-ink leading-tight">{node.title}</div>
+                      <div className="text-[10px] font-bold uppercase text-muted">{node.pillarLabel}</div>
+                    </div>
+                  </div>
+                  <p className="mt-2 text-[11px] font-medium text-muted leading-relaxed">{node.summary}</p>
+                  <div className="mt-2 border-t border-black/[0.06] pt-1.5 space-y-0.5 text-left">
+                    <div className="text-[10px] font-black uppercase tracking-wider text-court-ink">Requirements:</div>
+                    {node.requirements.map((r, i) => (
+                      <div key={i} className="text-[10px] text-ink flex items-start gap-1">
+                        <span className="text-muted">•</span>
+                        <span>{r}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -646,7 +1021,6 @@ function TableTreeView({
   expandedTiers: Record<number, boolean>;
   onToggleTier: (tier: number) => void;
 }) {
-  // Group players by tier
   const playersByTier = useMemo(() => {
     const map = new Map<ArchetypeTier, PlayerTreeItem[]>();
     for (const p of players) {
@@ -654,7 +1028,6 @@ function TableTreeView({
       list.push(p);
       map.set(p.archetype.tier, list);
     }
-    // Sort players in each tier by road progress descending
     for (const list of map.values()) {
       list.sort((a, b) => b.roadProgressPct - a.roadProgressPct || a.name.localeCompare(b.name));
     }
@@ -731,7 +1104,6 @@ function TableTreeView({
                                 : "hover:bg-black/[0.025]"
                             }`}
                           >
-                            {/* Player info */}
                             <td className="px-4 py-3">
                               <div className="flex items-center gap-2.5">
                                 <Avatar name={player.name} size="sm" />
@@ -747,7 +1119,6 @@ function TableTreeView({
                               </div>
                             </td>
 
-                            {/* Current Archetype */}
                             <td className="px-4 py-3">
                               <div className="flex items-center gap-1.5 font-extrabold text-ink">
                                 <span className="text-base" aria-hidden>
@@ -757,7 +1128,6 @@ function TableTreeView({
                               </div>
                             </td>
 
-                            {/* Active Road Target */}
                             <td className="px-4 py-3">
                               {player.archetype.tier === 4 ? (
                                 <span className="inline-flex items-center gap-1 font-extrabold text-emerald-800">
@@ -780,7 +1150,6 @@ function TableTreeView({
                               )}
                             </td>
 
-                            {/* Road Progress Bar */}
                             <td className="px-4 py-3">
                               <div className="space-y-1">
                                 <div className="flex items-center justify-between text-[11px] font-black">
@@ -800,14 +1169,12 @@ function TableTreeView({
                               </div>
                             </td>
 
-                            {/* What It Takes Delta */}
                             <td className="px-4 py-3">
                               <span className="text-[11px] font-semibold text-court-ink leading-tight block">
                                 🎯 {player.deltaSummary}
                               </span>
                             </td>
 
-                            {/* Action Button */}
                             <td className="px-4 py-3 text-right">
                               <button
                                 type="button"
@@ -836,7 +1203,7 @@ function TableTreeView({
 }
 
 // ---------------------------------------------------------------------------
-// PLAYER ROAD INSPECTOR DRAWER / MODAL
+// PLAYER ROAD INSPECTOR MODAL
 // ---------------------------------------------------------------------------
 function PlayerRoadInspector({
   player,

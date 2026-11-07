@@ -151,6 +151,94 @@ export const SKILL_TREE_TIERS: TierMeta[] = [
   },
 ];
 
+export type NodeCoord = { x: number; y: number };
+
+export const SKILL_TREE_COORDS: Record<ArchetypeNodeId, NodeCoord> = {
+  // Tier 4 · Apex (Y = 95)
+  "all-around-threat": { x: 600, y: 95 },
+
+  // Tier 3 · Pinnacle (Y = 285)
+  "playmaking-shot-creator": { x: 300, y: 285 },
+  "3-and-d-specialist": { x: 600, y: 285 },
+  "two-way-floor-general": { x: 900, y: 285 },
+
+  // Tier 2 · Hybrid (Y = 485)
+  "combo-guard": { x: 160, y: 485 },
+  "two-way-force": { x: 336, y: 485 },
+  "two-way-shooter": { x: 512, y: 485 },
+  "two-way-slasher": { x: 688, y: 485 },
+  "two-way-playmaker": { x: 864, y: 485 },
+  "defensive-anchor": { x: 1040, y: 485 },
+
+  // Tier 1 · Specialist (Y = 685)
+  "pure-scorer": { x: 110, y: 685 },
+  "sharpshooter": { x: 250, y: 685 },
+  "clutch-assassin": { x: 390, y: 685 },
+  "floor-general": { x: 530, y: 685 },
+  "hustle-engine": { x: 670, y: 685 },
+  "lockdown-specialist": { x: 810, y: 685 },
+  "paint-beast": { x: 950, y: 685 },
+  "rebound-dynamo": { x: 1090, y: 685 },
+
+  // Tier 0 · Foundation (Y = 875)
+  "rookie": { x: 360, y: 875 },
+  "prospect": { x: 600, y: 875 },
+  "glue-player": { x: 840, y: 875 },
+};
+
+export type TreeBranch = {
+  id: string;
+  source: ArchetypeNodeId;
+  target: ArchetypeNodeId;
+  pillar: PillarCategory;
+};
+
+export const SKILL_TREE_BRANCHES: TreeBranch[] = [
+  // Tier 0 -> Tier 1
+  { id: "rookie-scorer", source: "rookie", target: "pure-scorer", pillar: "shooting" },
+  { id: "rookie-sharp", source: "rookie", target: "sharpshooter", pillar: "shooting" },
+  { id: "rookie-floor", source: "rookie", target: "floor-general", pillar: "playmaking" },
+  { id: "prospect-clutch", source: "prospect", target: "clutch-assassin", pillar: "shooting" },
+  { id: "prospect-floor", source: "prospect", target: "floor-general", pillar: "playmaking" },
+  { id: "prospect-hustle", source: "prospect", target: "hustle-engine", pillar: "defense" },
+  { id: "prospect-lock", source: "prospect", target: "lockdown-specialist", pillar: "defense" },
+  { id: "glue-lock", source: "glue-player", target: "lockdown-specialist", pillar: "defense" },
+  { id: "glue-paint", source: "glue-player", target: "paint-beast", pillar: "paint" },
+  { id: "glue-rebound", source: "glue-player", target: "rebound-dynamo", pillar: "paint" },
+
+  // Tier 1 -> Tier 2
+  { id: "scorer-combo", source: "pure-scorer", target: "combo-guard", pillar: "hybrid" },
+  { id: "scorer-force", source: "pure-scorer", target: "two-way-force", pillar: "hybrid" },
+  { id: "sharp-combo", source: "sharpshooter", target: "combo-guard", pillar: "hybrid" },
+  { id: "sharp-shooter", source: "sharpshooter", target: "two-way-shooter", pillar: "hybrid" },
+  { id: "clutch-combo", source: "clutch-assassin", target: "combo-guard", pillar: "hybrid" },
+  { id: "floor-combo", source: "floor-general", target: "combo-guard", pillar: "hybrid" },
+  { id: "floor-playmaker", source: "floor-general", target: "two-way-playmaker", pillar: "hybrid" },
+  { id: "hustle-playmaker", source: "hustle-engine", target: "two-way-playmaker", pillar: "hybrid" },
+  { id: "lock-shooter", source: "lockdown-specialist", target: "two-way-shooter", pillar: "hybrid" },
+  { id: "lock-slasher", source: "lockdown-specialist", target: "two-way-slasher", pillar: "hybrid" },
+  { id: "lock-playmaker", source: "lockdown-specialist", target: "two-way-playmaker", pillar: "hybrid" },
+  { id: "lock-anchor", source: "lockdown-specialist", target: "defensive-anchor", pillar: "hybrid" },
+  { id: "paint-force", source: "paint-beast", target: "two-way-force", pillar: "hybrid" },
+  { id: "paint-anchor", source: "paint-beast", target: "defensive-anchor", pillar: "hybrid" },
+  { id: "rebound-anchor", source: "rebound-dynamo", target: "defensive-anchor", pillar: "hybrid" },
+
+  // Tier 2 -> Tier 3
+  { id: "combo-psc", source: "combo-guard", target: "playmaking-shot-creator", pillar: "hybrid" },
+  { id: "force-psc", source: "two-way-force", target: "playmaking-shot-creator", pillar: "hybrid" },
+  { id: "force-3d", source: "two-way-force", target: "3-and-d-specialist", pillar: "hybrid" },
+  { id: "shooter-3d", source: "two-way-shooter", target: "3-and-d-specialist", pillar: "hybrid" },
+  { id: "slasher-3d", source: "two-way-slasher", target: "3-and-d-specialist", pillar: "hybrid" },
+  { id: "playmaker-psc", source: "two-way-playmaker", target: "playmaking-shot-creator", pillar: "hybrid" },
+  { id: "playmaker-fg", source: "two-way-playmaker", target: "two-way-floor-general", pillar: "hybrid" },
+  { id: "anchor-fg", source: "defensive-anchor", target: "two-way-floor-general", pillar: "hybrid" },
+
+  // Tier 3 -> Tier 4
+  { id: "psc-apex", source: "playmaking-shot-creator", target: "all-around-threat", pillar: "apex" },
+  { id: "3d-apex", source: "3-and-d-specialist", target: "all-around-threat", pillar: "apex" },
+  { id: "fg-apex", source: "two-way-floor-general", target: "all-around-threat", pillar: "apex" },
+];
+
 export const SKILL_TREE_NODES: Record<ArchetypeNodeId, ArchetypeNodeMeta> = {
   // Tier 4
   "all-around-threat": {
