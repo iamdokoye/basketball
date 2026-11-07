@@ -612,31 +612,26 @@ function getNodeDimensions(tier: ArchetypeTier) {
   }
 }
 
+function getPlayerInitials(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2 && parts[0] && parts[1]) {
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  }
+  return name.slice(0, 2).toUpperCase();
+}
+
 function getPlayerDotCoords(
   nodeCoord: { x: number; y: number },
   cardHeight: number,
   index: number,
   total: number,
 ) {
-  if (total <= 5) {
-    const spacing = 20;
-    const startX = nodeCoord.x - ((total - 1) * spacing) / 2;
-    return {
-      x: startX + index * spacing,
-      y: nodeCoord.y - cardHeight / 2 - 13,
-    };
-  }
-  const half = Math.ceil(total / 2);
-  const isRow1 = index < half;
-  const rowIndex = isRow1 ? index : index - half;
-  const rowCount = isRow1 ? half : total - half;
-  const spacing = 19;
-  const startX = nodeCoord.x - ((rowCount - 1) * spacing) / 2;
+  const visibleCount = total > 4 ? 4 : total;
+  const spacing = 22;
+  const startX = nodeCoord.x - ((visibleCount - 1) * spacing) / 2;
   return {
-    x: startX + rowIndex * spacing,
-    y: isRow1
-      ? nodeCoord.y - cardHeight / 2 - 25
-      : nodeCoord.y - cardHeight / 2 - 9,
+    x: startX + index * spacing,
+    y: nodeCoord.y - cardHeight / 2 - 14,
   };
 }
 
@@ -742,6 +737,9 @@ function GraphicalTreeCanvas({
     }
   };
 
+  // Hovered roster popover state for nodes with multiple/overflow players
+  const [hoveredRosterNodeId, setHoveredRosterNodeId] = useState<ArchetypeNodeId | null>(null);
+
   // Compute active target node for highlighted player
   const targetNodeId = useMemo(() => {
     if (!activeFocusPlayer || !activeFocusPlayer.activeRoad) return null;
@@ -772,7 +770,9 @@ function GraphicalTreeCanvas({
     const occupants = playersByNode.get(hoveredPlayer.nodeId) ?? [];
     const idx = occupants.findIndex((p) => p.id === hoveredPlayer.id);
     const dim = getNodeDimensions(node.tier);
-    return getPlayerDotCoords(coord, dim.height, idx >= 0 ? idx : 0, occupants.length);
+    const totalSlots = occupants.length > 4 ? 4 : occupants.length;
+    const slotIndex = idx >= 3 && occupants.length > 4 ? 3 : Math.max(0, idx);
+    return getPlayerDotCoords(coord, dim.height, slotIndex, totalSlots);
   }, [hoveredPlayer, playersByNode]);
 
   // Convert SVG coordinates to container percentages for HTML popover
@@ -783,15 +783,28 @@ function GraphicalTreeCanvas({
     return { leftPct, topPct };
   }, [hoveredDotCoord, viewBoxX, viewBoxY, viewBoxW, viewBoxH]);
 
+  // Roster popover position (when an archetype node with overflow roster is hovered)
+  const rosterPopoverPos = useMemo(() => {
+    if (!hoveredRosterNodeId) return null;
+    const coord = SKILL_TREE_COORDS[hoveredRosterNodeId];
+    const node = SKILL_TREE_NODES[hoveredRosterNodeId];
+    if (!coord || !node) return null;
+    const dim = getNodeDimensions(node.tier);
+    const dotCoord = getPlayerDotCoords(coord, dim.height, 3, 4);
+    const leftPct = ((dotCoord.x - viewBoxX) / viewBoxW) * 100;
+    const topPct = ((dotCoord.y - viewBoxY) / viewBoxH) * 100;
+    return { leftPct, topPct };
+  }, [hoveredRosterNodeId, viewBoxX, viewBoxY, viewBoxW, viewBoxH]);
+
   // Node tooltip position (when a node is hovered without a player dot)
   const nodeTooltipPos = useMemo(() => {
-    if (!hoveredNodeId || hoveredPlayer) return null;
+    if (!hoveredNodeId || hoveredPlayer || hoveredRosterNodeId) return null;
     const coord = SKILL_TREE_COORDS[hoveredNodeId];
     if (!coord) return null;
     const leftPct = ((coord.x - viewBoxX) / viewBoxW) * 100;
     const topPct = ((coord.y - viewBoxY) / viewBoxH) * 100;
     return { leftPct, topPct };
-  }, [hoveredNodeId, hoveredPlayer, viewBoxX, viewBoxY, viewBoxW, viewBoxH]);
+  }, [hoveredNodeId, hoveredPlayer, hoveredRosterNodeId, viewBoxX, viewBoxY, viewBoxW, viewBoxH]);
 
   return (
     <div
@@ -805,8 +818,8 @@ function GraphicalTreeCanvas({
         isDragging ? "cursor-grabbing" : zoomScale > 1.0 ? "cursor-grab" : "cursor-default"
       }`}
     >
-      {/* Top Bar with Legend */}
-      <div className="flex items-center justify-between gap-3 pb-3 mb-2 border-b border-black/[0.06] bg-white/70 backdrop-blur-md px-3.5 py-2 rounded-2xl">
+      {/* Top Bar with Legend & Integrated Zoom Controls */}
+      <div className="flex flex-wrap items-center justify-between gap-3 pb-3 mb-2 border-b border-black/[0.06] bg-white/70 backdrop-blur-md px-3.5 py-2 rounded-2xl">
         <div className="flex items-center gap-2">
           <span className="text-base" aria-hidden>
             ✨
@@ -816,78 +829,81 @@ function GraphicalTreeCanvas({
             <span className="text-court-ink font-black">player dot</span> to inspect their road!
           </span>
         </div>
-        <div className="hidden sm:flex items-center gap-3 text-[11px] font-bold text-muted">
-          <span className="flex items-center gap-1">
-            <span className="h-2 w-2 rounded-full bg-emerald-500" /> Apex (T4)
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="h-2 w-2 rounded-full bg-purple-500" /> Pinnacle (T3)
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="h-2 w-2 rounded-full bg-amber-500" /> Hybrid (T2)
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="h-2 w-2 rounded-full bg-sky-500" /> Specialist (T1)
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="h-2 w-2 rounded-full bg-slate-400" /> Root (T0)
-          </span>
-        </div>
-      </div>
 
-      {/* Floating Zoom & Pan HUD Controls */}
-      <div className="absolute bottom-4 right-4 z-40 flex items-center gap-1 rounded-2xl glass-3 p-1.5 shadow-xl ring-1 ring-black/10 bg-white/90 backdrop-blur-md">
-        <button
-          type="button"
-          onClick={() => onZoom(-0.2)}
-          disabled={zoomScale <= 1.0}
-          title="Zoom Out (−)"
-          className={`grid h-8 w-8 place-items-center rounded-xl text-sm font-black transition-colors ${
-            zoomScale <= 1.0
-              ? "text-muted/30 cursor-not-allowed"
-              : "text-ink hover:bg-black/10 cursor-pointer"
-          }`}
-        >
-          −
-        </button>
-        <span className="tabular px-2 text-xs font-black text-ink select-none min-w-[46px] text-center">
-          {Math.round(zoomScale * 100)}%
-        </span>
-        <button
-          type="button"
-          onClick={() => onZoom(0.2)}
-          disabled={zoomScale >= 2.2}
-          title="Zoom In (+)"
-          className={`grid h-8 w-8 place-items-center rounded-xl text-sm font-black transition-colors ${
-            zoomScale >= 2.2
-              ? "text-muted/30 cursor-not-allowed"
-              : "text-ink hover:bg-black/10 cursor-pointer"
-          }`}
-        >
-          +
-        </button>
-        <div className="h-4 w-px bg-black/15 mx-0.5" />
-        <button
-          type="button"
-          onClick={onFitScreen}
-          title="Fit tree directly inside placeholder container"
-          className={`flex items-center gap-1 rounded-xl px-2.5 py-1.5 text-xs font-black transition-colors cursor-pointer ${
-            zoomScale === 1.0 && pan.x === 0 && pan.y === 0
-              ? "bg-court-ink text-white shadow-xs"
-              : "bg-court-ink/10 text-court-ink hover:bg-court-ink hover:text-white"
-          }`}
-        >
-          <span>⤢</span>
-          <span>Fit Screen</span>
-        </button>
-        <button
-          type="button"
-          onClick={onResetZoom}
-          title="Reset to 100%"
-          className="rounded-xl bg-black/[0.05] px-2 py-1.5 text-xs font-bold text-muted hover:text-ink transition-colors cursor-pointer"
-        >
-          100%
-        </button>
+        <div className="flex items-center gap-3">
+          <div className="hidden lg:flex items-center gap-3 text-[11px] font-bold text-muted">
+            <span className="flex items-center gap-1">
+              <span className="h-2 w-2 rounded-full bg-emerald-500" /> Apex (T4)
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="h-2 w-2 rounded-full bg-purple-500" /> Pinnacle (T3)
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="h-2 w-2 rounded-full bg-amber-500" /> Hybrid (T2)
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="h-2 w-2 rounded-full bg-sky-500" /> Specialist (T1)
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="h-2 w-2 rounded-full bg-slate-400" /> Root (T0)
+            </span>
+          </div>
+
+          {/* Integrated Zoom Controls (Top Bar avoids card overlaps!) */}
+          <div className="flex items-center gap-1 rounded-xl bg-black/[0.04] p-1 ring-1 ring-black/5">
+            <button
+              type="button"
+              onClick={() => onZoom(-0.2)}
+              disabled={zoomScale <= 1.0}
+              title="Zoom Out (−)"
+              className={`grid h-7 w-7 place-items-center rounded-lg text-sm font-black transition-colors ${
+                zoomScale <= 1.0
+                  ? "text-muted/30 cursor-not-allowed"
+                  : "text-ink hover:bg-black/10 cursor-pointer"
+              }`}
+            >
+              −
+            </button>
+            <span className="tabular px-1.5 text-xs font-black text-ink select-none min-w-[42px] text-center">
+              {Math.round(zoomScale * 100)}%
+            </span>
+            <button
+              type="button"
+              onClick={() => onZoom(0.2)}
+              disabled={zoomScale >= 2.2}
+              title="Zoom In (+)"
+              className={`grid h-7 w-7 place-items-center rounded-lg text-sm font-black transition-colors ${
+                zoomScale >= 2.2
+                  ? "text-muted/30 cursor-not-allowed"
+                  : "text-ink hover:bg-black/10 cursor-pointer"
+              }`}
+            >
+              +
+            </button>
+            <div className="h-3.5 w-px bg-black/15 mx-0.5" />
+            <button
+              type="button"
+              onClick={onFitScreen}
+              title="Fit tree directly inside placeholder container"
+              className={`flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-black transition-colors cursor-pointer ${
+                zoomScale === 1.0 && pan.x === 0 && pan.y === 0
+                  ? "bg-court-ink text-white shadow-xs"
+                  : "bg-court-ink/10 text-court-ink hover:bg-court-ink hover:text-white"
+              }`}
+            >
+              <span>⤢</span>
+              <span>Fit Screen</span>
+            </button>
+            <button
+              type="button"
+              onClick={onResetZoom}
+              title="Reset to 100%"
+              className="rounded-lg bg-black/[0.05] px-2 py-1 text-xs font-bold text-muted hover:text-ink transition-colors cursor-pointer"
+            >
+              100%
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Responsive SVG Canvas (Container IS the canvas!) */}
@@ -1005,7 +1021,7 @@ function GraphicalTreeCanvas({
           const sourceDim = getNodeDimensions(sourceNode.tier);
           const targetDim = getNodeDimensions(targetNode.tier);
           const sourceOccupants = playersByNode.get(branch.source)?.length ?? 0;
-          const dotOffset = sourceOccupants > 5 ? 28 : sourceOccupants > 0 ? 16 : 0;
+          const dotOffset = sourceOccupants > 0 ? 22 : 0;
 
           const startX = sourceCoord.x;
           const startY = sourceCoord.y - sourceDim.height / 2 - dotOffset;
@@ -1148,26 +1164,50 @@ function GraphicalTreeCanvas({
                   {node.pillarLabel.split("+")[0].trim()}
                 </text>
 
-                {/* Occupants Counter Pill */}
-                <rect
-                  x={coord.x - dim.width * 0.38}
-                  y={coord.y + dim.height / 2 - 14}
-                  width={dim.width * 0.76}
-                  height={13}
-                  rx={6.5}
-                  fill={isOccupied ? "#ea580c" : "rgba(0, 0, 0, 0.05)"}
-                />
-                <text
-                  x={coord.x}
-                  y={coord.y + dim.height / 2 - 4.5}
-                  textAnchor="middle"
-                  fontSize={8}
-                  fontWeight="800"
-                  fill={isOccupied ? "#ffffff" : "#6f6762"}
-                  className="select-none pointer-events-none"
-                >
-                  {occupants.length} {occupants.length === 1 ? "player" : "players"}
-                </text>
+                {/* Occupants Counter Tag */}
+                {isOccupied ? (
+                  <g
+                    className="cursor-pointer"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setHoveredRosterNodeId((prev) => (prev === nodeId ? null : nodeId));
+                    }}
+                  >
+                    <rect
+                      x={coord.x - (occupants.length > 9 ? 29 : 25)}
+                      y={coord.y + dim.height / 2 - 13.5}
+                      width={occupants.length > 9 ? 58 : 50}
+                      height={12.5}
+                      rx={6}
+                      fill="#ea580c"
+                      filter="url(#dotShadow)"
+                    />
+                    <text
+                      x={coord.x}
+                      y={coord.y + dim.height / 2 - 4.5}
+                      textAnchor="middle"
+                      fontSize={7.5}
+                      fontWeight="800"
+                      fill="#ffffff"
+                      className="select-none pointer-events-none"
+                    >
+                      {occupants.length} {occupants.length === 1 ? "player" : "players"}
+                    </text>
+                  </g>
+                ) : (
+                  /* Clean, subtle empty status without heavy pill background */
+                  <text
+                    x={coord.x}
+                    y={coord.y + dim.height / 2 - 5}
+                    textAnchor="middle"
+                    fontSize={7.5}
+                    fontWeight="600"
+                    fill="#a8a29e"
+                    className="select-none pointer-events-none"
+                  >
+                    0 players
+                  </text>
+                )}
 
                 {/* Focus Badges */}
                 {isCurrentForFocus && (
@@ -1199,66 +1239,199 @@ function GraphicalTreeCanvas({
               {/* ----------------------------------------------------------- */}
               {/* PLAYER DOTS ON THE TREE (Positioned directly above the card) */}
               {/* ----------------------------------------------------------- */}
-              {isOccupied &&
-                occupants.map((p, idx) => {
-                  const dotCoord = getPlayerDotCoords(coord, dim.height, idx, occupants.length);
-                  const isDotSelected = selectedPlayer?.id === p.id;
-                  const isDotHovered = hoveredPlayer?.id === p.id;
+              {isOccupied && (() => {
+                const maxDots = 4;
+                const hasOverflow = occupants.length > maxDots;
+                const visibleOccupants = hasOverflow ? occupants.slice(0, 3) : occupants;
+                const totalSlots = hasOverflow ? 4 : occupants.length;
 
-                  return (
-                    <g
-                      key={p.id}
-                      className="cursor-pointer group/dot"
-                      onMouseEnter={() => onHoverPlayer(p.id)}
-                      onMouseLeave={() => onHoverPlayer(null)}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onSelectPlayer(p);
-                      }}
-                    >
-                      {/* Pulsing Outer Ring */}
-                      <circle
-                        cx={dotCoord.x}
-                        cy={dotCoord.y}
-                        r={isDotSelected || isDotHovered ? 13 : 11}
-                        fill="none"
-                        stroke={isDotSelected || isDotHovered ? "#ea580c" : "#10b981"}
-                        strokeWidth={1.5}
-                        opacity={isDotSelected || isDotHovered ? 0.7 : 0.35}
-                        className="animate-ping"
-                      />
+                return (
+                  <g>
+                    {visibleOccupants.map((p, idx) => {
+                      const dotCoord = getPlayerDotCoords(coord, dim.height, idx, totalSlots);
+                      const isDotSelected = selectedPlayer?.id === p.id;
+                      const isDotHovered = hoveredPlayer?.id === p.id;
 
-                      {/* Main Player Dot Circle */}
-                      <circle
-                        cx={dotCoord.x}
-                        cy={dotCoord.y}
-                        r={isDotSelected || isDotHovered ? 11 : 9}
-                        fill={isDotSelected || isDotHovered ? "#ea580c" : "#059669"}
-                        stroke="#ffffff"
-                        strokeWidth={2}
-                        filter="url(#dotShadow)"
-                        className="transition-all duration-150"
-                      />
+                      return (
+                        <g
+                          key={p.id}
+                          className="cursor-pointer group/dot"
+                          onMouseEnter={() => onHoverPlayer(p.id)}
+                          onMouseLeave={() => onHoverPlayer(null)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onSelectPlayer(p);
+                          }}
+                        >
+                          {/* Pulsing Outer Ring */}
+                          {(isDotSelected || isDotHovered) && (
+                            <circle
+                              cx={dotCoord.x}
+                              cy={dotCoord.y}
+                              r={12}
+                              fill="none"
+                              stroke="#ea580c"
+                              strokeWidth={1.5}
+                              opacity={0.8}
+                              className="animate-ping"
+                            />
+                          )}
 
-                      {/* Player Initials */}
-                      <text
-                        x={dotCoord.x}
-                        y={dotCoord.y + (isDotSelected || isDotHovered ? 3.5 : 3)}
-                        textAnchor="middle"
-                        fontSize={isDotSelected || isDotHovered ? 9.5 : 8}
-                        fontWeight="900"
-                        fill="#ffffff"
-                        className="select-none pointer-events-none"
-                      >
-                        {p.name.slice(0, 2).toUpperCase()}
-                      </text>
-                    </g>
-                  );
-                })}
+                          {/* Main Player Dot Circle */}
+                          <circle
+                            cx={dotCoord.x}
+                            cy={dotCoord.y}
+                            r={isDotSelected || isDotHovered ? 10 : 8.5}
+                            fill={isDotSelected || isDotHovered ? "#ea580c" : "#059669"}
+                            stroke="#ffffff"
+                            strokeWidth={1.75}
+                            filter="url(#dotShadow)"
+                            className="transition-all duration-150"
+                          />
+
+                          {/* Player Initials */}
+                          <text
+                            x={dotCoord.x}
+                            y={dotCoord.y}
+                            textAnchor="middle"
+                            dominantBaseline="central"
+                            fontSize={7.5}
+                            fontWeight="900"
+                            fill="#ffffff"
+                            letterSpacing="-0.02em"
+                            className="select-none pointer-events-none"
+                          >
+                            {getPlayerInitials(p.name)}
+                          </text>
+                        </g>
+                      );
+                    })}
+
+                    {/* Overflow "+N" Badge */}
+                    {hasOverflow && (() => {
+                      const overflowCount = occupants.length - 3;
+                      const overflowCoord = getPlayerDotCoords(coord, dim.height, 3, totalSlots);
+                      const isRosterOpen = hoveredRosterNodeId === nodeId;
+
+                      return (
+                        <g
+                          key="overflow-badge"
+                          className="cursor-pointer group/overflow"
+                          onMouseEnter={() => setHoveredRosterNodeId(nodeId)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setHoveredRosterNodeId((prev) => (prev === nodeId ? null : nodeId));
+                          }}
+                        >
+                          <circle
+                            cx={overflowCoord.x}
+                            cy={overflowCoord.y}
+                            r={isRosterOpen ? 10.5 : 9}
+                            fill={isRosterOpen ? "#ea580c" : "#1e293b"}
+                            stroke="#ffffff"
+                            strokeWidth={1.75}
+                            filter="url(#dotShadow)"
+                            className="transition-all duration-150"
+                          />
+                          <text
+                            x={overflowCoord.x}
+                            y={overflowCoord.y}
+                            textAnchor="middle"
+                            dominantBaseline="central"
+                            fontSize={7}
+                            fontWeight="900"
+                            fill="#ffffff"
+                            className="select-none pointer-events-none"
+                          >
+                            +{overflowCount}
+                          </text>
+                        </g>
+                      );
+                    })()}
+                  </g>
+                );
+              })()}
             </g>
           );
         })}
       </svg>
+
+      {/* ----------------------------------------------------------- */}
+      {/* HTML ROSTER POPOVER FOR ARCHETYPE WITH OVERFLOW PLAYERS     */}
+      {/* ----------------------------------------------------------- */}
+      {hoveredRosterNodeId && rosterPopoverPos && !hoveredPlayer && (
+        <div
+          className="absolute z-50 w-72 rounded-2xl bg-white p-3.5 shadow-[0_20px_50px_rgba(0,0,0,0.22)] ring-1 ring-black/10 border border-black/5 pointer-events-auto transition-all animate-in fade-in zoom-in-95 duration-150"
+          style={{
+            left: `${Math.max(12, Math.min(88, rosterPopoverPos.leftPct))}%`,
+            top: `${Math.max(5, Math.min(85, rosterPopoverPos.topPct))}%`,
+            transform:
+              rosterPopoverPos.topPct < 25
+                ? rosterPopoverPos.leftPct > 70
+                  ? "translate(-85%, 20px)"
+                  : rosterPopoverPos.leftPct < 30
+                    ? "translate(-15%, 20px)"
+                    : "translate(-50%, 20px)"
+                : rosterPopoverPos.leftPct > 70
+                  ? "translate(-85%, calc(-100% - 20px))"
+                  : rosterPopoverPos.leftPct < 30
+                    ? "translate(-15%, calc(-100% - 20px))"
+                    : "translate(-50%, calc(-100% - 20px))",
+          }}
+          onMouseEnter={() => setHoveredRosterNodeId(hoveredRosterNodeId)}
+          onMouseLeave={() => setHoveredRosterNodeId(null)}
+        >
+          <div className="flex items-center justify-between border-b border-black/[0.06] pb-2 mb-2">
+            <div className="flex items-center gap-1.5 text-xs font-black text-ink">
+              <span>{SKILL_TREE_NODES[hoveredRosterNodeId]?.emoji}</span>
+              <span>{SKILL_TREE_NODES[hoveredRosterNodeId]?.title} Roster</span>
+            </div>
+            <span className="rounded-full bg-court-ink/10 px-2 py-0.5 text-[10px] font-black text-court-ink">
+              {(playersByNode.get(hoveredRosterNodeId) ?? []).length} players
+            </span>
+          </div>
+
+          <div className="max-h-56 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
+            {(playersByNode.get(hoveredRosterNodeId) ?? []).map((p) => {
+              const isSelected = selectedPlayer?.id === p.id;
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => {
+                    onSelectPlayer(p);
+                    setHoveredRosterNodeId(null);
+                  }}
+                  className={`w-full flex items-center justify-between p-2 rounded-xl text-left transition-colors cursor-pointer ${
+                    isSelected
+                      ? "bg-court-ink text-white"
+                      : "bg-black/[0.03] hover:bg-black/[0.07] text-ink"
+                  }`}
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Avatar name={p.name} size="sm" />
+                    <div className="min-w-0">
+                      <div className={`text-xs font-extrabold truncate ${isSelected ? "text-white" : "text-ink"}`}>
+                        {p.name}
+                      </div>
+                      <div className={`text-[10px] font-medium truncate ${isSelected ? "text-white/80" : "text-muted"}`}>
+                        Road: {p.targetTitle}
+                      </div>
+                    </div>
+                  </div>
+                  <span className={`text-[10px] font-black shrink-0 ${isSelected ? "text-white" : "text-court-ink"}`}>
+                    {p.roadProgressPct}%
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="mt-2 pt-1.5 border-t border-black/[0.05] text-[9px] font-bold text-muted text-center italic">
+            Click any player to inspect evolution path
+          </div>
+        </div>
+      )}
 
       {/* ----------------------------------------------------------- */}
       {/* HTML HOVER POPOVER CARD FOR HOVERED PLAYER DOT               */}
