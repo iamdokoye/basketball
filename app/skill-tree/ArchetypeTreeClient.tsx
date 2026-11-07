@@ -813,15 +813,17 @@ function GraphicalTreeCanvas({
     return { leftPct, topPct };
   }, [hoveredBadgeNodeId, viewBoxX, viewBoxY, viewBoxW, viewBoxH]);
 
-  // Node tooltip position (when a node is hovered without a player dot or badge)
+  // Node tooltip position (when an empty node is hovered without occupants, player dot, or badge)
   const nodeTooltipPos = useMemo(() => {
     if (!hoveredNodeId || hoveredPlayer || hoveredRosterNodeId || hoveredBadgeNodeId) return null;
+    const occupants = playersByNode.get(hoveredNodeId) ?? [];
+    if (occupants.length > 0) return null; // Requirements tooltip only appears for unoccupied archetypes
     const coord = SKILL_TREE_COORDS[hoveredNodeId];
     if (!coord) return null;
     const leftPct = ((coord.x - viewBoxX) / viewBoxW) * 100;
     const topPct = ((coord.y - viewBoxY) / viewBoxH) * 100;
     return { leftPct, topPct };
-  }, [hoveredNodeId, hoveredPlayer, hoveredRosterNodeId, hoveredBadgeNodeId, viewBoxX, viewBoxY, viewBoxW, viewBoxH]);
+  }, [hoveredNodeId, hoveredPlayer, hoveredRosterNodeId, hoveredBadgeNodeId, playersByNode, viewBoxX, viewBoxY, viewBoxW, viewBoxH]);
 
   return (
     <div
@@ -1178,33 +1180,39 @@ function GraphicalTreeCanvas({
                   {node.pillarLabel.split("+")[0].trim()}
                 </text>
 
-                {/* Occupants Badge: Circle with number at top-right of card */}
-                {(() => {
-                  const badgeX = coord.x + dim.width / 2 - 11;
-                  const badgeY = coord.y - dim.height / 2 + 11;
-                  const badgeR = occupants.length > 9 ? 10 : 8.5;
+                {/* Occupants Badge: Circle with number at top-right of card (rendered ONLY when occupied) */}
+                {isOccupied && (() => {
+                  const badgeX = coord.x + dim.width / 2 - 12;
+                  const badgeY = coord.y - dim.height / 2 + 12;
+                  const isHovered = hoveredBadgeNodeId === nodeId;
+                  const badgeR = (occupants.length > 9 ? 10 : 8.5) + (isHovered ? 1 : 0);
 
                   return (
                     <g
-                      className="cursor-pointer group/badge"
-                      onMouseEnter={() => setHoveredBadgeNodeId(nodeId)}
-                      onMouseLeave={() => setHoveredBadgeNodeId(null)}
+                      className="cursor-pointer"
+                      onMouseEnter={(e) => {
+                        e.stopPropagation();
+                        setHoveredBadgeNodeId(nodeId);
+                        onHoverNode(null);
+                      }}
+                      onMouseLeave={(e) => {
+                        e.stopPropagation();
+                        setHoveredBadgeNodeId(null);
+                      }}
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (occupants.length > 0) {
-                          setHoveredRosterNodeId((prev) => (prev === nodeId ? null : nodeId));
-                        }
+                        setHoveredRosterNodeId((prev) => (prev === nodeId ? null : nodeId));
                       }}
                     >
                       <circle
                         cx={badgeX}
                         cy={badgeY}
                         r={badgeR}
-                        fill={isOccupied ? "#ea580c" : "rgba(0, 0, 0, 0.04)"}
-                        stroke={isOccupied ? "#ffffff" : "rgba(0, 0, 0, 0.08)"}
-                        strokeWidth={isOccupied ? 1.5 : 1}
-                        filter={isOccupied ? "url(#dotShadow)" : undefined}
-                        className="transition-transform duration-150 group-hover/badge:scale-110"
+                        fill={isHovered ? "#c2410c" : "#ea580c"}
+                        stroke="#ffffff"
+                        strokeWidth={isHovered ? 2 : 1.5}
+                        filter="url(#dotShadow)"
+                        className="transition-colors duration-150"
                       />
                       <text
                         x={badgeX}
@@ -1213,7 +1221,7 @@ function GraphicalTreeCanvas({
                         dominantBaseline="central"
                         fontSize={occupants.length > 9 ? 7.5 : 8}
                         fontWeight="900"
-                        fill={isOccupied ? "#ffffff" : "#a8a29e"}
+                        fill="#ffffff"
                         className="select-none pointer-events-none"
                       >
                         {occupants.length}
@@ -1454,20 +1462,15 @@ function GraphicalTreeCanvas({
       {/* ----------------------------------------------------------- */}
       {hoveredBadgeNodeId && badgeTooltipPos && !hoveredPlayer && !hoveredRosterNodeId && (
         <div
-          className="absolute z-50 pointer-events-none -translate-x-1/2 -translate-y-full pb-2 transition-all animate-in fade-in zoom-in-95 duration-150"
+          className="absolute z-50 pointer-events-none transition-all animate-in fade-in zoom-in-95 duration-150"
           style={{
             left: `${Math.max(8, Math.min(92, badgeTooltipPos.leftPct))}%`,
             top: `${Math.max(5, Math.min(92, badgeTooltipPos.topPct))}%`,
+            transform: "translate(-50%, 15px)",
           }}
         >
-          <div className="rounded-xl bg-slate-900/95 text-white px-2.5 py-1 text-[11px] font-extrabold shadow-lg backdrop-blur-md flex items-center gap-1.5 whitespace-nowrap">
-            <span
-              className={`h-1.5 w-1.5 rounded-full ${
-                (playersByNode.get(hoveredBadgeNodeId) ?? []).length > 0
-                  ? "bg-court-ink"
-                  : "bg-slate-400"
-              }`}
-            />
+          <div className="rounded-lg bg-slate-900/95 text-white px-2 py-0.5 text-[10px] font-black shadow-xl backdrop-blur-md flex items-center gap-1.5 whitespace-nowrap border border-white/10">
+            <span className="h-1.5 w-1.5 rounded-full bg-court-ink" />
             <span>
               {(playersByNode.get(hoveredBadgeNodeId) ?? []).length}{" "}
               {(playersByNode.get(hoveredBadgeNodeId) ?? []).length === 1
