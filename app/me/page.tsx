@@ -369,7 +369,7 @@ export default async function MePage() {
         </section>
       )}
 
-      <PlayerBadges viewData={archetypeView} />
+      <PlayerBadges viewData={archetypeView} playerId={player.id} />
 
       <PlayerScoutingReport report={scoutingReport} />
 

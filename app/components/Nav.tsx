@@ -100,6 +100,12 @@ export const MORE_SECTIONS = [
         emoji: "🏅",
       },
       {
+        href: "/skill-tree",
+        label: "Archetype Tree",
+        sub: "Tier 0 to Tier 4 ladder",
+        emoji: "🌳",
+      },
+      {
         href: "/standings",
         label: "Standings",
         sub: "Season ladder & form",

@@ -11,11 +11,33 @@ import {
   fmtTs,
 } from "@/lib/stats";
 
-export function PlayerStatsView({ career }: { career: CareerLine }) {
+export function PlayerStatsView({
+  career,
+  pickupCareer,
+  timedCareer,
+}: {
+  career: CareerLine;
+  pickupCareer?: CareerLine;
+  timedCareer?: CareerLine;
+}) {
+  const [format, setFormat] = useState<"all" | "target" | "timed">("all");
   const [mode, setMode] = useState<"averages" | "totals">("averages");
   const [showAllFields, setShowAllFields] = useState(false);
 
-  const c = career;
+  const hasBothFormats = Boolean(
+    pickupCareer &&
+      timedCareer &&
+      pickupCareer.gp > 0 &&
+      timedCareer.gp > 0,
+  );
+
+  const c =
+    format === "target" && pickupCareer
+      ? pickupCareer
+      : format === "timed" && timedCareer
+        ? timedCareer
+        : career;
+
   const gp = c.gp;
 
   // 12 Standard Per-Game Averages
@@ -108,12 +130,51 @@ export function PlayerStatsView({ career }: { career: CareerLine }) {
 
   return (
     <div className="space-y-3.5">
-      {/* Mode Switcher Pill */}
+      {/* Format & Mode Switchers */}
       <div className="flex flex-wrap items-center justify-between gap-2 px-1">
         <div className="label text-xs">Stats &amp; Box Performance</div>
 
-        <div className="flex items-center gap-2">
-          {/* Segmented Switcher */}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Format Switcher (Only visible when player has participated in multiple formats) */}
+          {hasBothFormats && (
+            <div className="flex rounded-full bg-black/[0.06] p-1 text-xs font-bold">
+              <button
+                type="button"
+                onClick={() => setFormat("all")}
+                className={`rounded-full px-2.5 py-1 transition-all ${
+                  format === "all"
+                    ? "bg-ink text-paper shadow-xs"
+                    : "text-muted hover:text-ink"
+                }`}
+              >
+                All ({career.gp})
+              </button>
+              <button
+                type="button"
+                onClick={() => setFormat("target")}
+                className={`rounded-full px-2.5 py-1 transition-all ${
+                  format === "target"
+                    ? "bg-court-ink text-white shadow-xs"
+                    : "text-muted hover:text-ink"
+                }`}
+              >
+                First to 20 ({pickupCareer?.gp})
+              </button>
+              <button
+                type="button"
+                onClick={() => setFormat("timed")}
+                className={`rounded-full px-2.5 py-1 transition-all ${
+                  format === "timed"
+                    ? "bg-amber-600 text-white shadow-xs"
+                    : "text-muted hover:text-ink"
+                }`}
+              >
+                Timed ({timedCareer?.gp})
+              </button>
+            </div>
+          )}
+
+          {/* Segmented Switcher (Avg vs Totals) */}
           <div className="flex rounded-full bg-black/[0.06] p-1 text-xs font-bold">
             <button
               type="button"
@@ -149,6 +210,20 @@ export function PlayerStatsView({ career }: { career: CareerLine }) {
           </button>
         </div>
       </div>
+
+      {hasBothFormats && (
+        <p className="px-1 text-[11px] text-muted">
+          {format === "target" && (
+            <span>Showing stats from <strong>First to 20 pickup games only</strong> ({pickupCareer?.gp} games).</span>
+          )}
+          {format === "timed" && (
+            <span>Showing stats from <strong>Timed regulation games only</strong> ({timedCareer?.gp} games).</span>
+          )}
+          {format === "all" && (
+            <span>Combined career across all formats ({pickupCareer?.gp} pickup games, {timedCareer?.gp} timed games).</span>
+          )}
+        </p>
+      )}
 
       {/* Dynamic Stat Cards Grid */}
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">

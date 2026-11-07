@@ -12,6 +12,8 @@ import {
 import { Avatar } from "@/app/components/Avatar";
 import { ShotHeatmap } from "@/app/components/ShotHeatmap";
 import { computeLeagueShotProfile, zoneRecordsFromGames } from "@/lib/shotZones";
+import { FormatFilter } from "@/app/components/FormatFilter";
+import { countByFormat, type GameFormat } from "@/lib/gameFormat";
 
 export const dynamic = "force-dynamic";
 
@@ -58,24 +60,52 @@ function RecordRow({ r, tz }: { r: RecordItem; tz: string }) {
 
 function Section({
   title,
+  badge,
   children,
 }: {
   title: string;
+  badge?: string;
   children: React.ReactNode;
 }) {
   return (
     <section className="space-y-2.5">
-      <h2 className="label px-1">{title}</h2>
+      <div className="flex items-center gap-2 px-1">
+        <h2 className="label">{title}</h2>
+        {badge && (
+          <span className="rounded-full bg-court-ink/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-court-ink">
+            {badge}
+          </span>
+        )}
+      </div>
       {children}
     </section>
   );
 }
 
-export default async function RecordsPage() {
+export default async function RecordsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ format?: string }>;
+}) {
+  const params = searchParams ? await searchParams : {};
+  const requestedFormat = params.format;
+  const activeFormat: GameFormat =
+    requestedFormat === "target" || requestedFormat === "timed"
+      ? requestedFormat
+      : "all";
+
   const games = await listGames();
   const tz = leagueTimeZone();
-  const single = singleGameRecords(games);
-  const team = teamRecords(games);
+  const finalGames = games.filter((g) => g.status === "final");
+  const counts = countByFormat(finalGames);
+  const hasBothFormats = counts.target > 0 && counts.timed > 0;
+
+  // Single game & team records by format
+  const targetSingle = singleGameRecords(games, undefined, "target");
+  const timedSingle = singleGameRecords(games, undefined, "timed");
+  const targetTeam = teamRecords(games, "target");
+  const timedTeam = teamRecords(games, "timed");
+
   const month = bestMonthEver(games, tz, leagueGameDay());
   const streaks = winStreaks(games);
   const clutch = clutchTotals(games);
@@ -98,7 +128,7 @@ export default async function RecordsPage() {
   const zoneRecords = zoneRecordsFromGames(games);
   const leagueShots = computeLeagueShotProfile(games, zoneRecords);
 
-  if (single.length === 0) {
+  if (targetSingle.length === 0 && timedSingle.length === 0) {
     return (
       <div className="space-y-4">
         <h1 className="px-1 text-[32px] font-extrabold leading-[38px] tracking-tight">
@@ -118,22 +148,71 @@ export default async function RecordsPage() {
           Records
         </h1>
         <p className="text-sm text-muted">
-          The best single-game performances and longest streaks so far.
+          The best single-game performances and longest streaks so far, separated by game format to keep scoring benchmarks fair.
         </p>
       </div>
 
-      <Section title="Single-game records">
-        <div className="space-y-2">
-          {single.map((r) => (
-            <RecordRow key={r.id} r={r} tz={tz} />
-          ))}
-        </div>
-      </Section>
+      <FormatFilter
+        basePath="/records"
+        active={activeFormat}
+        counts={counts}
+      />
 
-      {team.length > 0 && (
-        <Section title="Team records">
+      {/* Target (Pickup First to 20) Single-game Records */}
+      {(activeFormat === "all" || activeFormat === "target") && targetSingle.length > 0 && (
+        <Section
+          title="Single-game records"
+          badge={hasBothFormats ? "First to 20" : undefined}
+        >
           <div className="space-y-2">
-            {team.map((r) => (
+            {targetSingle.map((r) => (
+              <RecordRow key={r.id} r={r} tz={tz} />
+            ))}
+          </div>
+        </Section>
+      )}
+
+      {/* Timed Regulation Single-game Records */}
+      {(activeFormat === "all" || activeFormat === "timed") && timedSingle.length > 0 && (
+        <Section
+          title="Single-game records"
+          badge="Timed Regulation"
+        >
+          <div className="space-y-2">
+            {timedSingle.map((r) => (
+              <RecordRow key={r.id} r={r} tz={tz} />
+            ))}
+          </div>
+        </Section>
+      )}
+
+      {activeFormat === "timed" && timedSingle.length === 0 && (
+        <p className="glass-1 rounded-2xl p-6 text-center text-sm text-muted">
+          No timed regulation games finished yet. When played, their 4-quarter records will show here!
+        </p>
+      )}
+
+      {/* Team records */}
+      {(activeFormat === "all" || activeFormat === "target") && targetTeam.length > 0 && (
+        <Section
+          title="Team records"
+          badge={hasBothFormats ? "First to 20" : undefined}
+        >
+          <div className="space-y-2">
+            {targetTeam.map((r) => (
+              <RecordRow key={r.id} r={r} tz={tz} />
+            ))}
+          </div>
+        </Section>
+      )}
+
+      {(activeFormat === "all" || activeFormat === "timed") && timedTeam.length > 0 && (
+        <Section
+          title="Team records"
+          badge="Timed Regulation"
+        >
+          <div className="space-y-2">
+            {timedTeam.map((r) => (
               <RecordRow key={r.id} r={r} tz={tz} />
             ))}
           </div>

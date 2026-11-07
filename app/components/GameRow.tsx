@@ -25,7 +25,18 @@ export function GameRow({ game }: { game: Game }) {
         className="glass-1 block space-y-2 rounded-2xl p-3.5 transition-transform active:scale-[0.99]"
       >
         <div className="flex items-center justify-between text-[11px] font-semibold text-muted">
-          <span>{formatDate(game.playedAt)}</span>
+          <div className="flex items-center gap-1.5">
+            <span>{formatDate(game.playedAt)}</span>
+            {game.gameType === "timed" ? (
+              <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold text-amber-800 ring-1 ring-inset ring-amber-500/25">
+                ⏱ {game.quarterCount}Q · {game.quarterMinutes}m
+              </span>
+            ) : (
+              <span className="rounded-full bg-court-soft/10 px-2 py-0.5 text-[10px] font-semibold text-court-ink">
+                🎯 To {game.target}
+              </span>
+            )}
+          </div>
           {game.status === "live" ? (
             <span className="flex items-center gap-1.5 rounded-full bg-court-soft/15 px-2 py-0.5 text-court-ink">
               <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-court-soft" />

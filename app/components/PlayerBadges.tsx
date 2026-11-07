@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import {
   ARCHETYPE_TIER_META,
   type PlayerArchetype,
@@ -35,9 +36,11 @@ export type ArchetypeViewData = {
 export function PlayerBadges({
   archetype,
   viewData,
+  playerId,
 }: {
   archetype?: PlayerArchetype;
   viewData?: ArchetypeViewData;
+  playerId?: number;
 }) {
   const [viewMode, setViewMode] = useState<"season" | "allTime">(
     viewData?.defaultView ?? "season",
@@ -56,34 +59,43 @@ export function PlayerBadges({
   return (
     <section className="space-y-4">
       {/* View Switcher Header */}
-      <div className="flex items-center justify-between gap-3 px-1">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-1">
         <div className="label text-court-ink">Playstyle Archetype</div>
-        {viewData && (
-          <div className="flex rounded-xl bg-black/[0.05] p-0.5 text-xs">
-            <button
-              type="button"
-              onClick={() => setViewMode("season")}
-              className={`rounded-lg px-2.5 py-1 font-bold transition-all ${
-                viewMode === "season"
-                  ? "bg-white text-ink shadow-xs ring-1 ring-black/5"
-                  : "text-muted hover:text-ink"
-              }`}
-            >
-              {viewData.seasonLabel}
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode("allTime")}
-              className={`rounded-lg px-2.5 py-1 font-bold transition-all ${
-                viewMode === "allTime"
-                  ? "bg-white text-ink shadow-xs ring-1 ring-black/5"
-                  : "text-muted hover:text-ink"
-              }`}
-            >
-              All time
-            </button>
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          <Link
+            href={playerId ? `/skill-tree?player=${playerId}` : "/skill-tree"}
+            className="flex items-center gap-1 rounded-lg bg-court-ink/10 px-2.5 py-1 text-xs font-bold text-court-ink ring-1 ring-inset ring-court-ink/20 transition-all hover:bg-court-ink hover:text-white"
+          >
+            <span>🌳</span>
+            <span>Skill Tree</span>
+          </Link>
+          {viewData && (
+            <div className="flex rounded-xl bg-black/[0.05] p-0.5 text-xs">
+              <button
+                type="button"
+                onClick={() => setViewMode("season")}
+                className={`rounded-lg px-2.5 py-1 font-bold transition-all ${
+                  viewMode === "season"
+                    ? "bg-white text-ink shadow-xs ring-1 ring-black/5"
+                    : "text-muted hover:text-ink"
+                }`}
+              >
+                {viewData.seasonLabel}
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode("allTime")}
+                className={`rounded-lg px-2.5 py-1 font-bold transition-all ${
+                  viewMode === "allTime"
+                    ? "bg-white text-ink shadow-xs ring-1 ring-black/5"
+                    : "text-muted hover:text-ink"
+                }`}
+              >
+                All time
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Archetype Card */}

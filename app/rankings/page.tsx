@@ -11,6 +11,8 @@ import { fmtAvg, fmtPct, fmtSigned } from "@/lib/stats";
 import { Avatar } from "@/app/components/Avatar";
 import { InjuredBadge } from "@/app/components/InjuredBadge";
 import { RankBadge } from "@/app/components/RankBadge";
+import { FormatFilter } from "@/app/components/FormatFilter";
+import { countByFormat, filterGamesByFormat, type GameFormat } from "@/lib/gameFormat";
 import { SortPills } from "./SortPills";
 
 export const dynamic = "force-dynamic";
@@ -64,13 +66,31 @@ const TOTALS_SORT_KEYS: SortKey[] = [
 export default async function RankingsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ sort?: string; season?: string; view?: string; p?: string; statMode?: string }>;
+  searchParams: Promise<{
+    sort?: string;
+    season?: string;
+    view?: string;
+    p?: string;
+    statMode?: string;
+    format?: string;
+  }>;
 }) {
-  const { sort, season, view: requestedView, p, statMode } = await searchParams;
+  const {
+    sort,
+    season,
+    view: requestedView,
+    p,
+    statMode,
+    format: requestedFormat,
+  } = await searchParams;
   const sortKey: SortKey = sort && sort in SORTS ? (sort as SortKey) : "rating";
   const isTotalsSort = TOTALS_SORT_KEYS.includes(sortKey);
   const isTotalsMode = statMode === "totals" || isTotalsSort;
   const activeColumns = isTotalsMode ? TOTAL_COLUMNS : AVERAGE_COLUMNS;
+  const activeFormat: GameFormat =
+    requestedFormat === "target" || requestedFormat === "timed"
+      ? requestedFormat
+      : "all";
 
   const [games, players, access] = await Promise.all([
     listGames(),
@@ -87,14 +107,34 @@ export default async function RankingsPage({
     p,
     season,
   });
-  const periodParams: Record<string, string> = { view: period.view, ...(period.key && period.view !== "all" ? { p: period.key } : {}) };
-  const finalGames = period.games.filter((g) => g.status === "final");
+
+  const periodFinalGames = period.games.filter((g) => g.status === "final");
+  const formatCounts = countByFormat(periodFinalGames);
+  const hasMultiple = formatCounts.target > 0 && formatCounts.timed > 0;
+
+  // Filter games based on selected game format
+  const formatGames = filterGamesByFormat(period.games, activeFormat);
+  const formatFinalGames = formatGames.filter((g) => g.status === "final");
+
+  const periodParams: Record<string, string> = {
+    view: period.view,
+    ...(period.key && period.view !== "all" ? { p: period.key } : {}),
+    ...(activeFormat !== "all" ? { format: activeFormat } : {}),
+  };
+
   const { rows, qualifyAt, totalGames } = rankPlayers(
-    careerTotals(period.games, players),
+    careerTotals(formatGames, players),
     sortKey,
-    finalGames.length,
+    formatFinalGames.length,
   );
   const hasProvisional = rows.some((r) => r.rank === null);
+
+  const formatSubtitle =
+    activeFormat === "target"
+      ? " · First to 20"
+      : activeFormat === "timed"
+        ? " · Timed games"
+        : "";
 
   return (
     <div className="space-y-5">
@@ -104,12 +144,20 @@ export default async function RankingsPage({
         </h1>
         <p className="text-sm text-muted">
           {period.label}
-          {period.view === "week" || period.view === "month" ? ` · ${period.games.length} ${period.games.length === 1 ? "game" : "games"}` : ""}
-          , sorted by {SORTS[sortKey].label}. Tap the selected stat to see what it means.
+          {period.view === "week" || period.view === "month"
+            ? ` · ${formatFinalGames.length} ${formatFinalGames.length === 1 ? "game" : "games"}`
+            : ""}
+          {formatSubtitle}, sorted by {SORTS[sortKey].label}. Tap the selected stat to see what it means.
         </p>
       </div>
 
-      <LeagueTabs active="rankings" keep={{ ...periodParams, ...(isTotalsMode ? { statMode: "totals" } : {}) }} />
+      <LeagueTabs
+        active="rankings"
+        keep={{
+          ...periodParams,
+          ...(isTotalsMode ? { statMode: "totals" } : {}),
+        }}
+      />
 
       <PeriodPicker
         basePath="/rankings"
@@ -117,8 +165,28 @@ export default async function RankingsPage({
         extra={{
           ...(sortKey === "rating" ? {} : { sort: sortKey }),
           ...(isTotalsMode ? { statMode: "totals" } : {}),
+          ...(activeFormat !== "all" ? { format: activeFormat } : {}),
         }}
       />
+
+      {/* Game Mode / Format Filter */}
+      <FormatFilter
+        basePath="/rankings"
+        active={activeFormat}
+        counts={formatCounts}
+        keep={{
+          view: period.view,
+          ...(period.key && period.view !== "all" ? { p: period.key } : {}),
+          ...(sortKey === "rating" ? {} : { sort: sortKey }),
+          ...(isTotalsMode ? { statMode: "totals" } : {}),
+        }}
+      />
+
+      {activeFormat === "all" && hasMultiple && (
+        <p className="px-1 text-xs text-muted">
+          💡 Scoring pace differs between pickup and 4-quarter regulation. Rating is normalized, but you can select <span className="font-semibold text-ink">First to 20</span> or <span className="font-semibold text-ink">Timed</span> above to see isolated per-game scoring averages.
+        </p>
+      )}
 
       {/* Stat Mode Switcher */}
       <div className="flex items-center justify-between px-1">
@@ -173,7 +241,11 @@ export default async function RankingsPage({
 
       {rows.length === 0 ? (
         <p className="glass-1 rounded-2xl p-8 text-center text-sm text-muted">
-          Finish a game and the rankings show up here.
+          {activeFormat === "timed"
+            ? "No timed games finished in this period."
+            : activeFormat === "target"
+              ? "No First to 20 games finished in this period."
+              : "Finish a game and the rankings show up here."}
         </p>
       ) : (
         <div className="glass-2 overflow-hidden rounded-2xl">
@@ -201,55 +273,44 @@ export default async function RankingsPage({
                   return (
                     <Fragment key={r.playerId}>
                       {isFirstUnranked && (
-                        <tr className="bg-black/[0.03]">
+                        <tr className="bg-black/[0.02]">
                           <td
                             colSpan={activeColumns.length + 1}
-                            className="px-3 py-2 text-xs font-bold uppercase tracking-wider text-muted"
+                            className="px-3 py-2 text-xs font-semibold text-muted"
                           >
-                            Inactive / Under 40% Threshold ({qualifyAt} GP needed · averages frozen)
+                            Under qualification threshold (needs {qualifyAt}{" "}
+                            {qualifyAt === 1 ? "game" : "games"} in this period)
                           </td>
                         </tr>
                       )}
-                      <tr
-                        className={r.rank === null ? "opacity-60" : ""}
-                      >
+                      <tr className="hover:bg-black/[0.02]">
                         <td className="sticky-cell px-3 py-2.5">
                           <Link
                             href={`/players/${r.playerId}`}
-                            className="flex items-center gap-2.5"
+                            className="flex items-center gap-2 hover:underline"
                           >
                             <RankBadge rank={r.rank} />
-                            <Avatar id={r.playerId} name={r.name} size="sm" />
-                            <div className="flex items-center gap-1.5">
-                              <span className="font-bold">{r.name}</span>
-                              {r.injured && <InjuredBadge size="sm" />}
+                            <Avatar name={r.name} size="sm" />
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5 truncate font-semibold">
+                                <span>{r.name}</span>
+                                {r.injured && <InjuredBadge size="sm" />}
+                              </div>
                             </div>
                           </Link>
                         </td>
-                        {activeColumns.map((c) => {
-                          const v = c.cell(r);
-                          const signed = c.label === "+/-";
-                          return (
-                            <td
-                              key={c.label}
-                              className={`px-2.5 py-2.5 text-right ${
-                                c.key === sortKey
-                                  ? "bg-court-soft/10 font-extrabold"
-                                  : ""
-                              } ${c.key === "rating" ? "font-bold" : ""} ${
-                                signed
-                                  ? v.startsWith("+")
-                                    ? "text-win"
-                                    : v.startsWith("-")
-                                      ? "text-loss"
-                                      : ""
-                                  : ""
-                              }`}
-                            >
-                              {v}
-                            </td>
-                          );
-                        })}
+                        {activeColumns.map((c) => (
+                          <td
+                            key={c.label}
+                            className={`px-2.5 py-2.5 text-right ${
+                              c.key === sortKey
+                                ? "font-bold text-court-ink"
+                                : ""
+                            }`}
+                          >
+                            {c.cell(r)}
+                          </td>
+                        ))}
                       </tr>
                     </Fragment>
                   );
@@ -257,17 +318,13 @@ export default async function RankingsPage({
               </tbody>
             </table>
           </div>
-          {hasProvisional && (
-            <div className="hairline border-t px-3 py-2.5 text-xs text-muted space-y-0.5">
-              <p>
-                Official leaderboard requires playing in at least 40% of games ({qualifyAt} of {totalGames} {totalGames === 1 ? "game" : "games"}).
-              </p>
-              <p className="text-[11px] opacity-80">
-                Inactive and injured players keep their statistical averages frozen until they return.
-              </p>
-            </div>
-          )}
         </div>
+      )}
+
+      {hasProvisional && (
+        <p className="px-1 text-xs text-muted">
+          Players must appear in at least 40% of games in the period ({qualifyAt} of {totalGames}) to receive an official rank. Injured players retain their per-game averages until they return.
+        </p>
       )}
     </div>
   );

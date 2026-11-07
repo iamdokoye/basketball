@@ -152,7 +152,13 @@ export default async function PlayerPage({
   const currentSeason = seasons.find((s) => s.key === currentSeasonKey);
   const seasonGames = currentSeason ? currentSeason.games : [];
 
-  const bests = singleGameRecords(games, playerId);
+  const pickupGames = games.filter((g) => g.gameType !== "timed");
+  const timedGames = games.filter((g) => g.gameType === "timed");
+  const pickupCareer = careerTotals(pickupGames, players).find((x) => x.playerId === playerId);
+  const timedCareer = careerTotals(timedGames, players).find((x) => x.playerId === playerId);
+
+  const pickupBests = singleGameRecords(games, playerId, "target");
+  const timedBests = singleGameRecords(games, playerId, "timed");
   const streak = winStreaks(games).find((x) => x.playerId === playerId);
   const clutch = clutchTotals(games).find((x) => x.playerId === playerId);
   const allTimeArchetype = computePlayerArchetype(c, clutch, finalGames.length);
@@ -314,9 +320,13 @@ export default async function PlayerPage({
         </section>
       )}
 
-      <PlayerBadges viewData={archetypeView} />
+      <PlayerBadges viewData={archetypeView} playerId={playerId} />
 
-      <PlayerStatsView career={c} />
+      <PlayerStatsView
+        career={c}
+        pickupCareer={pickupCareer}
+        timedCareer={timedCareer}
+      />
 
       <PlayerMilestonesCard milestones={milestones} />
 
@@ -345,53 +355,93 @@ export default async function PlayerPage({
         )}
       </section>
 
-      {(bests.length > 0 || clutch || (streak && streak.longest >= 2)) && (
-        <section className="space-y-2">
-          <h2 className="label px-1">Personal bests</h2>
-          <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-            {bests.map((b) => (
-              <Link
-                key={b.id}
-                href={`/games/${b.gameId}`}
-                className="glass-1 rounded-2xl p-3 text-center active:scale-[0.98]"
-              >
-                <div className="tabular text-2xl font-extrabold tracking-tight">
-                  {b.value}
-                </div>
-                <div className="label text-muted">{BEST_LABELS[b.id] ?? b.label}</div>
-              </Link>
-            ))}
-            {streak && streak.longest >= 2 && (
-              <div className="glass-1 rounded-2xl p-3 text-center">
-                <div className="tabular text-2xl font-extrabold tracking-tight">
-                  {streak.longest}
-                </div>
-                <div className="label text-muted">Win streak</div>
-              </div>
-            )}
-            {clutch && clutch.gameWinners > 0 && (
-              <Link
-                href="/records#clutch"
-                className="glass-1 rounded-2xl p-3 text-center active:scale-[0.98]"
-              >
-                <div className="tabular text-2xl font-extrabold tracking-tight">
-                  {clutch.gameWinners} 🎯
-                </div>
-                <div className="label text-muted">Game-winners</div>
-              </Link>
-            )}
-            {clutch && clutch.clutchPts > 0 && (
-              <Link
-                href="/records#clutch"
-                className="glass-1 rounded-2xl p-3 text-center active:scale-[0.98]"
-              >
-                <div className="tabular text-2xl font-extrabold tracking-tight">
-                  {clutch.clutchPts}
-                </div>
-                <div className="label text-muted">Clutch pts</div>
-              </Link>
+      {(pickupBests.length > 0 || timedBests.length > 0 || clutch || (streak && streak.longest >= 2)) && (
+        <section className="space-y-3">
+          <div className="flex items-center justify-between px-1">
+            <h2 className="label">Personal bests</h2>
+            {pickupBests.length > 0 && timedBests.length > 0 && (
+              <span className="text-[11px] font-semibold text-muted">
+                Separated by game format
+              </span>
             )}
           </div>
+
+          {pickupBests.length > 0 && (
+            <div className="space-y-1.5">
+              {timedBests.length > 0 && (
+                <div className="label text-[11px] text-court-ink px-1">First to 20 (Pickup)</div>
+              )}
+              <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                {pickupBests.map((b) => (
+                  <Link
+                    key={b.id}
+                    href={`/games/${b.gameId}`}
+                    className="glass-1 rounded-2xl p-3 text-center active:scale-[0.98]"
+                  >
+                    <div className="tabular text-2xl font-extrabold tracking-tight">
+                      {b.value}
+                    </div>
+                    <div className="label text-muted">{BEST_LABELS[b.id] ?? b.label}</div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {timedBests.length > 0 && (
+            <div className="space-y-1.5">
+              <div className="label text-[11px] text-amber-700 px-1">Timed Regulation</div>
+              <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                {timedBests.map((b) => (
+                  <Link
+                    key={b.id}
+                    href={`/games/${b.gameId}`}
+                    className="glass-1 rounded-2xl p-3 text-center active:scale-[0.98]"
+                  >
+                    <div className="tabular text-2xl font-extrabold tracking-tight text-amber-900">
+                      {b.value}
+                    </div>
+                    <div className="label text-muted">{BEST_LABELS[b.id] ?? b.label}</div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {(streak && streak.longest >= 2) || (clutch && (clutch.gameWinners > 0 || clutch.clutchPts > 0)) ? (
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 pt-1">
+              {streak && streak.longest >= 2 && (
+                <div className="glass-1 rounded-2xl p-3 text-center">
+                  <div className="tabular text-2xl font-extrabold tracking-tight">
+                    {streak.longest}
+                  </div>
+                  <div className="label text-muted">Win streak</div>
+                </div>
+              )}
+              {clutch && clutch.gameWinners > 0 && (
+                <Link
+                  href="/records#clutch"
+                  className="glass-1 rounded-2xl p-3 text-center active:scale-[0.98]"
+                >
+                  <div className="tabular text-2xl font-extrabold tracking-tight">
+                    {clutch.gameWinners} 🎯
+                  </div>
+                  <div className="label text-muted">Game-winners</div>
+                </Link>
+              )}
+              {clutch && clutch.clutchPts > 0 && (
+                <Link
+                  href="/records#clutch"
+                  className="glass-1 rounded-2xl p-3 text-center active:scale-[0.98]"
+                >
+                  <div className="tabular text-2xl font-extrabold tracking-tight">
+                    {clutch.clutchPts}
+                  </div>
+                  <div className="label text-muted">Clutch pts</div>
+                </Link>
+              )}
+            </div>
+          ) : null}
         </section>
       )}
 
@@ -447,8 +497,13 @@ export default async function PlayerPage({
                               {mine > theirs ? "W" : "L"}
                             </span>{" "}
                             {mine}-{theirs}
-                            <span className="block text-xs font-medium text-muted">
-                              {formatDate(game.playedAt)}
+                            <span className="flex items-center gap-1.5 text-xs font-medium text-muted">
+                              <span>{formatDate(game.playedAt)}</span>
+                              {game.gameType === "timed" ? (
+                                <span className="rounded-full bg-amber-500/15 px-1.5 py-0.2 text-[10px] font-bold text-amber-800">
+                                  Timed
+                                </span>
+                              ) : null}
                             </span>
                           </Link>
                         </td>

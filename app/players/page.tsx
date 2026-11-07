@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { getAccess } from "@/lib/access";
 import { careerTotals, listGames, listPlayers } from "@/lib/queries";
 import { fmtAvg } from "@/lib/stats";
@@ -32,9 +33,18 @@ export default async function PlayersPage() {
 
   return (
     <div className="space-y-5">
-      <h1 className="px-1 text-[32px] font-extrabold leading-[38px] tracking-tight">
-        Players
-      </h1>
+      <div className="flex items-center justify-between gap-3 px-1">
+        <h1 className="text-[32px] font-extrabold leading-[38px] tracking-tight">
+          Players
+        </h1>
+        <Link
+          href="/skill-tree"
+          className="flex items-center gap-1.5 rounded-full bg-court-ink/10 px-3.5 py-1.5 text-xs font-black text-court-ink ring-1 ring-inset ring-court-ink/20 transition-all hover:bg-court-ink hover:text-white"
+        >
+          <span>🌳</span>
+          <span>Archetype Tree</span>
+        </Link>
+      </div>
       <PlayerRoster
         players={roster}
         canAdd={access.canPlay}

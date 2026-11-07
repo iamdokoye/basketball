@@ -1,0 +1,721 @@
+import {
+  type ArchetypeTier,
+  type PlayerArchetype,
+  type ArchetypeUpgrade,
+  computePlayerArchetype,
+  ARCHETYPE_TIER_META,
+} from "./badges";
+import type { CareerLine, Player } from "./queries";
+import type { ClutchLine } from "./clutch";
+
+export type ArchetypeNodeId =
+  | "all-around-threat"
+  | "playmaking-shot-creator"
+  | "3-and-d-specialist"
+  | "two-way-floor-general"
+  | "combo-guard"
+  | "two-way-shooter"
+  | "two-way-playmaker"
+  | "two-way-slasher"
+  | "defensive-anchor"
+  | "two-way-force"
+  | "pure-scorer"
+  | "sharpshooter"
+  | "floor-general"
+  | "lockdown-specialist"
+  | "paint-beast"
+  | "clutch-assassin"
+  | "rebound-dynamo"
+  | "hustle-engine"
+  | "rookie"
+  | "prospect"
+  | "glue-player";
+
+export type PillarCategory =
+  | "apex"
+  | "shooting"
+  | "playmaking"
+  | "defense"
+  | "paint"
+  | "hybrid"
+  | "foundation";
+
+export type ArchetypeNodeMeta = {
+  id: ArchetypeNodeId;
+  title: string;
+  emoji: string;
+  tier: ArchetypeTier;
+  pillar: PillarCategory;
+  pillarLabel: string;
+  summary: string;
+  requirements: string[];
+  parents: ArchetypeNodeId[];
+  children: ArchetypeNodeId[];
+};
+
+export type TierMeta = {
+  tier: ArchetypeTier;
+  label: string;
+  title: string;
+  tagline: string;
+  requirementSummary: string;
+  badgeClass: string;
+  dotClass: string;
+  glowColor: string;
+  borderColor: string;
+  accentBg: string;
+  nodeIds: ArchetypeNodeId[];
+};
+
+export const SKILL_TREE_TIERS: TierMeta[] = [
+  {
+    tier: 4,
+    label: "Tier 4",
+    title: "Supreme Apex",
+    tagline: "The Mount Rushmore of Basketball Mastery",
+    requirementSummary: "50+ GP, All 3 Core Pillars at Silver+, and 2+ Gold (or Hall of Fame) Pillars",
+    badgeClass: ARCHETYPE_TIER_META[4].badgeClass,
+    dotClass: ARCHETYPE_TIER_META[4].dotClass,
+    glowColor: "rgba(16, 185, 129, 0.25)",
+    borderColor: "border-emerald-500/40",
+    accentBg: "bg-emerald-500/10",
+    nodeIds: ["all-around-threat"],
+  },
+  {
+    tier: 3,
+    label: "Tier 3",
+    title: "Pinnacle Dual-Pillars",
+    tagline: "Elite Mastery of Two Core Pillars",
+    requirementSummary: "25+ GP, 1 Gold+ Pillar AND 1 Silver+ Pillar (Shoot, Assist, or Defense)",
+    badgeClass: ARCHETYPE_TIER_META[3].badgeClass,
+    dotClass: ARCHETYPE_TIER_META[3].dotClass,
+    glowColor: "rgba(168, 85, 247, 0.22)",
+    borderColor: "border-purple-500/35",
+    accentBg: "bg-purple-500/10",
+    nodeIds: ["playmaking-shot-creator", "3-and-d-specialist", "two-way-floor-general"],
+  },
+  {
+    tier: 2,
+    label: "Tier 2",
+    title: "Hybrid Roles",
+    tagline: "Expanded Skillsets & Two-Way Weapons",
+    requirementSummary: "1 Primary Silver+ Pillar AND 1 Secondary Bronze+ Skill (or 2 Silvers)",
+    badgeClass: ARCHETYPE_TIER_META[2].badgeClass,
+    dotClass: ARCHETYPE_TIER_META[2].dotClass,
+    glowColor: "rgba(245, 158, 11, 0.2)",
+    borderColor: "border-amber-500/35",
+    accentBg: "bg-amber-500/10",
+    nodeIds: [
+      "combo-guard",
+      "two-way-shooter",
+      "two-way-playmaker",
+      "two-way-slasher",
+      "defensive-anchor",
+      "two-way-force",
+    ],
+  },
+  {
+    tier: 1,
+    label: "Tier 1",
+    title: "Specialized Disciplines",
+    tagline: "Unlocking a Signature Primary Weapon",
+    requirementSummary: "12+ GP and at least 1 Silver+ Badge in any core discipline",
+    badgeClass: ARCHETYPE_TIER_META[1].badgeClass,
+    dotClass: ARCHETYPE_TIER_META[1].dotClass,
+    glowColor: "rgba(14, 165, 233, 0.2)",
+    borderColor: "border-sky-500/35",
+    accentBg: "bg-sky-500/10",
+    nodeIds: [
+      "pure-scorer",
+      "sharpshooter",
+      "floor-general",
+      "lockdown-specialist",
+      "paint-beast",
+      "clutch-assassin",
+      "rebound-dynamo",
+      "hustle-engine",
+    ],
+  },
+  {
+    tier: 0,
+    label: "Tier 0",
+    title: "Foundations",
+    tagline: "The Roots: Experience, Hustle & Team Glue",
+    requirementSummary: "Starting out in the league, carving identity, and building toward Silver badges",
+    badgeClass: ARCHETYPE_TIER_META[0].badgeClass,
+    dotClass: ARCHETYPE_TIER_META[0].dotClass,
+    glowColor: "rgba(148, 163, 184, 0.15)",
+    borderColor: "border-slate-400/30",
+    accentBg: "bg-slate-200/50",
+    nodeIds: ["rookie", "prospect", "glue-player"],
+  },
+];
+
+export const SKILL_TREE_NODES: Record<ArchetypeNodeId, ArchetypeNodeMeta> = {
+  // Tier 4
+  "all-around-threat": {
+    id: "all-around-threat",
+    title: "The All-Around Threat",
+    emoji: "🌟",
+    tier: 4,
+    pillar: "apex",
+    pillarLabel: "Tri-Pillar Supremacy",
+    summary:
+      "The undisputed master on the court. Complete statistical dominance across all three core pillars: elite scoring/shooting, playmaking, and lockdown defense.",
+    requirements: [
+      "50+ Games Played",
+      "All 3 Core Pillars at Silver+ (Sharpshooter/Bucket, Floor General, Lockdown)",
+      "At least 2 Gold+ Pillars (or 1 Hall of Fame)",
+    ],
+    parents: ["playmaking-shot-creator", "3-and-d-specialist", "two-way-floor-general"],
+    children: [],
+  },
+
+  // Tier 3
+  "playmaking-shot-creator": {
+    id: "playmaking-shot-creator",
+    title: "Playmaking Shot Creator",
+    emoji: "🪄",
+    tier: 3,
+    pillar: "hybrid",
+    pillarLabel: "Shoot 🏹 + Assist 🪄",
+    summary:
+      "Deadly perimeter scoring threat who also slices defenses open with elite playmaking and floor vision.",
+    requirements: [
+      "25+ Games Played",
+      "Gold Shoot + Silver Assist OR Gold Assist + Silver Shoot",
+      "E.g., 60 3PM / 420 pts & 40 AST / 1.4 APG",
+    ],
+    parents: ["combo-guard", "two-way-force"],
+    children: ["all-around-threat"],
+  },
+  "3-and-d-specialist": {
+    id: "3-and-d-specialist",
+    title: "3-and-D Specialist",
+    emoji: "🎯",
+    tier: 3,
+    pillar: "hybrid",
+    pillarLabel: "Shoot 🏹 + Defense 🛡️",
+    summary:
+      "Spreads the floor with elite perimeter shooting while locking down opposing ball-handlers on defense.",
+    requirements: [
+      "25+ Games Played",
+      "Gold Shoot + Silver Defense OR Gold Defense + Silver Shoot",
+      "E.g., 60 3PM / 420 pts & 45 stocks / 1.3 stocks/gm",
+    ],
+    parents: ["two-way-shooter", "two-way-slasher", "two-way-force"],
+    children: ["all-around-threat"],
+  },
+  "two-way-floor-general": {
+    id: "two-way-floor-general",
+    title: "Two-Way Floor General",
+    emoji: "🛡️",
+    tier: 3,
+    pillar: "hybrid",
+    pillarLabel: "Assist 🪄 + Defense 🛡️",
+    summary:
+      "Commands the offense with crisp distribution while anchoring the perimeter with tenacious lockdown defense.",
+    requirements: [
+      "25+ Games Played",
+      "Gold Assist + Silver Defense OR Gold Defense + Silver Assist",
+      "E.g., 110 AST / 1.8 APG & 45 stocks / 1.3 stocks/gm",
+    ],
+    parents: ["two-way-playmaker", "defensive-anchor"],
+    children: ["all-around-threat"],
+  },
+
+  // Tier 2
+  "combo-guard": {
+    id: "combo-guard",
+    title: "Combo Guard",
+    emoji: "🪄",
+    tier: 2,
+    pillar: "hybrid",
+    pillarLabel: "Scoring + Playmaking",
+    summary:
+      "Dynamic perimeter threat who scores from outside while creating scoring opportunities for teammates.",
+    requirements: [
+      "Silver Shoot (22 3PM / 160 pts) + Bronze Assist (10 AST or 1.0 APG)",
+      "OR Silver Assist (40 AST) + Bronze Scoring (5 3PM or 4.0 PPG)",
+    ],
+    parents: ["pure-scorer", "sharpshooter", "floor-general"],
+    children: ["playmaking-shot-creator"],
+  },
+  "two-way-shooter": {
+    id: "two-way-shooter",
+    title: "Two-Way Shooter",
+    emoji: "🎯",
+    tier: 2,
+    pillar: "hybrid",
+    pillarLabel: "Shooting + Defense",
+    summary:
+      "Perimeter marksman who also disrupts ball-handlers with active defensive pressure.",
+    requirements: [
+      "Silver Shoot (22 3PM or 160 pts) + Bronze Defense (12 stocks or 1.0 stock/gm)",
+    ],
+    parents: ["sharpshooter", "pure-scorer"],
+    children: ["3-and-d-specialist"],
+  },
+  "two-way-playmaker": {
+    id: "two-way-playmaker",
+    title: "Two-Way Playmaker",
+    emoji: "🛡️",
+    tier: 2,
+    pillar: "hybrid",
+    pillarLabel: "Playmaking + Defense",
+    summary:
+      "Floor general who distributes with precision while applying disciplined on-ball defensive pressure.",
+    requirements: [
+      "Silver Assist (40 AST) + Bronze Defense (12 stocks or 1.0 stock/gm)",
+      "OR Silver Defense (45 stocks) + Bronze Assist (10 AST or 1.0 APG)",
+    ],
+    parents: ["floor-general", "lockdown-specialist"],
+    children: ["two-way-floor-general"],
+  },
+  "two-way-slasher": {
+    id: "two-way-slasher",
+    title: "Two-Way Slasher",
+    emoji: "⚔️",
+    tier: 2,
+    pillar: "hybrid",
+    pillarLabel: "Defense + Transition Attack",
+    summary:
+      "Disruptive lockdown defender who pushes the pace and scores in transition.",
+    requirements: [
+      "Silver Defense (45 stocks) + Bronze Scoring (5 3PM or 4.0 PPG)",
+    ],
+    parents: ["lockdown-specialist", "pure-scorer"],
+    children: ["3-and-d-specialist"],
+  },
+  "defensive-anchor": {
+    id: "defensive-anchor",
+    title: "Defensive Anchor",
+    emoji: "🏰",
+    tier: 2,
+    pillar: "hybrid",
+    pillarLabel: "Interior Paint + Rim Protection",
+    summary: "Controls the paint, dominates the glass, and protects the rim.",
+    requirements: [
+      "Silver Paint Beast (100 REB / 3.4 RPG) + Bronze Defense (12 stocks)",
+      "OR Silver Defense + Rebounding presence (2.5+ RPG)",
+    ],
+    parents: ["paint-beast", "lockdown-specialist"],
+    children: ["two-way-floor-general"],
+  },
+  "two-way-force": {
+    id: "two-way-force",
+    title: "Two-Way Force",
+    emoji: "👑",
+    tier: 2,
+    pillar: "hybrid",
+    pillarLabel: "Scoring + Paint Power",
+    summary: "Powerful scoring and rebounding presence on the interior.",
+    requirements: [
+      "Silver Bucket (160 pts & 5.5 PPG) + Silver Paint Beast (or 3.4+ RPG)",
+    ],
+    parents: ["pure-scorer", "paint-beast"],
+    children: ["playmaking-shot-creator", "3-and-d-specialist"],
+  },
+
+  // Tier 1
+  "pure-scorer": {
+    id: "pure-scorer",
+    title: "Pure Scorer",
+    emoji: "🔥",
+    tier: 1,
+    pillar: "shooting",
+    pillarLabel: "Scoring Mastery",
+    summary: "Natural scoring instinct capable of heating up in a flash.",
+    requirements: [
+      "12+ Games Played",
+      "160+ Career Points",
+      "≥ 5.5 PPG (Silver Bucket badge)",
+    ],
+    parents: ["rookie", "prospect", "glue-player"],
+    children: ["combo-guard", "two-way-shooter", "two-way-slasher", "two-way-force"],
+  },
+  sharpshooter: {
+    id: "sharpshooter",
+    title: "Sharpshooter",
+    emoji: "🎯",
+    tier: 1,
+    pillar: "shooting",
+    pillarLabel: "Perimeter Range",
+    summary: "Lethal shooting threat from anywhere behind the arc.",
+    requirements: [
+      "12+ Games Played",
+      "22+ 3-Pointers Made (3PM)",
+      "≥ 28% 3PT shooting (Silver Sharpshooter badge)",
+    ],
+    parents: ["rookie", "prospect", "glue-player"],
+    children: ["combo-guard", "two-way-shooter"],
+  },
+  "floor-general": {
+    id: "floor-general",
+    title: "Floor General",
+    emoji: "🪄",
+    tier: 1,
+    pillar: "playmaking",
+    pillarLabel: "Playmaking & Dimes",
+    summary: "Pure playmaker who elevates everyone around them.",
+    requirements: [
+      "12+ Games Played",
+      "40+ Assists",
+      "≥ 1.4 APG (Silver Floor General badge)",
+    ],
+    parents: ["rookie", "prospect", "glue-player"],
+    children: ["combo-guard", "two-way-playmaker"],
+  },
+  "lockdown-specialist": {
+    id: "lockdown-specialist",
+    title: "Lockdown Specialist",
+    emoji: "🔒",
+    tier: 1,
+    pillar: "defense",
+    pillarLabel: "On-Ball Clamps",
+    summary: "Defensive stopper who takes on the opponent's toughest matchup.",
+    requirements: [
+      "12+ Games Played",
+      "45+ Stocks (Steals + Blocks + Deflections)",
+      "≥ 1.3 Stocks/gm (Silver Lockdown badge)",
+    ],
+    parents: ["rookie", "prospect", "glue-player"],
+    children: ["two-way-playmaker", "two-way-slasher", "defensive-anchor"],
+  },
+  "paint-beast": {
+    id: "paint-beast",
+    title: "Paint Beast",
+    emoji: "🦏",
+    tier: 1,
+    pillar: "paint",
+    pillarLabel: "Interior Glass & Paint",
+    summary:
+      "Physical force on the interior who owns the boards and finishes through contact.",
+    requirements: [
+      "12+ Games Played",
+      "100+ Rebounds",
+      "≥ 3.4 RPG (Silver Paint Beast badge)",
+    ],
+    parents: ["rookie", "prospect", "glue-player"],
+    children: ["defensive-anchor", "two-way-force"],
+  },
+  "clutch-assassin": {
+    id: "clutch-assassin",
+    title: "Clutch Assassin",
+    emoji: "🧊",
+    tier: 1,
+    pillar: "shooting",
+    pillarLabel: "Late-Game Ice",
+    summary: "Ice in their veins; delivers game-winners and decisive late-game plays.",
+    requirements: [
+      "Silver Clutch Gene Badge",
+      "2+ Game-Winning shots and 10+ Clutch points",
+    ],
+    parents: ["rookie", "prospect", "glue-player"],
+    children: ["combo-guard"],
+  },
+  "rebound-dynamo": {
+    id: "rebound-dynamo",
+    title: "Rebound Dynamo",
+    emoji: "🦍",
+    tier: 1,
+    pillar: "paint",
+    pillarLabel: "Glass Crasher",
+    summary: "High-motor rebounder who guarantees extra possessions.",
+    requirements: ["100+ Career Rebounds & ≥ 3.4 RPG"],
+    parents: ["rookie", "prospect", "glue-player"],
+    children: ["defensive-anchor"],
+  },
+  "hustle-engine": {
+    id: "hustle-engine",
+    title: "Hustle Engine",
+    emoji: "⚡",
+    tier: 1,
+    pillar: "defense",
+    pillarLabel: "Energy & Deflections",
+    summary: "Brings continuous effort, winning plays, and game-changing momentum.",
+    requirements: ["Silver Sparkplug Badge (35+ Deflections)"],
+    parents: ["rookie", "prospect", "glue-player"],
+    children: ["two-way-playmaker"],
+  },
+
+  // Tier 0
+  rookie: {
+    id: "rookie",
+    title: "Rookie",
+    emoji: "🏀",
+    tier: 0,
+    pillar: "foundation",
+    pillarLabel: "League Newcomer",
+    summary:
+      "Fresh to the league; finding their rhythm, learning team tendencies, and earning their stripes.",
+    requirements: ["0 to 9 Games Played"],
+    parents: [],
+    children: [
+      "pure-scorer",
+      "sharpshooter",
+      "floor-general",
+      "lockdown-specialist",
+      "paint-beast",
+    ],
+  },
+  prospect: {
+    id: "prospect",
+    title: "Prospect",
+    emoji: "🌱",
+    tier: 0,
+    pillar: "foundation",
+    pillarLabel: "Developing Talent",
+    summary:
+      "Flashing high potential and carving out an identity; working toward their first signature weapon.",
+    requirements: ["10 to 24 Games Played", "Working toward first Silver skill badge"],
+    parents: [],
+    children: [
+      "pure-scorer",
+      "sharpshooter",
+      "floor-general",
+      "lockdown-specialist",
+      "paint-beast",
+    ],
+  },
+  "glue-player": {
+    id: "glue-player",
+    title: "Glue Player",
+    emoji: "🧩",
+    tier: 0,
+    pillar: "foundation",
+    pillarLabel: "Veteran Connector",
+    summary:
+      "Reliable teammate who does the dirty work—screens, hustle, ball movement, and team chemistry.",
+    requirements: [
+      "25+ Games Played",
+      "Reliable team contributor without a specialized Silver badge",
+    ],
+    parents: [],
+    children: [
+      "pure-scorer",
+      "sharpshooter",
+      "floor-general",
+      "lockdown-specialist",
+      "paint-beast",
+    ],
+  },
+};
+
+export function archetypeTitleToId(title: string): ArchetypeNodeId {
+  const norm = title.trim().toLowerCase();
+  switch (norm) {
+    case "the all-around threat":
+      return "all-around-threat";
+    case "playmaking shot creator":
+      return "playmaking-shot-creator";
+    case "3-and-d specialist":
+      return "3-and-d-specialist";
+    case "two-way floor general":
+      return "two-way-floor-general";
+    case "combo guard":
+      return "combo-guard";
+    case "two-way shooter":
+      return "two-way-shooter";
+    case "two-way playmaker":
+      return "two-way-playmaker";
+    case "two-way slasher":
+      return "two-way-slasher";
+    case "defensive anchor":
+      return "defensive-anchor";
+    case "two-way force":
+      return "two-way-force";
+    case "pure scorer":
+      return "pure-scorer";
+    case "sharpshooter":
+      return "sharpshooter";
+    case "floor general":
+      return "floor-general";
+    case "lockdown specialist":
+      return "lockdown-specialist";
+    case "paint beast":
+      return "paint-beast";
+    case "clutch assassin":
+      return "clutch-assassin";
+    case "rebound dynamo":
+      return "rebound-dynamo";
+    case "hustle engine":
+      return "hustle-engine";
+    case "rookie":
+      return "rookie";
+    case "glue player":
+      return "glue-player";
+    case "prospect":
+    default:
+      return "prospect";
+  }
+}
+
+export type PlayerTreeItem = {
+  id: number;
+  name: string;
+  nicknames: string[];
+  injured: boolean;
+  archived: boolean;
+  gp: number;
+  pts: number;
+  reb: number;
+  ast: number;
+  stl: number;
+  blk: number;
+  stocks: number;
+  fg3m: number;
+  fg3a: number;
+  ppg: number;
+  rpg: number;
+  apg: number;
+  spg: number;
+  bpg: number;
+  stockPg: number;
+  fg3Pct: number;
+  rating: number;
+  archetype: PlayerArchetype;
+  nodeId: ArchetypeNodeId;
+  activeRoad: ArchetypeUpgrade | null;
+  candidateRoads: ArchetypeUpgrade[];
+  roadProgressPct: number;
+  targetTier: ArchetypeTier;
+  targetTitle: string;
+  targetEmoji: string;
+  deltaSummary: string;
+  pillarScores: {
+    shoot: { pct: number; silver: boolean; gold: boolean };
+    assist: { pct: number; silver: boolean; gold: boolean };
+    defense: { pct: number; silver: boolean; gold: boolean };
+  };
+};
+
+export function transformToTreeItem(
+  player: Player,
+  career: CareerLine,
+  clutch?: ClutchLine | null,
+  totalGames: number = 0,
+): PlayerTreeItem {
+  const gp = Math.max(1, career.gp);
+  const ppg = career.pts / gp;
+  const rpg = career.reb / gp;
+  const apg = career.ast / gp;
+  const spg = career.stl / gp;
+  const bpg = career.blk / gp;
+  const stocks = career.stl + career.blk + career.defl;
+  const stockPg = stocks / gp;
+  const fg3Pct = career.fg3a > 0 ? career.fg3m / career.fg3a : 0;
+  const rating = career.ratingW > 0 ? career.ratingSum / career.ratingW : 0;
+
+  const archetype = computePlayerArchetype(career, clutch, totalGames);
+  const nodeId = archetypeTitleToId(archetype.title);
+
+  // Check pillar unlocks from badges
+  const hasSharpshooterSilver = archetype.badges.some(
+    (b) => (b.id === "sharpshooter" || b.id === "bucket") && (b.tier === "silver" || b.tier === "gold" || b.tier === "hof"),
+  );
+  const hasSharpshooterGold = archetype.badges.some(
+    (b) => (b.id === "sharpshooter" || b.id === "bucket") && (b.tier === "gold" || b.tier === "hof"),
+  );
+
+  const hasFloorGeneralSilver = archetype.badges.some(
+    (b) => b.id === "floor-general" && (b.tier === "silver" || b.tier === "gold" || b.tier === "hof"),
+  );
+  const hasFloorGeneralGold = archetype.badges.some(
+    (b) => b.id === "floor-general" && (b.tier === "gold" || b.tier === "hof"),
+  );
+
+  const hasLockdownSilver = archetype.badges.some(
+    (b) => b.id === "lockdown" && (b.tier === "silver" || b.tier === "gold" || b.tier === "hof"),
+  );
+  const hasLockdownGold = archetype.badges.some(
+    (b) => b.id === "lockdown" && (b.tier === "gold" || b.tier === "hof"),
+  );
+
+  // Pillar progress meters
+  const shootProg = hasSharpshooterGold
+    ? 100
+    : hasSharpshooterSilver
+      ? Math.min(99, Math.round((0.65 + 0.35 * Math.min(1, Math.max(career.fg3m / 60, career.pts / 420))) * 100))
+      : Math.min(64, Math.round(Math.min(1, Math.max(career.fg3m / 22, career.pts / 160)) * 65));
+
+  const assistProg = hasFloorGeneralGold
+    ? 100
+    : hasFloorGeneralSilver
+      ? Math.min(99, Math.round((0.65 + 0.35 * Math.min(1, Math.min(career.ast / 110, apg / 1.8))) * 100))
+      : Math.min(64, Math.round(Math.min(1, Math.min(career.ast / 40, apg / 1.4)) * 65));
+
+  const defenseProg = hasLockdownGold
+    ? 100
+    : hasLockdownSilver
+      ? Math.min(99, Math.round((0.65 + 0.35 * Math.min(1, Math.min(stocks / 120, stockPg / 1.7))) * 100))
+      : Math.min(64, Math.round(Math.min(1, Math.min(stocks / 45, stockPg / 1.3)) * 65));
+
+  const activeRoad = archetype.nextUpgrades[0] ?? null;
+  const candidateRoads = archetype.nextUpgrades;
+
+  let targetTier: ArchetypeTier = 4;
+  let targetTitle = "Apex Achieved";
+  let targetEmoji = "🌟";
+  let roadProgressPct = 100;
+  let deltaSummary = "Supreme Apex Mastered";
+
+  if (archetype.tier === 4) {
+    targetTier = 4;
+    targetTitle = "The All-Around Threat";
+    targetEmoji = "🌟";
+    roadProgressPct = 100;
+    deltaSummary = "Supreme Apex Unlocked 👑";
+  } else if (activeRoad) {
+    targetTier = activeRoad.tier;
+    targetTitle = activeRoad.title;
+    targetEmoji = activeRoad.emoji;
+    roadProgressPct = activeRoad.progressPct;
+    deltaSummary = activeRoad.requirement;
+  } else {
+    targetTier = (archetype.tier + 1) as ArchetypeTier;
+    targetTitle = SKILL_TREE_TIERS.find((t) => t.tier === targetTier)?.title ?? "Next Tier";
+    targetEmoji = "⚡";
+    roadProgressPct = 50;
+    deltaSummary = "Advancing to next tier";
+  }
+
+  return {
+    id: player.id,
+    name: player.name,
+    nicknames: player.nicknames,
+    injured: player.injured,
+    archived: player.archived,
+    gp: career.gp,
+    pts: career.pts,
+    reb: career.reb,
+    ast: career.ast,
+    stl: career.stl,
+    blk: career.blk,
+    stocks,
+    fg3m: career.fg3m,
+    fg3a: career.fg3a,
+    ppg,
+    rpg,
+    apg,
+    spg,
+    bpg,
+    stockPg,
+    fg3Pct,
+    rating,
+    archetype,
+    nodeId,
+    activeRoad,
+    candidateRoads,
+    roadProgressPct,
+    targetTier,
+    targetTitle,
+    targetEmoji,
+    deltaSummary,
+    pillarScores: {
+      shoot: { pct: shootProg, silver: hasSharpshooterSilver, gold: hasSharpshooterGold },
+      assist: { pct: assistProg, silver: hasFloorGeneralSilver, gold: hasFloorGeneralGold },
+      defense: { pct: defenseProg, silver: hasLockdownSilver, gold: hasLockdownGold },
+    },
+  };
+}

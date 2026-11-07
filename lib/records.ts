@@ -40,11 +40,21 @@ const STATS: Stat[] = [
 
 /**
  * Individual single-game records. The first person to reach a mark keeps it on a tie. Pass a
- * player id to get that player's own bests instead.
+ * player id to get that player's own bests instead. Optional gameType filters by format.
  */
-export function singleGameRecords(games: Game[], onlyPlayerId?: number): RecordItem[] {
+export function singleGameRecords(
+  games: Game[],
+  onlyPlayerId?: number,
+  gameType?: "target" | "timed" | "all",
+): RecordItem[] {
   const out: RecordItem[] = [];
-  const ordered = finals(games).sort(
+  const filtered = finals(games).filter((g) => {
+    if (!gameType || gameType === "all") return true;
+    if (gameType === "target") return g.gameType !== "timed";
+    if (gameType === "timed") return g.gameType === "timed";
+    return true;
+  });
+  const ordered = filtered.sort(
     (a, b) => a.startMs - b.startMs || a.id - b.id,
   );
   for (const stat of STATS) {
@@ -71,9 +81,18 @@ export function singleGameRecords(games: Game[], onlyPlayerId?: number): RecordI
   return out;
 }
 
-/** Biggest win and highest-scoring game. */
-export function teamRecords(games: Game[]): RecordItem[] {
-  const fin = finals(games).filter((g) => g.score.A + g.score.B > 0);
+/** Biggest win and highest-scoring game. Optional gameType filters by format. */
+export function teamRecords(
+  games: Game[],
+  gameType?: "target" | "timed" | "all",
+): RecordItem[] {
+  const fin = finals(games).filter((g) => {
+    if (g.score.A + g.score.B <= 0) return false;
+    if (!gameType || gameType === "all") return true;
+    if (gameType === "target") return g.gameType !== "timed";
+    if (gameType === "timed") return g.gameType === "timed";
+    return true;
+  });
   if (fin.length === 0) return [];
   const names = (g: Game, t: "A" | "B") =>
     g.roster
