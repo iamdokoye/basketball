@@ -3,7 +3,12 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Avatar, shortName } from "@/app/components/Avatar";
-import { balanceMultiTeams, type MultiTeamResult } from "@/lib/balance";
+import {
+  balanceMultiTeams,
+  randomizeMultiTeams,
+  type MultiTeamResult,
+} from "@/lib/balance";
+import { playDiceRoll } from "@/lib/courtAudio";
 import type { CareerLine, Player } from "@/lib/queries";
 import { averageRating } from "@/lib/rating";
 
@@ -26,6 +31,8 @@ export function TeamBuilder({
   // Auto-balance state
   const [numTeams, setNumTeams] = useState<2 | 3 | 4>(2);
   const [balanceResult, setBalanceResult] = useState<MultiTeamResult | null>(null);
+  const [isRolling, setIsRolling] = useState(false);
+  const [rollCount, setRollCount] = useState(0);
 
   // Captains Draft state
   const [captain1, setCaptain1] = useState<number | null>(null);
@@ -68,6 +75,22 @@ export function TeamBuilder({
   function runBalance() {
     if (checkedIds.length < numTeams) return;
     const res = balanceMultiTeams(
+      checkedIds,
+      numTeams,
+      (id) => strengths[id] ?? 5.0,
+      getSynergy,
+    );
+    setBalanceResult(res);
+  }
+
+  // Generate randomized squads for streetball chaos
+  function runRandomize() {
+    if (checkedIds.length < numTeams) return;
+    setRollCount((prev) => prev + 1);
+    setIsRolling(true);
+    playDiceRoll();
+    setTimeout(() => setIsRolling(false), 450);
+    const res = randomizeMultiTeams(
       checkedIds,
       numTeams,
       (id) => strengths[id] ?? 5.0,
@@ -238,50 +261,91 @@ export function TeamBuilder({
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={runBalance}
-            disabled={checkedIds.length < numTeams}
-            className="w-full rounded-2xl bg-court-ink py-3.5 text-center text-sm font-extrabold text-white shadow-md transition hover:opacity-95 active:scale-[0.99] disabled:opacity-50"
-          >
-            {balanceResult ? "🔀 Shuffle & Re-Balance Teams" : "⚡ Generate Balanced Teams"}
-          </button>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <button
+              type="button"
+              onClick={runBalance}
+              disabled={checkedIds.length < numTeams}
+              className={`rounded-2xl py-3 text-center text-sm font-extrabold shadow-sm transition active:scale-[0.99] disabled:opacity-50 flex items-center justify-center gap-1.5 ${
+                balanceResult?.mode === "balanced"
+                  ? "bg-court-ink text-white shadow-md ring-2 ring-court-ink/30"
+                  : "bg-court-ink/10 text-court-ink ring-1 ring-court-ink/25 hover:bg-court-ink/20"
+              }`}
+            >
+              <span>⚡</span>
+              <span>{balanceResult?.mode === "balanced" ? "Re-Balance Squads" : "Generate Balanced Squads"}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={runRandomize}
+              disabled={checkedIds.length < numTeams}
+              className={`rounded-2xl py-3 text-center text-sm font-extrabold shadow-sm transition active:scale-[0.99] disabled:opacity-50 flex items-center justify-center gap-1.5 ${
+                balanceResult?.mode === "random"
+                  ? "bg-amber-500 text-white shadow-md ring-2 ring-amber-500/30"
+                  : "bg-amber-500/10 text-amber-800 ring-1 ring-amber-500/25 hover:bg-amber-500/20"
+              }`}
+            >
+              <span className={isRolling ? "animate-spin inline-block" : ""}>🎲</span>
+              <span>{balanceResult?.mode === "random" ? `Re-Roll Chaos (#${rollCount})` : "Random Arrangement"}</span>
+            </button>
+          </div>
 
           {balanceResult && (
             <div className="space-y-4">
-              <div className="flex items-center justify-between px-1">
-                <div className="flex items-center gap-2">
-                  <span className="rounded-full bg-court-soft/20 px-3 py-1 text-xs font-black text-court-ink">
-                    {balanceResult.fairness}
-                  </span>
-                  <span className="text-xs text-muted">
-                    Max rating gap: {balanceResult.maxGap.toFixed(2)} pts
-                  </span>
+              <div className="flex flex-col gap-2.5 rounded-2xl p-3 sm:flex-row sm:items-center sm:justify-between glass-1 border border-black/5">
+                <div className="space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {balanceResult.mode === "random" ? (
+                      <span className="rounded-full bg-amber-500/20 px-3 py-1 text-xs font-black text-amber-800">
+                        🎲 {balanceResult.matchupFlavor || "Chaos Mode"}
+                      </span>
+                    ) : (
+                      <span className="rounded-full bg-court-soft/20 px-3 py-1 text-xs font-black text-court-ink">
+                        ⚖️ {balanceResult.fairness}
+                      </span>
+                    )}
+                    <span className="text-xs text-muted">
+                      Max rating gap: <b>{balanceResult.maxGap.toFixed(2)} pts</b>
+                    </span>
+                    {balanceResult.mode === "random" && (
+                      <span className="rounded-md bg-black/[0.05] px-1.5 py-0.5 text-[10px] font-semibold text-muted">
+                        Random draw
+                      </span>
+                    )}
+                  </div>
+                  {balanceResult.commentary && (
+                    <p className="text-xs font-semibold text-ink italic">
+                      &ldquo;{balanceResult.commentary}&rdquo;
+                    </p>
+                  )}
                 </div>
 
-                {numTeams === 2 && (
-                  <Link
-                    href={`/games/new?teamA=${balanceResult.teams[0]?.playerIds.join(",")}&teamB=${balanceResult.teams[1]?.playerIds.join(",")}`}
-                    className="flex items-center gap-1 text-xs font-extrabold text-court-ink hover:underline"
-                  >
-                    Start Game →
-                  </Link>
-                )}
-                {numTeams >= 3 && (
-                  <Link
-                    href={`/tournaments?teams=${encodeURIComponent(
-                      JSON.stringify(
-                        balanceResult.teams.map((t) => ({
-                          name: t.name,
-                          playerIds: t.playerIds,
-                        })),
-                      ),
-                    )}`}
-                    className="flex items-center gap-1 text-xs font-extrabold text-court-ink hover:underline"
-                  >
-                    Send to King of the Court →
-                  </Link>
-                )}
+                <div className="shrink-0">
+                  {numTeams === 2 && (
+                    <Link
+                      href={`/games/new?teamA=${balanceResult.teams[0]?.playerIds.join(",")}&teamB=${balanceResult.teams[1]?.playerIds.join(",")}`}
+                      className="inline-flex items-center gap-1 rounded-xl bg-court-ink px-3.5 py-2 text-xs font-extrabold text-white shadow-xs hover:opacity-90 transition"
+                    >
+                      Tip Off Game →
+                    </Link>
+                  )}
+                  {numTeams >= 3 && (
+                    <Link
+                      href={`/tournaments?teams=${encodeURIComponent(
+                        JSON.stringify(
+                          balanceResult.teams.map((t) => ({
+                            name: t.name,
+                            playerIds: t.playerIds,
+                          })),
+                        ),
+                      )}`}
+                      className="inline-flex items-center gap-1 rounded-xl bg-court-ink px-3.5 py-2 text-xs font-extrabold text-white shadow-xs hover:opacity-90 transition"
+                    >
+                      King of the Court →
+                    </Link>
+                  )}
+                </div>
               </div>
 
               {/* Squads Cards Grid */}

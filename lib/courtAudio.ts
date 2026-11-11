@@ -219,3 +219,30 @@ export function playWhistle(): void {
   osc1.stop(now + 0.35);
   osc2.stop(now + 0.35);
 }
+
+/** Rapid dice rattle / shuffle sound for random team selection */
+export function playDiceRoll(): void {
+  if (isAudioMuted()) return;
+  const ctx = getContext();
+  if (!ctx) return;
+
+  const now = ctx.currentTime;
+  const clicks = 5;
+  for (let i = 0; i < clicks; i++) {
+    const t = now + i * 0.045 + Math.random() * 0.01;
+    const osc = ctx.createOscillator();
+    osc.type = "triangle";
+    osc.frequency.setValueAtTime(420 + Math.random() * 220, t);
+    osc.frequency.exponentialRampToValueAtTime(110, t + 0.035);
+
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.2, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.035);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(t);
+    osc.stop(t + 0.04);
+  }
+}
+

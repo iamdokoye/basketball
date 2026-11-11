@@ -4,7 +4,13 @@ import { useRef, useState, useTransition } from "react";
 import { createGame } from "@/lib/actions";
 import { Avatar, shortName } from "@/app/components/Avatar";
 import { InjuredBadge } from "@/app/components/InjuredBadge";
-import { balanceTeams, fairness } from "@/lib/balance";
+import {
+  balanceTeams,
+  fairness,
+  randomizeTeams,
+  type RandomMatchupFlavor,
+} from "@/lib/balance";
+import { playDiceRoll } from "@/lib/courtAudio";
 
 type Assign = { team: "A" | "B"; seq: number };
 
@@ -90,7 +96,22 @@ export default function NewGameForm({
   const winBy = MODES.find((m) => m.id === mode)!.winBy;
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
-  const [balanced, setBalanced] = useState<{ gap: number } | null>(null);
+
+  type Arrangement =
+    | { mode: "balanced"; gap: number }
+    | {
+        mode: "random";
+        gap: number;
+        avgA: number;
+        avgB: number;
+        commentary: string;
+        matchupFlavor: RandomMatchupFlavor;
+        rollCount: number;
+      };
+
+  const [arrangement, setArrangement] = useState<Arrangement | null>(null);
+  const [isRolling, setIsRolling] = useState(false);
+  const rollCountRef = useRef(0);
 
   const teamOf = (t: "A" | "B") =>
     players
@@ -109,11 +130,55 @@ export default function NewGameForm({
     for (const id of split.A) next[id] = { team: "A", seq: ++seq.current };
     for (const id of split.B) next[id] = { team: "B", seq: ++seq.current };
     setAssign(next);
-    setBalanced({ gap: split.gap });
+    setArrangement({ mode: "balanced", gap: split.gap });
+  }
+
+  /** Randomly arranges the selected players into Team A and Team B with randomized starters. */
+  function randomize() {
+    const playing = players.filter((p) => assign[p.id]).map((p) => p.id);
+    const split = randomizeTeams(playing, (id) => strengths[id] ?? 0);
+    if (!split) return;
+
+    rollCountRef.current += 1;
+    setIsRolling(true);
+    playDiceRoll();
+    setTimeout(() => setIsRolling(false), 450);
+
+    const next: Record<number, Assign | undefined> = {};
+    for (const id of split.A) next[id] = { team: "A", seq: ++seq.current };
+    for (const id of split.B) next[id] = { team: "B", seq: ++seq.current };
+    setAssign(next);
+    setArrangement({
+      mode: "random",
+      gap: split.gap,
+      avgA: split.avgA,
+      avgB: split.avgB,
+      commentary: split.commentary,
+      matchupFlavor: split.matchupFlavor,
+      rollCount: rollCountRef.current,
+    });
+  }
+
+  function selectAll() {
+    const next: Record<number, Assign | undefined> = {};
+    let count = 0;
+    for (const p of players) {
+      if (!p.injured) {
+        next[p.id] = { team: "A", seq: ++count };
+      }
+    }
+    seq.current = count;
+    setAssign(next);
+    setArrangement(null);
+  }
+
+  function clearAll() {
+    setAssign({});
+    setArrangement(null);
   }
 
   function cycle(id: number) {
-    setBalanced(null);
+    setArrangement(null);
     setAssign((cur) => {
       const now = cur[id]?.team;
       const next = now === undefined ? "A" : now === "A" ? "B" : undefined;
@@ -166,35 +231,112 @@ export default function NewGameForm({
       <p className="px-1 text-sm text-muted">
         Tap a player to cycle <b className="text-court-ink">Team A</b> →{" "}
         <b className="text-away-dark">Team B</b> → out. The first {STARTERS} on
-        each team start; anyone after that begins on the bench. Or tap everyone
-        who&apos;s playing and let us balance the teams.
+        each team start; anyone after that begins on the bench. Or pick
+        everyone playing and let us balance or randomize the squads.
       </p>
 
-      <div className="glass-1 flex items-center gap-3 rounded-2xl p-3">
-        <button
-          type="button"
-          onClick={balance}
-          disabled={a.length + b.length < 2}
-          className="h-11 shrink-0 rounded-full bg-sub/10 px-4 text-sm font-semibold text-sub ring-1 ring-sub/25 active:scale-95 disabled:opacity-40"
-        >
-          ⚖ {balanced ? "Shuffle" : "Balance teams"}
-        </button>
-        <p
-          className="min-w-0 flex-1 text-xs font-semibold text-muted"
-          role="status"
-        >
-          {balanced ? (
-            <>
-              <span className="text-ink">{fairness(balanced.gap)}</span> ·
-              strength gap {balanced.gap.toFixed(2)}. Shuffle for another fair
-              split.
-            </>
-          ) : a.length + b.length < 2 ? (
-            "Pick at least two players first."
-          ) : (
-            `Splits the ${a.length + b.length} picked players using ratings and win rates.`
+      {/* Balancing & Randomized Arrangement Controls */}
+      <div className="glass-1 space-y-3 rounded-2xl p-3.5">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={balance}
+            disabled={a.length + b.length < 2}
+            className={`h-10 shrink-0 rounded-full px-4 text-sm font-bold transition active:scale-95 disabled:opacity-40 ${
+              arrangement?.mode === "balanced"
+                ? "bg-sub text-white shadow-xs"
+                : "bg-sub/10 text-sub ring-1 ring-sub/25 hover:bg-sub/20"
+            }`}
+          >
+            ⚖ {arrangement?.mode === "balanced" ? "Re-Balance" : "Balance teams"}
+          </button>
+
+          <button
+            type="button"
+            onClick={randomize}
+            disabled={a.length + b.length < 2}
+            className={`h-10 shrink-0 rounded-full px-4 text-sm font-bold transition active:scale-95 disabled:opacity-40 flex items-center gap-1.5 ${
+              arrangement?.mode === "random"
+                ? "bg-amber-500 text-white shadow-xs"
+                : "bg-amber-500/10 text-amber-700 ring-1 ring-amber-500/25 hover:bg-amber-500/20"
+            }`}
+          >
+            <span className={isRolling ? "animate-spin inline-block" : ""}>🎲</span>
+            {arrangement?.mode === "random"
+              ? `Roll Again (#${arrangement.rollCount})`
+              : "Randomize"}
+          </button>
+        </div>
+
+        {/* Arrangement Feedback & Fun Commentary */}
+        <div className="text-xs">
+          {arrangement?.mode === "balanced" && (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-md bg-sub/15 px-2 py-0.5 font-bold text-sub">
+                {fairness(arrangement.gap)}
+              </span>
+              <span className="text-muted">
+                Strength gap <b className="text-ink">{arrangement.gap.toFixed(2)}</b>. Starters assigned by rating. Re-balance for another fair split.
+              </span>
+            </div>
           )}
-        </p>
+
+          {arrangement?.mode === "random" && (
+            <div className="space-y-1.5">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="rounded-md bg-amber-500/20 px-2 py-0.5 font-bold text-amber-800">
+                  🎲 {arrangement.matchupFlavor}
+                </span>
+                <span className="text-muted">
+                  Rating gap: <b className="text-ink">{arrangement.gap.toFixed(2)} pts</b>
+                  {arrangement.avgA !== arrangement.avgB && (
+                    <span className="ml-1 text-[11px] font-semibold text-ink">
+                      ({arrangement.avgA > arrangement.avgB ? "Team A favored" : "Team B favored"})
+                    </span>
+                  )}
+                </span>
+                <span className="rounded-md bg-black/[0.05] px-1.5 py-0.5 text-[10px] font-semibold text-muted">
+                  Starters drawn randomly
+                </span>
+              </div>
+              <p className="font-semibold text-ink italic">
+                &ldquo;{arrangement.commentary}&rdquo;
+              </p>
+            </div>
+          )}
+
+          {!arrangement && (
+            <p className="font-semibold text-muted" role="status">
+              {a.length + b.length < 2
+                ? "Pick at least two players to balance or randomize teams."
+                : `${a.length + b.length} players selected. Balance by rating or roll the dice for pure streetball chaos!`}
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* Player Pool Header with Select All / Clear */}
+      <div className="flex items-center justify-between px-1 pt-1">
+        <span className="text-xs font-bold text-muted uppercase tracking-wider">
+          Player Pool ({a.length + b.length} selected)
+        </span>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={selectAll}
+            className="text-xs font-semibold text-court-ink hover:underline"
+          >
+            Select all active
+          </button>
+          <span className="text-muted/40">·</span>
+          <button
+            type="button"
+            onClick={clearAll}
+            className="text-xs font-semibold text-muted hover:text-ink"
+          >
+            Clear
+          </button>
+        </div>
       </div>
       <div className="grid grid-cols-2 gap-2">
         {players.map((p) => {

@@ -125,6 +125,118 @@ export function balanceTeams(
   return { A, B, avgA: avg(A), avgB: avg(B), gap: Math.abs(avg(A) - avg(B)) };
 }
 
+export type RandomMatchupFlavor =
+  | "Coin Flip"
+  | "Dead Heat"
+  | "Wildcard"
+  | "Trap Game"
+  | "David vs Goliath";
+
+export type RandomSplit = {
+  A: number[];
+  B: number[];
+  avgA: number;
+  avgB: number;
+  gap: number;
+  matchupFlavor: RandomMatchupFlavor;
+  commentary: string;
+};
+
+/** Fisher-Yates array shuffle */
+export function shuffleArray<T>(array: T[], random: () => number = Math.random): T[] {
+  const result = [...array];
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(random() * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
+}
+
+/**
+ * Randomly arranges the selected player pool into Team A and Team B.
+ * Internal player order within each team is also shuffled so starter vs bench
+ * designation is completely random, creating an unpredictable, fun streetball run.
+ */
+export function randomizeTeams(
+  ids: number[],
+  strength: (id: number) => number,
+  random: () => number = Math.random,
+): RandomSplit | null {
+  const n = ids.length;
+  if (n < 2) return null;
+
+  const shuffled = shuffleArray(ids, random);
+  const sizeA = Math.floor(n / 2);
+  let A = shuffled.slice(0, sizeA);
+  let B = shuffled.slice(sizeA);
+
+  // Random side allocation if odd counts
+  if (random() < 0.5) {
+    [A, B] = [B, A];
+  }
+
+  const avg = (list: number[]) =>
+    list.length > 0
+      ? list.reduce((t, id) => t + strength(id), 0) / list.length
+      : 0;
+
+  const avgA = avg(A);
+  const avgB = avg(B);
+  const gap = Math.abs(avgA - avgB);
+
+  let matchupFlavor: RandomMatchupFlavor;
+  let commentaryList: string[];
+
+  if (gap < 0.15) {
+    matchupFlavor = "Coin Flip";
+    commentaryList = [
+      "Pure serendipity! The roll produced a dead heat.",
+      "The basketball gods smiled — 50/50 toss-up!",
+      "Accidental perfection: zero excuses on either bench.",
+      "Dead heat! It’s anyone’s court today.",
+    ];
+  } else if (gap < 0.40) {
+    matchupFlavor = "Dead Heat";
+    commentaryList = [
+      "Competitive roll! Good balance with room for an x-factor hero.",
+      "Streetball roulette delivered two hard-nosed squads.",
+      "Tight spread! Possession economics will decide this run.",
+      "Well-matched squads with contrasting play styles.",
+    ];
+  } else if (gap < 0.80) {
+    matchupFlavor = "Wildcard";
+    const favored = avgA > avgB ? "Team A" : "Team B";
+    commentaryList = [
+      `Spicy mismatch! ${favored} holds the edge, but underdogs love a scrap.`,
+      "Trap game alert! Paper favorites often fall on the blacktop.",
+      "Chaos ball! Momentum swings are going to be wild.",
+      "High-variance matchup: clutch shots will write this story.",
+    ];
+  } else {
+    matchupFlavor = "David vs Goliath";
+    const dog = avgA > avgB ? "Team B" : "Team A";
+    commentaryList = [
+      `David vs. Goliath! If ${dog} pulls this off, it's court legend forever.`,
+      "Massive upset potential! Underdog squad has nothing to lose.",
+      "Pure streetball anarchy! Grab your popcorn.",
+      "Heavyweight tilt: time for the underdogs to play spoiler.",
+    ];
+  }
+
+  const commentary =
+    commentaryList[Math.floor(random() * commentaryList.length)];
+
+  return {
+    A,
+    B,
+    avgA,
+    avgB,
+    gap,
+    matchupFlavor,
+    commentary,
+  };
+}
+
 export type TeamSquad = {
   id: string;
   name: string;
@@ -138,6 +250,9 @@ export type MultiTeamResult = {
   teams: TeamSquad[];
   maxGap: number;
   fairness: "Very even" | "Even" | "Lopsided";
+  mode?: "balanced" | "random";
+  matchupFlavor?: RandomMatchupFlavor;
+  commentary?: string;
 };
 
 export const SQUAD_COLORS = [
@@ -165,6 +280,7 @@ export function balanceMultiTeams(
       teams: [],
       maxGap: 0,
       fairness: "Very even",
+      mode: "balanced",
     };
   }
 
@@ -246,6 +362,119 @@ export function balanceMultiTeams(
     teams: squads,
     maxGap,
     fairness: fairness(maxGap),
+    mode: "balanced",
   };
 }
+
+/**
+ * Randomly arranges the selected player pool into 2, 3, or 4 squads.
+ * Distributes players evenly across squads with fun streetball commentary and matchup flavors.
+ */
+export function randomizeMultiTeams(
+  ids: number[],
+  numTeams: number,
+  strength: (id: number) => number,
+  pairSynergy?: (id1: number, id2: number) => number,
+  random: () => number = Math.random,
+): MultiTeamResult {
+  const k = Math.max(2, Math.min(4, numTeams));
+  const n = ids.length;
+  if (n < k) {
+    return {
+      teams: [],
+      maxGap: 0,
+      fairness: "Very even",
+      mode: "random",
+      matchupFlavor: "Coin Flip",
+      commentary: "Not enough players to form squads.",
+    };
+  }
+
+  const shuffled = shuffleArray(ids, random);
+  const teams: number[][] = Array.from({ length: k }, () => []);
+
+  // Distribute round-robin for equal squad sizes
+  for (let i = 0; i < shuffled.length; i++) {
+    teams[i % k].push(shuffled[i]);
+  }
+
+  const teamAvg = (t: number[]) =>
+    t.length > 0 ? t.reduce((sum, id) => sum + strength(id), 0) / t.length : 0;
+
+  const squads: TeamSquad[] = teams.map((playerList, idx) => {
+    const avg = teamAvg(playerList);
+    let synergy = 0;
+    if (pairSynergy && playerList.length >= 2) {
+      let pairsCount = 0;
+      let totalSyn = 0;
+      for (let i = 0; i < playerList.length; i++) {
+        for (let j = i + 1; j < playerList.length; j++) {
+          totalSyn += pairSynergy(playerList[i], playerList[j]);
+          pairsCount++;
+        }
+      }
+      synergy = pairsCount > 0 ? totalSyn / pairsCount : 0;
+    }
+
+    const conf = SQUAD_COLORS[idx % SQUAD_COLORS.length];
+    return {
+      id: `team-${idx + 1}`,
+      name: conf.name,
+      color: conf.color,
+      playerIds: playerList,
+      avgStrength: avg,
+      synergyScore: synergy,
+    };
+  });
+
+  const maxGap =
+    Math.max(...squads.map((s) => s.avgStrength)) -
+    Math.min(...squads.map((s) => s.avgStrength));
+
+  let matchupFlavor: RandomMatchupFlavor;
+  let commentaryList: string[];
+
+  if (maxGap < 0.20) {
+    matchupFlavor = "Coin Flip";
+    commentaryList = [
+      "Pure serendipity! All squads rolled out within striking distance.",
+      "The basketball gods smiled — wide-open tournament ahead!",
+      "Accidental parity: anyone can walk away with the crown.",
+    ];
+  } else if (maxGap < 0.50) {
+    matchupFlavor = "Dead Heat";
+    commentaryList = [
+      "Competitive draw! Every squad has a puncher's chance.",
+      "Streetball roulette delivered high-octane matchups.",
+      "Solid mix of firepower across all squads.",
+    ];
+  } else if (maxGap < 0.90) {
+    matchupFlavor = "Wildcard";
+    commentaryList = [
+      "Spicy chaos! Clear favorites, but underdogs love a bracket buster.",
+      "High volatility! One hot shooter could tip the balance.",
+      "Wildcard draw! Expect upsets and fiery trash talk.",
+    ];
+  } else {
+    matchupFlavor = "David vs Goliath";
+    commentaryList = [
+      "David vs. Goliath squads! Chaos mode engaged.",
+      "Extreme rating gap — can the underdogs shock the court?",
+      "Total streetball madness! Legends will be made.",
+    ];
+  }
+
+  const commentary =
+    commentaryList[Math.floor(random() * commentaryList.length)];
+
+  return {
+    teams: squads,
+    maxGap,
+    fairness: fairness(maxGap),
+    mode: "random",
+    matchupFlavor,
+    commentary,
+  };
+}
+
 
