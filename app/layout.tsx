@@ -8,6 +8,7 @@ import { AccessBadge } from "./components/AccessBadge";
 import { IdentitySync } from "./components/IdentitySync";
 import { MeChip } from "./components/MeChip";
 import { BottomNav, TopNav } from "./components/Nav";
+import { ServiceWorkerRegister } from "./components/ServiceWorkerRegister";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -116,6 +117,7 @@ export default async function RootLayout({
           issuedAt={me?.issuedAt ?? null}
           refreshAfterMs={ME_REFRESH_MS}
         />
+        <ServiceWorkerRegister />
       </body>
     </html>
   );

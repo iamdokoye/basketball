@@ -19,6 +19,7 @@ import { generateScoutingReport } from "@/lib/scouting";
 import { shelfEntries, trophyShelf } from "@/lib/trophies";
 import { fmtMinutes } from "@/lib/stats";
 import { Avatar } from "@/app/components/Avatar";
+import { JerseyEditor } from "./JerseyEditor";
 import { ClaimPlayer, SwitchPlayer } from "@/app/components/ClaimPlayer";
 import { PlayerBadges } from "@/app/components/PlayerBadges";
 import { PlayerMilestonesCard } from "@/app/components/PlayerMilestonesCard";
@@ -206,7 +207,13 @@ export default async function MePage() {
   return (
     <div className="space-y-5">
       <div className="flex items-center gap-4">
-        <Avatar id={player.id} name={player.name} size="lg" tone="ink" />
+        <Avatar
+          id={player.id}
+          name={player.name}
+          size="lg"
+          tone="ink"
+          jersey={player.jersey}
+        />
         <div className="min-w-0">
           <div className="label text-muted">Your page</div>
           <h1 className="truncate text-[32px] font-extrabold leading-[38px] tracking-tight">
@@ -218,6 +225,8 @@ export default async function MePage() {
           </p>
         </div>
       </div>
+
+      <JerseyEditor playerId={player.id} currentJersey={player.jersey} />
 
       {liveGame && (
         <Link

@@ -1,5 +1,6 @@
 import "server-only";
 import { cache } from "react";
+import { revalidateTag, unstable_cache } from "next/cache";
 import { db, fetchAll } from "./supabase";
 import { gameContext, lengthScale, played, rateLine } from "./rating";
 import { isShotZone } from "./shotZones";
@@ -20,6 +21,7 @@ export type Player = {
   archived: boolean;
   nicknames: string[];
   injured: boolean;
+  jersey?: string | null;
 };
 
 const toNicknames = (v: unknown): string[] =>
@@ -62,6 +64,7 @@ export const listPlayers = cache(async function listPlayers(): Promise<Player[]>
       archived: Boolean(p.archived),
       nicknames: toNicknames(p.nicknames),
       injured: Boolean((p as { injured?: boolean }).injured),
+      jersey: (p as { jersey?: unknown }).jersey ? String((p as { jersey?: unknown }).jersey) : null,
     }))
     .sort((a, b) =>
       a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
@@ -108,7 +111,7 @@ type RosterRow = {
   game_id: number;
   team: Team;
   starter: boolean;
-  players: { id: number; name: string; nicknames?: string[] | null } | null;
+  players: { id: number; name: string; nicknames?: string[] | null; jersey?: string | null } | null;
 };
 type EventRow = {
   id: number;
@@ -122,29 +125,120 @@ type EventRow = {
   zone?: string | null;
 };
 
-/** Loads games (all, or one) with roster, events and derived box score. */
-async function loadGames(gameId?: number): Promise<Game[]> {
-  const gamesQ = db()
+type SummaryRow = {
+  game_id: number;
+  score_a: number;
+  score_b: number;
+  winner: string | null;
+  lines: unknown;
+  roster: unknown;
+  events?: unknown;
+  computed_at: string;
+  games?: GameRow | null;
+};
+
+function mapSummaryToGame(row: SummaryRow): Game {
+  const g = row.games ?? ({} as Partial<GameRow>);
+  const lines = (Array.isArray(row.lines) ? row.lines : []) as StatLine[];
+  const score = {
+    A: Number(row.score_a) || 0,
+    B: Number(row.score_b) || 0,
+  };
+  const playedAt = String(g.played_at ?? row.computed_at);
+  return {
+    id: Number(row.game_id),
+    playedAt,
+    startMs: new Date(playedAt).getTime(),
+    status: "final",
+    target: Number(g.target ?? 20),
+    winBy: Number(g.win_by ?? 1),
+    gameType: g.game_type === "timed" ? "timed" : "target",
+    quarterMinutes: Number(g.quarter_minutes) || 10,
+    quarterCount: Number(g.quarter_count) || 4,
+    roster: (Array.isArray(row.roster) ? row.roster : []) as RosterEntry[],
+    events: (Array.isArray(row.events) ? row.events : []) as GameEvent[],
+    lines,
+    score,
+    winner: row.winner === "A" || row.winner === "B" ? row.winner : null,
+    estimatedOrder: g.estimated_order === true,
+  } satisfies Game;
+}
+
+export async function saveGameSummary(game: Game): Promise<void> {
+  if (game.status !== "final") return;
+  try {
+    await db().from("game_summaries").upsert({
+      game_id: game.id,
+      score_a: game.score.A,
+      score_b: game.score.B,
+      winner: game.winner,
+      lines: game.lines,
+      roster: game.roster,
+      events: game.events,
+      computed_at: new Date().toISOString(),
+    });
+  } catch {
+    // Graceful fallback if table does not exist
+  }
+}
+
+export async function deleteGameSummary(gameId: number): Promise<void> {
+  try {
+    await db().from("game_summaries").delete().eq("game_id", gameId);
+  } catch {
+    // Graceful fallback if table does not exist
+  }
+}
+
+let inMemoryFinalGames: Game[] | null = null;
+let inMemoryFinalGamesAt = 0;
+const IN_MEMORY_TTL_MS = 60_000;
+
+export function invalidateGamesCache(): void {
+  inMemoryFinalGames = null;
+  inMemoryFinalGamesAt = 0;
+  try {
+    revalidateTag("final-games", "max");
+  } catch {
+    // Outside request lifecycle
+  }
+}
+
+/** Loads games (all, specific IDs, or one) directly with roster and events. */
+async function loadGamesDirect(
+  gameId?: number,
+  gameIds?: number[],
+): Promise<Game[]> {
+  let gamesQ = db()
     .from("games")
     // "*" so this keeps working before the estimated_order migration adds that column
     .select("*")
     .order("id", { ascending: false });
+
+  if (gameId) {
+    gamesQ = gamesQ.eq("id", gameId);
+  } else if (gameIds && gameIds.length > 0) {
+    gamesQ = gamesQ.in("id", gameIds);
+  }
+
   const rosterQ = (from: number, to: number) => {
     let q = db()
       .from("game_players")
       .select("game_id, team, starter, players(*)", { count: "exact" });
     if (gameId) q = q.eq("game_id", gameId);
+    else if (gameIds && gameIds.length > 0) q = q.in("game_id", gameIds);
     return q.order("game_id").order("player_id").range(from, to);
   };
   const eventsQ = (from: number, to: number) => {
     // "*" so this keeps working before the clock migration adds the team column
     let q = db().from("events").select("*", { count: "exact" });
     if (gameId) q = q.eq("game_id", gameId);
+    else if (gameIds && gameIds.length > 0) q = q.in("game_id", gameIds);
     return q.order("id").range(from, to);
   };
 
   const [games, roster, events] = await Promise.all([
-    gameId ? gamesQ.eq("id", gameId) : gamesQ,
+    gamesQ,
     fetchAll<RosterRow>(rosterQ),
     fetchAll<EventRow>(eventsQ),
   ]);
@@ -160,6 +254,7 @@ async function loadGames(gameId?: number): Promise<Game[]> {
       team: r.team,
       starter: r.starter,
       nicknames: toNicknames(r.players.nicknames),
+      jersey: r.players.jersey ? String(r.players.jersey) : null,
     });
     rosterByGame.set(Number(r.game_id), list);
   }
@@ -214,13 +309,123 @@ async function loadGames(gameId?: number): Promise<Game[]> {
   });
 }
 
-export const listGames = cache(() => loadGames());
+/** Loads all final games, attempting game_summaries first, then falling back to events. */
+async function loadFinalGames(): Promise<Game[]> {
+  try {
+    const { data: summaries, error } = await db()
+      .from("game_summaries")
+      .select("*, games(*)")
+      .order("game_id", { ascending: false });
+
+    if (!error && Array.isArray(summaries) && summaries.length > 0) {
+      const { data: finalGames, error: fErr } = await db()
+        .from("games")
+        .select("id")
+        .eq("status", "final");
+
+      if (!fErr && finalGames) {
+        const summaryIds = new Set(summaries.map((s) => Number(s.game_id)));
+        const missingIds = finalGames
+          .map((g) => Number(g.id))
+          .filter((id) => !summaryIds.has(id));
+
+        if (missingIds.length === 0) {
+          return summaries.map(mapSummaryToGame);
+        }
+
+        // Fill in missing final games
+        const missingGames = await loadGamesDirect(undefined, missingIds);
+        for (const mg of missingGames) {
+          void saveGameSummary(mg);
+        }
+        const mapped = summaries.map(mapSummaryToGame);
+        return [...mapped, ...missingGames].sort((a, b) => b.id - a.id);
+      }
+    }
+  } catch {
+    // game_summaries table might not exist yet
+  }
+
+  // Fallback: direct load of all final games
+  const { data: finalRows } = await db()
+    .from("games")
+    .select("id")
+    .eq("status", "final");
+
+  const finalIds = (finalRows ?? []).map((r) => Number(r.id));
+  if (finalIds.length === 0) return [];
+
+  const games = await loadGamesDirect(undefined, finalIds);
+  // Backfill summaries for future reads
+  for (const g of games) {
+    void saveGameSummary(g);
+  }
+  return games;
+}
+
+const getCachedFinalGames = unstable_cache(
+  async () => {
+    return loadFinalGames();
+  },
+  ["pickup-final-games-cache-v1"],
+  {
+    tags: ["final-games"],
+    revalidate: 86400,
+  },
+);
+
+async function getFinalGames(): Promise<Game[]> {
+  if (
+    inMemoryFinalGames !== null &&
+    Date.now() - inMemoryFinalGamesAt < IN_MEMORY_TTL_MS
+  ) {
+    return inMemoryFinalGames;
+  }
+  const games = await getCachedFinalGames();
+  inMemoryFinalGames = games;
+  inMemoryFinalGamesAt = Date.now();
+  return games;
+}
+
+/** Loads games (all, or one) with roster, events and derived box score. */
+export async function loadGames(gameId?: number): Promise<Game[]> {
+  if (gameId !== undefined) {
+    if (inMemoryFinalGames) {
+      const found = inMemoryFinalGames.find((g) => g.id === gameId);
+      if (found) return [found];
+    }
+    return loadGamesDirect(gameId);
+  }
+  return listGames();
+}
+
+export const listGames = cache(async function listGames(): Promise<Game[]> {
+  // Query only games that are currently live (0 or 1 during game day)
+  const { data: liveRows } = await db()
+    .from("games")
+    .select("id")
+    .eq("status", "live");
+
+  let liveGames: Game[] = [];
+  if (liveRows && liveRows.length > 0) {
+    const liveIds = liveRows.map((r) => Number(r.id));
+    liveGames = await loadGamesDirect(undefined, liveIds);
+  }
+
+  const finalGames = await getFinalGames();
+  return [...liveGames, ...finalGames].sort((a, b) => b.id - a.id);
+});
 
 export const getGame = cache(async function getGame(
   id: number,
 ): Promise<Game | null> {
   if (!Number.isSafeInteger(id)) return null;
-  return (await loadGames(id))[0] ?? null;
+  if (inMemoryFinalGames) {
+    const found = inMemoryFinalGames.find((g) => g.id === id);
+    if (found) return found;
+  }
+  const games = await loadGamesDirect(id);
+  return games[0] ?? null;
 });
 
 export type CareerLine = StatLine & {

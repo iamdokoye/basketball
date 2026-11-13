@@ -22,6 +22,7 @@ import {
   zonedTimeToMs,
   type Totals,
 } from "./import";
+import { invalidateGamesCache } from "./queries";
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
 
@@ -161,6 +162,35 @@ export async function setNicknames(
         : GENERIC,
     );
   }
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+/** Updates a player's jersey number (e.g. 0-99, 00). */
+export async function updatePlayerJersey(
+  playerId: number,
+  jersey: string | null,
+): Promise<ActionResult> {
+  const denied = await needPlay();
+  if (denied) return denied;
+  if (!isId(playerId)) return fail(GENERIC);
+
+  const trimmed = jersey ? jersey.trim().toUpperCase() : null;
+  if (trimmed !== null && trimmed.length > 0) {
+    if (!/^[A-Z0-9]{1,3}$/.test(trimmed)) {
+      return fail("Jersey number must be 1 to 3 numbers or characters (e.g. 23, 00, 7).");
+    }
+  }
+
+  const { error } = await db()
+    .from("players")
+    .update({ jersey: trimmed || null })
+    .eq("id", playerId);
+  if (error) {
+    return fail("Couldn't save jersey number. Try again.");
+  }
+
+  invalidateGamesCache();
   revalidatePath("/", "layout");
   return { ok: true };
 }

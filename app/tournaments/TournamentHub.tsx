@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Avatar, shortName } from "@/app/components/Avatar";
 import {
@@ -11,6 +11,10 @@ import {
   type TournamentState,
   type TournamentTeam,
 } from "@/lib/tournaments";
+import {
+  saveTournament as saveTournamentAction,
+  resetTournament as resetTournamentAction,
+} from "@/lib/tournamentActions";
 import type { Player } from "@/lib/queries";
 
 const STORAGE_KEY = "pickup_active_tournament_v1";
@@ -18,11 +22,14 @@ const STORAGE_KEY = "pickup_active_tournament_v1";
 export function TournamentHub({
   players,
   initialTeams,
+  serverTournament,
 }: {
   players: Player[];
   initialTeams?: { name: string; playerIds: number[] }[];
+  serverTournament?: TournamentState | null;
 }) {
   const [tournament, setTournament] = useState<TournamentState | null>(() => {
+    if (serverTournament) return serverTournament;
     if (typeof window === "undefined") return null;
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
@@ -31,6 +38,38 @@ export function TournamentHub({
       return null;
     }
   });
+
+  // Live polling: every 5s check for tournament updates from other phones on court
+  useEffect(() => {
+    let stop = false;
+    const poll = async () => {
+      if (stop || document.visibilityState !== "visible") return;
+      try {
+        const res = await fetch("/api/tournaments/active", { cache: "no-store" });
+        if (!res.ok || stop) return;
+        const data = (await res.json()) as { tournament: TournamentState | null };
+        if (stop) return;
+        if (data.tournament) {
+          setTournament((prev) => {
+            if (!prev || JSON.stringify(prev) !== JSON.stringify(data.tournament)) {
+              try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(data.tournament));
+              } catch {}
+              return data.tournament;
+            }
+            return prev;
+          });
+        }
+      } catch {
+        // Offline: continues with local state
+      }
+    };
+    const timer = setInterval(poll, 5000);
+    return () => {
+      stop = true;
+      clearInterval(timer);
+    };
+  }, []);
   const [format, setFormat] = useState<TournamentFormat>("king_of_court");
   const [tourneyName, setTourneyName] = useState("Saturday King of the Court");
   const [targetScore, setTargetScore] = useState(15);
@@ -52,12 +91,19 @@ export function TournamentHub({
   const [scoreB, setScoreB] = useState<number>(12);
 
   function saveTournament(state: TournamentState | null) {
+    const prevId = tournament?.id;
     setTournament(state);
     try {
       if (state) localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
       else localStorage.removeItem(STORAGE_KEY);
     } catch {
       /* ignore */
+    }
+    // Sync to Supabase cloud database
+    if (state) {
+      void saveTournamentAction(state).catch(() => {});
+    } else if (prevId) {
+      void resetTournamentAction(prevId).catch(() => {});
     }
   }
 

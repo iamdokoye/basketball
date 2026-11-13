@@ -72,6 +72,8 @@ export type RosterEntry = {
   starter: boolean;
   /** What people call them out loud; voice entry listens for these. */
   nicknames?: string[];
+  /** Player jersey number (e.g. "23", "00", "7"). */
+  jersey?: string | null;
 };
 
 export type StatLine = {

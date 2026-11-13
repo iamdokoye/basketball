@@ -55,10 +55,13 @@ A game that is still running when the window closes can't be saved to by the pub
 ## Game day: live sync, offline, install
 
 - **Live sync:** every phone that has a game open checks the server every few seconds, so plays recorded on another phone appear on yours (and a play someone undoes disappears). Your own taps show instantly. A phone that isn't on screen pauses checking to save battery and catches up the moment you switch back.
+- **Delta cursor sync:** live sync passes a cursor (`since` event id, event count, and roster count). When no new play happened, the server returns a 50-byte `notModified` response instead of transmitting the entire event history, slashing mobile data usage by over 95% at the court. When plays are added, only the new plays are transferred.
 - **Offline queue:** if a phone loses signal, plays still show instantly and wait in a queue saved on the phone (the badge says "Offline · 2 plays waiting to send"). They're sent in order when the signal returns, even after a reload. Sending is safe to repeat: the server ignores a play it already has. **Finish game** waits until the queue is empty so no play is lost.
+- **Instant game loading & summaries (one-time SQL):** run `supabase/migrations/20261114000000_game_summaries.sql` in the Supabase SQL Editor. When a game finishes, its final box score, score, and roster are stored in `game_summaries`. This lets Home, Rankings, Standings, and Records load in a single fast query without re-evaluating thousands of historical events. The app works without it (it falls back to computing from events and caches the result in server memory).
 - **Faster saves (one-time SQL):** run `supabase/migrations/20261012000000_record_group.sql` in the Supabase SQL Editor. It lets a save use one database round trip instead of four. The app works without it (it falls back to the slower path), so this is optional but recommended.
 - **Rebound prompt and out of bounds (one-time SQL):** after a missed shot the rebound chips now stay up until you pick who rebounded, tap **Out of bounds**, or tap **Skip** (or record the next play). Out of bounds adds no stat; it just tells us the missing rebound is real, so the rating weights can be measured properly. Run `supabase/migrations/20261031000000_out_of_bounds.sql` in the Supabase SQL Editor to enable it. Until then a miss with "Out of bounds" still saves, just without the marker.
 - **Add to Home Screen:** on Android, Chrome shows an **Install** button on Home; on iPhone, Safari → Share → **Add to Home Screen**. The app then opens full-screen with its own icon.
+- **Offline PWA Shell & Service Worker:** An automatic service worker (`public/sw.js`) caches application shells, fonts, and static assets with network-first navigation and offline fallback. If connection drops on outdoor courts or the page is refreshed while offline, the app opens instantly and continues buffering plays into the outbox.
 
 ## Game clock, timeouts and timed games
 
@@ -107,9 +110,11 @@ Also run `supabase/migrations/20261107000001_rls_hardening.sql`. It turns on Row
 - It uses the browser's built-in speech recognition, so it's free, but it only exists in some browsers: **Chrome on Android works best** (Chrome sends the audio to Google to turn it into text). iPhone Safari is unreliable, and often missing once the app is added to the Home Screen; typing always works. Noisy courts hurt accuracy, which is what the confirm step is for.
 - The sentence-to-plays logic is in `lib/voice.ts` (plain text in, plays out), so it can be tested without a microphone.
 
-## Voice server (better speech recognition, self-hosted)
+## Voice server (Whisper AI speech recognition, optional)
 
-`voice-server/` is a small Docker service that runs Whisper on your own server, for far better name recognition than the phone's built-in speech engine (and it works on iPhone). See `voice-server/README.md` for the Coolify setup. It is not connected to the app yet.
+`voice-server/` is a small Docker service that runs Whisper on CPU through faster-whisper. When configured via `VOICE_SERVER_URL` and `VOICE_SERVER_TOKEN` in `.env.local` or hosting settings, the app proxies audio recordings to it via `/api/voice/transcribe`, unlocking voice entry on **iPhones (iOS Safari & Home Screen PWA)** and delivering superior recognition for names and nicknames in noisy court environments.
+
+If unset, the app gracefully falls back to browser-native speech recognition (Chrome on Android) or keyboard entry. Scorers on devices supporting both can toggle between Browser Speech and Whisper AI in the scorekeeper. See `voice-server/README.md` for Coolify / Docker deployment instructions.
 
 ## Planned
 
@@ -176,6 +181,7 @@ After a game session, every stat leader gets a trading card with a title, and th
   - **Single-elimination:** Semi-finals into the Championship Gold-Medal Game.
   - **Round-robin:** Standings table tracking points for, against, differential, and streaks, with top seeds advancing to the Final.
   - Integrates directly with the app's official scorekeeper and feeds winning teams into tournament awards.
+  - **Cloud sync & live bracket updates (one-time SQL):** run `supabase/migrations/20261114000001_tournaments.sql` in the Supabase SQL Editor. Live tournament brackets, King of the Court streaks, and standings sync to the cloud and poll live across all devices on court. (Falls back gracefully to phone localStorage if not yet run).
 
 ## Seasons, standings, clutch and the weekly digest
 

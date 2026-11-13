@@ -96,6 +96,15 @@ export function useGameSync({
     finishedRef.current = onFinished;
   });
 
+  const baseRef = useRef(base);
+  useEffect(() => {
+    baseRef.current = base;
+  }, [base]);
+  const serverRosterRef = useRef(serverRoster);
+  useEffect(() => {
+    serverRosterRef.current = serverRoster;
+  }, [serverRoster]);
+
   const persist = useCallback(() => {
     // The stored outbox holds every game's ops; this hook owns only this game's.
     const others = loadOutbox().filter((o) => o.gameId !== gameId);
@@ -212,14 +221,21 @@ export function useGameSync({
       if (stop || document.visibilityState !== "visible") return;
       try {
         const sentAt = Date.now();
-        const res = await fetch(`/api/games/${gameId}/events`, {
+        const currentBase = baseRef.current;
+        const currentRoster = serverRosterRef.current;
+        const maxId = currentBase.reduce((m, e) => Math.max(m, e.id ?? 0), 0);
+        const query = `?since=${maxId}&count=${currentBase.length}&rosters=${currentRoster.length}`;
+        const res = await fetch(`/api/games/${gameId}/events${query}`, {
           cache: "no-store",
         });
         if (!res.ok || stop) return;
         const data = (await res.json()) as {
           status: "live" | "final";
           serverNow?: number;
-          events: GameEvent[];
+          notModified?: boolean;
+          delta?: boolean;
+          newEvents?: GameEvent[];
+          events?: GameEvent[];
           roster?: RosterEntry[];
         };
         if (stop) return;
@@ -228,7 +244,7 @@ export function useGameSync({
           offset.current = data.serverNow - (sentAt + Date.now()) / 2;
         }
         if (data.status === "final") return finishedRef.current();
-        setBase(data.events);
+
         if (data.roster) {
           const incoming = data.roster;
           setServerRoster(incoming);
@@ -238,30 +254,62 @@ export function useGameSync({
             return left.length === p.length ? p : left;
           });
         }
-        const seen = new Set(data.events.map((e) => e.grp));
-        // Once the server shows a play we added, it no longer needs to be held locally. If it was
-        // confirmed saved a while ago and is now gone, someone else undid it: drop it here too.
-        setAdds((m) => {
-          const now = Date.now();
-          const stillWaiting = new Map(
-            [...m].filter(([grp]) => {
-              if (seen.has(grp)) return false;
-              const at = confirmedAt.current.get(grp);
-              return at === undefined || now - at < POLL_MS * 2.5;
-            }),
-          );
-          return stillWaiting.size === m.size ? m : stillWaiting;
-        });
-        // Once the server no longer has a play we removed (and it isn't still queued), forget the removal.
-        setRemoved((s) => {
-          const queued = new Set(
-            queue.current.filter((o) => o.kind === "remove").map((o) => o.grp),
-          );
-          const keep = new Set(
-            [...s].filter((grp) => seen.has(grp) || queued.has(grp)),
-          );
-          return keep.size === s.size ? s : keep;
-        });
+
+        if (data.notModified) {
+          setPollOk(true);
+          return;
+        }
+
+        if (data.delta && data.newEvents && data.newEvents.length > 0) {
+          const incoming = data.newEvents;
+          setBase((prev) => {
+            const existingIds = new Set(prev.map((e) => e.id));
+            const additions = incoming.filter((e) => !existingIds.has(e.id));
+            return additions.length > 0 ? [...prev, ...additions] : prev;
+          });
+          const newSeen = new Set(incoming.map((e) => e.grp));
+          setAdds((m) => {
+            let changed = false;
+            const next = new Map(m);
+            for (const [grp] of m) {
+              if (newSeen.has(grp)) {
+                next.delete(grp);
+                changed = true;
+              }
+            }
+            return changed ? next : m;
+          });
+          setPollOk(true);
+          return;
+        }
+
+        if (data.events) {
+          setBase(data.events);
+          const seen = new Set(data.events.map((e) => e.grp));
+          // Once the server shows a play we added, it no longer needs to be held locally. If it was
+          // confirmed saved a while ago and is now gone, someone else undid it: drop it here too.
+          setAdds((m) => {
+            const now = Date.now();
+            const stillWaiting = new Map(
+              [...m].filter(([grp]) => {
+                if (seen.has(grp)) return false;
+                const at = confirmedAt.current.get(grp);
+                return at === undefined || now - at < POLL_MS * 2.5;
+              }),
+            );
+            return stillWaiting.size === m.size ? m : stillWaiting;
+          });
+          // Once the server no longer has a play we removed (and it isn't still queued), forget the removal.
+          setRemoved((s) => {
+            const queued = new Set(
+              queue.current.filter((o) => o.kind === "remove").map((o) => o.grp),
+            );
+            const keep = new Set(
+              [...s].filter((grp) => seen.has(grp) || queued.has(grp)),
+            );
+            return keep.size === s.size ? s : keep;
+          });
+        }
         setPollOk(true);
       } catch {
         setPollOk(false);

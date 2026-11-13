@@ -219,12 +219,23 @@ export default async function PlayerPage({
       </Link>
 
       <div className="flex items-center gap-4">
-        <Avatar id={player.id} name={player.name} size="lg" tone="ink" />
+        <Avatar
+          id={player.id}
+          name={player.name}
+          size="lg"
+          tone="ink"
+          jersey={player.jersey}
+        />
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <h1 className="truncate text-[32px] font-extrabold leading-[38px] tracking-tight">
               {player.name}
             </h1>
+            {player.jersey && (
+              <span className="rounded-full bg-court-ink/10 ring-1 ring-court-ink/20 px-2 py-0.5 text-xs font-black text-court-ink">
+                #{player.jersey}
+              </span>
+            )}
             {player.injured && <InjuredBadge />}
           </div>
           <p className="tabular text-sm font-semibold text-muted">

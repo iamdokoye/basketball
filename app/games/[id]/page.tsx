@@ -15,6 +15,10 @@ import { LiveWinProbability } from "@/app/components/LiveWinProbability";
 import { ShareRecap } from "@/app/components/ShareRecap";
 import { buildGameMomentum, detectOnFirePlayers } from "@/lib/momentum";
 import { CourtAudioControls } from "@/app/components/CourtAudio";
+import { FourFactorsCard } from "@/app/components/FourFactorsCard";
+import { WinProbabilityChart } from "@/app/components/WinProbabilityChart";
+import { computeAdvancedLines, computeFourFactors } from "@/lib/analytics";
+import { buildWinProbabilityTimeline, findDaggerPlay } from "@/lib/winProbability";
 import { ShotHeatmap, ShotZoneTable } from "@/app/components/ShotHeatmap";
 import { ShareBoxScore } from "@/app/components/ShareBoxScore";
 import { siteUrl } from "@/lib/site";
@@ -110,6 +114,20 @@ export default async function GamePage({
   const momentum = buildGameMomentum(game);
   const onFire = detectOnFirePlayers(game.events, game.roster);
   const recap = buildRecap(game, leagueTimeZone());
+  const fourFactors = computeFourFactors(game);
+  const advancedLines = computeAdvancedLines(game);
+
+  const probSteps = buildWinProbabilityTimeline(
+    game.events,
+    game.roster,
+    game.target,
+    game.winBy,
+    game.gameType,
+    game.quarterMinutes,
+    game.quarterCount,
+    game.startMs,
+  );
+  const daggerPlay = findDaggerPlay(probSteps, game.winner);
   // Total playing time (pauses and timeouts excluded) and the timeouts, with who called each.
   const clock = buildClock(game.events, game.startMs, game.roster);
   const quarterScores =
@@ -369,6 +387,15 @@ export default async function GamePage({
         teamNames={{ A: "Team A", B: "Team B" }}
       />
 
+      <WinProbabilityChart
+        steps={probSteps}
+        dagger={daggerPlay}
+        winner={game.winner}
+        teamNames={{ A: "Team A", B: "Team B" }}
+      />
+
+      <FourFactorsCard factors={fourFactors} />
+
       {momentum && <GameMomentumChart momentum={momentum} />}
 
       {recap && <ShareRecap text={recap} path={`/games/${game.id}`} />}
@@ -413,6 +440,7 @@ export default async function GamePage({
         gameType={game.gameType}
         quarterMinutes={game.quarterMinutes}
         quarterCount={game.quarterCount}
+        advanced={advancedLines}
       />
       <BoxScoreTable
         lines={game.lines}
@@ -423,6 +451,7 @@ export default async function GamePage({
         gameType={game.gameType}
         quarterMinutes={game.quarterMinutes}
         quarterCount={game.quarterCount}
+        advanced={advancedLines}
       />
 
       <GamePlayHistory

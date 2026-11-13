@@ -115,6 +115,21 @@ function writeAuto(on: boolean) {
 
 type Draftset = { heard: string; plays: Play[]; unparsed: string[] };
 
+function getSupportedAudioMime(): string | undefined {
+  if (typeof MediaRecorder === "undefined") return undefined;
+  const candidates = [
+    "audio/webm;codecs=opus",
+    "audio/webm",
+    "audio/mp4",
+    "audio/aac",
+    "audio/ogg",
+  ];
+  for (const c of candidates) {
+    if (MediaRecorder.isTypeSupported(c)) return c;
+  }
+  return undefined;
+}
+
 export function VoiceEntry({
   roster,
   court,
@@ -138,11 +153,20 @@ export function VoiceEntry({
   onUndo: () => void;
   onOpenChange: (open: boolean) => void;
 }) {
-  const supported = useSyncExternalStore(
+  const hasBrowserSpeech = useSyncExternalStore(
     () => () => {},
     () => recognitionCtor() !== null,
     () => false,
   );
+  const hasMediaRecorder = useSyncExternalStore(
+    () => () => {},
+    () =>
+      typeof window !== "undefined" &&
+      Boolean(navigator?.mediaDevices?.getUserMedia) &&
+      typeof MediaRecorder !== "undefined",
+    () => false,
+  );
+  const supported = hasBrowserSpeech || hasMediaRecorder;
   const iphone = useSyncExternalStore(
     () => () => {},
     () =>
@@ -150,6 +174,28 @@ export function VoiceEntry({
       (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1),
     () => false,
   );
+
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const [whisperForced, setWhisperForced] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      return localStorage.getItem("pl-whisper-mode-v1") === "on";
+    } catch {
+      return false;
+    }
+  });
+
+  function toggleWhisperMode() {
+    const next = !whisperForced;
+    setWhisperForced(next);
+    try {
+      localStorage.setItem("pl-whisper-mode-v1", next ? "on" : "off");
+    } catch {}
+  }
+
+  const useWhisper = !hasBrowserSpeech || whisperForced;
   const autoOn = useSyncExternalStore(subscribeAuto, readAuto, () => true);
   const nickRaw = useSyncExternalStore(subscribeNicks, readNicks, () => "[]");
   const aliases = useMemo(() => {
@@ -249,7 +295,7 @@ export function VoiceEntry({
     }
     if (retryEnglish.current) {
       retryEnglish.current = false;
-      startListening("en-US");
+      startBrowserListening("en-US");
       return;
     }
     setListening(false);
@@ -263,7 +309,7 @@ export function VoiceEntry({
       );
   }
 
-  function startListening(lang: string = navigator.language || "en-US") {
+  function startBrowserListening(lang: string = navigator.language || "en-US") {
     const Ctor = recognitionCtor();
     if (!Ctor) return;
     // A run that never reported finishing must not block the next press (iPhone often does this).
@@ -318,7 +364,7 @@ export function VoiceEntry({
       setNote(
         `${SPEECH_ERRORS[e.error] ?? "Speech recognition failed."} (${e.error})` +
           (iphoneApp
-            ? " Voice often doesn't work in the iPhone Home Screen app. Open the site in Safari instead, or tap the mic on your keyboard in the box below."
+            ? " Tip: tap the mic on your keyboard or enable Whisper mode."
             : " You can type the play instead."),
       );
     };
@@ -336,7 +382,7 @@ export function VoiceEntry({
     }
   }
 
-  function stopListening() {
+  function stopBrowserListening() {
     const r = rec.current;
     if (!r || stopping.current) return;
     stopping.current = true;
@@ -348,6 +394,132 @@ export function VoiceEntry({
     }
     // Don't wait forever for a browser that never says it finished.
     stopTimer.current = window.setTimeout(() => finish(id), 2500);
+  }
+
+  async function startWhisperListening() {
+    if (!navigator?.mediaDevices?.getUserMedia) {
+      setNote("Audio recording is not supported in this browser.");
+      return;
+    }
+    try {
+      setNote(null);
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaStreamRef.current = stream;
+      const mimeType = getSupportedAudioMime();
+      const mr = mimeType
+        ? new MediaRecorder(stream, { mimeType })
+        : new MediaRecorder(stream);
+      audioChunksRef.current = [];
+      mr.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+      mediaRecorderRef.current = mr;
+      mr.start(100);
+      setListening(true);
+      setLive("Recording for Whisper… release to finish");
+      navigator.vibrate?.(8);
+    } catch (err) {
+      setListening(false);
+      setNote(
+        err instanceof Error && err.name === "NotAllowedError"
+          ? "Microphone access blocked. Allow microphone in browser settings."
+          : "Could not access microphone.",
+      );
+    }
+  }
+
+  function stopWhisperListening() {
+    const mr = mediaRecorderRef.current;
+    if (!mr || mr.state === "inactive") return;
+    setListening(false);
+    setLive("Transcribing with Whisper…");
+
+    mr.onstop = async () => {
+      if (mediaStreamRef.current) {
+        mediaStreamRef.current.getTracks().forEach((t) => t.stop());
+        mediaStreamRef.current = null;
+      }
+      mediaRecorderRef.current = null;
+
+      const chunks = audioChunksRef.current;
+      if (chunks.length === 0) {
+        setLive("");
+        setNote("Didn't record any speech. Hold and speak clearly.");
+        return;
+      }
+
+      const mime = mr.mimeType || "audio/webm";
+      const blob = new Blob(chunks, { type: mime });
+
+      const rosterHint = roster
+        .map(
+          (p) =>
+            p.name +
+            (p.nicknames && p.nicknames.length > 0
+              ? ` (also called ${p.nicknames.join(", ")})`
+              : ""),
+        )
+        .join(". ");
+      const prompt = `Basketball pickup game. Players: ${rosterHint}. Plays: 2-pointer, 3-pointer, assist, rebound, steal, block, turnover, foul, sub, timeout.`;
+
+      try {
+        const form = new FormData();
+        form.append("audio", blob, "clip.webm");
+        form.append("prompt", prompt);
+
+        const res = await fetch("/api/voice/transcribe", {
+          method: "POST",
+          body: form,
+        });
+
+        const data = (await res.json()) as {
+          ok: boolean;
+          configured?: boolean;
+          text?: string;
+          error?: string;
+          setup?: string;
+        };
+        setLive("");
+
+        if (data.ok && data.text) {
+          handleText(data.text);
+        } else if (data.configured === false) {
+          setNote(
+            data.setup ||
+              "Whisper server optional. Set VOICE_SERVER_URL in .env.local to enable, or type plays below.",
+          );
+        } else if (data.error) {
+          setNote(data.error);
+        } else {
+          setNote("Didn't catch that. Hold to talk and speak clearly.");
+        }
+      } catch {
+        setLive("");
+        setNote("Could not reach voice transcription service. Try typing below.");
+      }
+    };
+
+    try {
+      mr.stop();
+    } catch {
+      setLive("");
+    }
+  }
+
+  function startListening() {
+    if (useWhisper) {
+      void startWhisperListening();
+    } else {
+      startBrowserListening();
+    }
+  }
+
+  function stopListening() {
+    if (useWhisper) {
+      stopWhisperListening();
+    } else {
+      stopBrowserListening();
+    }
   }
 
   function submitTyped(e: React.FormEvent) {
@@ -497,30 +669,47 @@ export function VoiceEntry({
           {note}
         </p>
       )}
-      {iphone ? (
-        <p className="px-1 text-xs text-muted">
-          iPhone tip: tap the microphone on your keyboard to dictate into the
-          box, then tap Add. It&apos;s more reliable than Hold to talk.
-        </p>
-      ) : (
-        !supported && (
-          <p className="px-1 text-xs text-muted">
-            Voice isn&apos;t available in this browser (Chrome on Android works
-            best). You can still type plays.
+      <div className="px-1 flex flex-wrap items-center justify-between gap-2 text-xs">
+        {iphone ? (
+          <p className="text-muted">
+            iPhone: Hold to talk records audio for Whisper, or tap the keyboard mic to dictate into the box.
           </p>
-        )
-      )}
+        ) : (
+          !supported && (
+            <p className="text-muted">
+              Voice isn&apos;t available in this browser. You can still type plays below.
+            </p>
+          )
+        )}
+      </div>
 
       <div className="px-1">
-        <div className="flex items-center justify-between gap-3">
-          <button
-            type="button"
-            onClick={() => setShowNicks((s) => !s)}
-            className="text-xs font-semibold text-muted"
-          >
-            Nicknames {aliases.length > 0 ? `(${aliases.length})` : ""}{" "}
-            {showNicks ? "▲" : "▼"}
-          </button>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setShowNicks((s) => !s)}
+              className="text-xs font-semibold text-muted hover:text-ink"
+            >
+              Nicknames {aliases.length > 0 ? `(${aliases.length})` : ""}{" "}
+              {showNicks ? "▲" : "▼"}
+            </button>
+
+            {hasBrowserSpeech && (
+              <button
+                type="button"
+                onClick={toggleWhisperMode}
+                className="flex items-center gap-1.5 text-xs font-semibold text-muted hover:text-ink"
+              >
+                <span>🎙️</span>
+                <span>{whisperForced ? "Whisper Server" : "Browser Speech"}</span>
+                <span className="rounded bg-black/[0.06] px-1.5 py-0.5 text-[10px] text-ink font-bold">
+                  {whisperForced ? "AI" : "Web"}
+                </span>
+              </button>
+            )}
+          </div>
+
           <button
             type="button"
             role="switch"

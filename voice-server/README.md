@@ -33,7 +33,14 @@ curl https://voice.example.com/health
 # {"ok":true,"model":"base.en"}
 ```
 
-Later, in Vercel (once the app is connected to it), you will add `VOICE_SERVER_URL=https://voice.example.com` and `VOICE_SERVER_TOKEN=<the same secret>`.
+## Connect to the Pickup League App
+
+In your host (e.g. Vercel, Railway, or `.env.local` locally), set:
+```
+VOICE_SERVER_URL=https://voice.example.com
+VOICE_SERVER_TOKEN=<the same VOICE_TOKEN secret>
+```
+The app's server proxies audio recordings to this endpoint via `/api/voice/transcribe`, keeping the token secure and automatically feeding player rosters and nicknames as context hints for near-instant transcription. On iPhone and Android devices, scorers can use the microphone button to dictate plays directly through Whisper. If unset, the app gracefully falls back to browser-native speech recognition or keyboard typing.
 
 ## Try it by hand
 

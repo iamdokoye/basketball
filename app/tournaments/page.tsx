@@ -1,4 +1,5 @@
 import { listPlayers } from "@/lib/queries";
+import { getActiveTournament } from "@/lib/tournamentActions";
 import { TournamentHub } from "./TournamentHub";
 
 export const dynamic = "force-dynamic";
@@ -14,7 +15,10 @@ export default async function TournamentsPage({
   searchParams?: Promise<{ teams?: string }>;
 }) {
   const params = searchParams ? await searchParams : {};
-  const players = await listPlayers();
+  const [players, activeTournament] = await Promise.all([
+    listPlayers(),
+    getActiveTournament(),
+  ]);
 
   let initialTeams: { name: string; playerIds: number[] }[] | undefined;
   if (params.teams) {
@@ -27,8 +31,10 @@ export default async function TournamentsPage({
 
   return (
     <TournamentHub
+      key={activeTournament?.id ?? "none"}
       players={players}
       initialTeams={initialTeams}
+      serverTournament={activeTournament}
     />
   );
 }

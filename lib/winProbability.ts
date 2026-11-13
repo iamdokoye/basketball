@@ -459,3 +459,47 @@ export function buildWinProbabilityTimeline(
 
   return steps;
 }
+
+export type DaggerPlay = {
+  step: number;
+  playerName: string;
+  description: string;
+  scoreA: number;
+  scoreB: number;
+  swingPct: number;
+  resultingProb: number;
+};
+
+export function findDaggerPlay(
+  steps: ProbabilityStep[],
+  winner: Team | null,
+): DaggerPlay | null {
+  if (!winner || steps.length < 2) return null;
+
+  // Filter steps where winner's probability increased in the 2nd half / clutch of the game
+  const minStep = Math.floor(steps.length * 0.35);
+  const eligible = steps.slice(minStep).filter((s) => {
+    if (!s.swingPlayerName || !s.swingPct) return false;
+    const prev = steps[s.step - 1];
+    if (!prev) return false;
+    if (winner === "A") return s.probA > prev.probA && s.probA >= 65;
+    return s.probB > prev.probB && s.probB >= 65;
+  });
+
+  const candidates = eligible.length > 0 ? eligible : steps.filter((s) => s.swingPlayerName && s.swingPct);
+  if (candidates.length === 0) return null;
+
+  const best = candidates.sort(
+    (a, b) => (b.swingPct ?? 0) - (a.swingPct ?? 0),
+  )[0];
+
+  return {
+    step: best.step,
+    playerName: best.swingPlayerName!,
+    description: best.description,
+    scoreA: best.scoreA,
+    scoreB: best.scoreB,
+    swingPct: Math.round((best.swingPct ?? 0) * 10) / 10,
+    resultingProb: Math.round(winner === "A" ? best.probA : best.probB),
+  };
+}

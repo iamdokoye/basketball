@@ -167,6 +167,10 @@ export default function Scorekeeper({
   const [sheet, setSheet] = useState<Sheet | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
   const [showLog, setShowLog] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [redoStack, setRedoStack] = useState<
+    { grp: string; events: Ev[]; description: string }[]
+  >([]);
   const [voiceOpen, setVoiceOpen] = useState(false);
   const [mode, setMode] = useScoreMode(initialMode);
   const [follow, setFollow] = useState<FollowState | null>(null);
@@ -411,7 +415,10 @@ export default function Scorekeeper({
     return roster.find((p) => p.id === miss.playerId)?.team ?? null;
   }, [groups, roster]);
 
-  function commit(evs: Ev[]): string {
+  function commit(evs: Ev[], isRedo = false): string {
+    if (!isRedo) {
+      setRedoStack([]);
+    }
     // Timed games follow the FIBA timeout allowances (also for timeouts said by voice).
     for (const e of evs) {
       if (e.type !== "TIMEOUT") continue;
@@ -460,6 +467,34 @@ export default function Scorekeeper({
   function removeGroup(grp: string) {
     setLocalError(null);
     sync.remove(grp);
+  }
+
+  function undoLast() {
+    if (groups.length === 0) return;
+    const lastGroup = groups[groups.length - 1];
+    if (!lastGroup) return;
+    setRedoStack((prev) => [
+      ...prev,
+      {
+        grp: lastGroup.grp,
+        events: lastGroup.events.map((e) => ({
+          playerId: e.playerId,
+          type: e.type,
+          team: e.team,
+          zone: e.zone,
+        })),
+        description: describeGroup(lastGroup.events, nameOf),
+      },
+    ]);
+    removeGroup(lastGroup.grp);
+  }
+
+  function redoLast() {
+    if (redoStack.length === 0) return;
+    const nextStack = [...redoStack];
+    const item = nextStack.pop()!;
+    setRedoStack(nextStack);
+    commit(item.events, true);
   }
 
   // ---- Flows ---------------------------------------------------------------
@@ -1005,7 +1040,7 @@ export default function Scorekeeper({
           lastPlay={last ? describeGroup(last.events, nameOf) : null}
           onCommit={commit}
           onSaved={setSaved}
-          onUndo={() => last && removeGroup(last.grp)}
+          onUndo={undoLast}
           onOpenChange={setVoiceOpen}
         />
       )}
@@ -1028,7 +1063,18 @@ export default function Scorekeeper({
     { key: "pf", label: "Foul", tone: "bad", onPress: () => padPlayer && quickSolo(padPlayer, "FOUL") },
     { key: "defl", label: "Deflect", tone: "neutral", onPress: () => padPlayer && quickSolo(padPlayer, "DEFL") },
     { key: "sub", label: "Sub out…", tone: "sub", onPress: () => padPlayer && bench(padPlayer.team).length > 0 && subOutStep(padPlayer) },
-    { key: "undo", label: "↶ Undo", tone: "neutral", needsPlayer: false, onPress: () => last && removeGroup(last.grp) },
+    { key: "undo", label: "↶ Undo", tone: "neutral", needsPlayer: false, onPress: undoLast },
+    ...(redoStack.length > 0
+      ? [
+          {
+            key: "redo",
+            label: "↷ Redo",
+            tone: "good" as const,
+            needsPlayer: false,
+            onPress: redoLast,
+          },
+        ]
+      : []),
   ];
 
   return (
@@ -1345,6 +1391,24 @@ export default function Scorekeeper({
               <span className="text-[10px]">{shotPadShooter ? "▲" : "▼"}</span>
             </button>
           )}
+          <button
+            type="button"
+            onClick={() => setHistoryOpen(true)}
+            className="flex items-center gap-1 rounded-full bg-black/[0.06] hover:bg-black/10 px-2.5 py-1 text-xs font-bold text-muted hover:text-ink transition"
+            title="Open Play History Drawer"
+          >
+            <span>📜 Log ({groups.length})</span>
+          </button>
+          {!readOnly && redoStack.length > 0 && (
+            <button
+              type="button"
+              onClick={redoLast}
+              className="flex items-center gap-1 rounded-full bg-court-ink px-2.5 py-1 text-xs font-bold text-white shadow-xs transition active:scale-95"
+              title="Redo last undone play"
+            >
+              <span>↷ Redo ({redoStack.length})</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -1592,9 +1656,14 @@ export default function Scorekeeper({
               const l = lines.find((x) => x.playerId === p.id)!;
               const header = (
                 <div className="flex items-center gap-2">
-                  <Avatar id={p.id} name={p.name} size="sm" />
+                  <Avatar id={p.id} name={p.name} size="sm" jersey={p.jersey} />
                   <span className="min-w-0 flex-1 truncate font-bold">
                     {shortName(p.name)}
+                    {p.jersey && (
+                      <span className="ml-1 text-xs font-black text-court-ink">
+                        #{p.jersey}
+                      </span>
+                    )}
                   </span>
                   {onFireSet.has(p.id) && (
                     <span
@@ -1738,8 +1807,13 @@ export default function Scorekeeper({
                         readOnly ? "cursor-default" : "active:bg-sub/10"
                       }`}
                     >
-                      <Avatar id={b.id} name={b.name} size="sm" />
-                      {b.name}
+                      <Avatar id={b.id} name={b.name} size="sm" jersey={b.jersey} />
+                      <span>{b.name}</span>
+                      {b.jersey && (
+                        <span className="text-[10px] font-black text-muted">
+                          #{b.jersey}
+                        </span>
+                      )}
                     </button>
                   ))}
                 </div>
@@ -1759,13 +1833,24 @@ export default function Scorekeeper({
             Play log ({groups.length}) {showLog ? "▲" : "▼"}
           </button>
           {!readOnly && (
-            <button
-              disabled={!last}
-              onClick={() => last && removeGroup(last.grp)}
-              className="rounded-full bg-ink px-4 py-1.5 text-sm font-semibold text-paper disabled:opacity-30"
-            >
-              ↶ Undo last
-            </button>
+            <div className="flex items-center gap-2">
+              {redoStack.length > 0 && (
+                <button
+                  type="button"
+                  onClick={redoLast}
+                  className="rounded-full bg-court-ink px-3 py-1 text-xs font-bold text-white shadow-xs active:scale-95"
+                >
+                  ↷ Redo ({redoStack.length})
+                </button>
+              )}
+              <button
+                disabled={!last}
+                onClick={undoLast}
+                className="rounded-full bg-ink px-4 py-1.5 text-sm font-semibold text-paper disabled:opacity-30 active:scale-95"
+              >
+                ↶ Undo last
+              </button>
+            </div>
           )}
         </div>
         {!showLog && last && (
@@ -1864,7 +1949,11 @@ export default function Scorekeeper({
           >
             <div className="flex items-center gap-3">
               {sheet.player && (
-                <Avatar id={sheet.player.id} name={sheet.player.name} />
+                <Avatar
+                  id={sheet.player.id}
+                  name={sheet.player.name}
+                  jersey={sheet.player.jersey}
+                />
               )}
               <div className="min-w-0 flex-1">
                 <h2 className="truncate text-lg font-extrabold leading-tight tracking-tight">
@@ -1912,6 +2001,86 @@ export default function Scorekeeper({
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Play History Drawer */}
+      {historyOpen && (
+        <div
+          className="fixed inset-0 z-50 flex flex-col justify-end bg-black/40 backdrop-blur-sm transition-opacity"
+          onClick={() => setHistoryOpen(false)}
+        >
+          <div
+            role="dialog"
+            aria-label="Play History"
+            className="glass-3 max-h-[82vh] w-full max-w-lg mx-auto flex flex-col rounded-t-[28px] p-5 shadow-2xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-black/10">
+              <div>
+                <h3 className="text-base font-extrabold text-ink">
+                  Play History ({groups.length})
+                </h3>
+                <p className="text-xs text-muted">Review, delete plays or redo undone plays</p>
+              </div>
+              <div className="flex items-center gap-2">
+                {redoStack.length > 0 && !readOnly && (
+                  <button
+                    type="button"
+                    onClick={redoLast}
+                    className="rounded-full bg-court-ink px-3 py-1 text-xs font-bold text-white shadow-xs active:scale-95"
+                  >
+                    ↷ Redo ({redoStack.length})
+                  </button>
+                )}
+                {last && !readOnly && (
+                  <button
+                    type="button"
+                    onClick={undoLast}
+                    className="rounded-full bg-black/[0.07] hover:bg-black/10 px-3 py-1 text-xs font-bold text-ink active:scale-95"
+                  >
+                    ↶ Undo
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setHistoryOpen(false)}
+                  className="rounded-full bg-black/[0.05] p-1.5 text-muted hover:text-ink active:scale-95"
+                  aria-label="Close"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto py-2 divide-y divide-black/[0.05]">
+              {[...groups].reverse().map((g) => (
+                <div
+                  key={g.grp}
+                  className="flex items-center justify-between gap-3 py-2.5 text-sm"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="font-semibold text-ink">
+                      {describeGroup(g.events, nameOf)}
+                    </div>
+                  </div>
+                  {!readOnly && (
+                    <button
+                      type="button"
+                      onClick={() => removeGroup(g.grp)}
+                      aria-label="Delete this play"
+                      className="shrink-0 rounded-full bg-rose-50 hover:bg-rose-100 px-2.5 py-1 text-xs font-bold text-rose-700 active:scale-95"
+                    >
+                      Delete ✕
+                    </button>
+                  )}
+                </div>
+              ))}
+              {groups.length === 0 && (
+                <p className="py-8 text-center text-sm text-muted">No plays recorded yet.</p>
+              )}
+            </div>
           </div>
         </div>
       )}
