@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { Game } from "@/lib/queries";
 import { shortName } from "./Avatar";
-import { formatDate } from "./BoxScore";
+import { formatDate } from "@/lib/format";
 import { detectOnFirePlayers } from "@/lib/momentum";
 
 const TEAMS = [

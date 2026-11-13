@@ -33,6 +33,11 @@ export function formatGameDateTime(
   return `${date} · ${time}`;
 }
 
+/** Full date and start time in the league timezone, e.g. "Sat, Oct 10, 2026 · 7:42 AM". */
+export function formatDate(iso: string, timeZone: string = leagueTimeZone()): string {
+  return formatGameDateTime(iso, timeZone);
+}
+
 /** Day of the week the league plays on (0 = Sunday), taken from LEAGUE_WINDOW. Weeks for MVP start on this day. */
 export function leagueGameDay(): number {
   try {

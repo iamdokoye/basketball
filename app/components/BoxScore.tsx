@@ -3,7 +3,6 @@
 import { useState } from "react";
 import Link from "next/link";
 import { gameContext, rateLine } from "@/lib/rating";
-import { formatGameDateTime } from "@/lib/format";
 import type { PlayerAdvancedStats } from "@/lib/analytics";
 import {
   fmtEfg,
@@ -340,9 +339,4 @@ export function BoxScoreTable({
       </div>
     </div>
   );
-}
-
-/** Full date and start time in the league timezone, e.g. "Sat, Oct 10, 2026 · 7:42 AM". */
-export function formatDate(iso: string): string {
-  return formatGameDateTime(iso);
 }

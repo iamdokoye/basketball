@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Avatar, shortName } from "./Avatar";
-import { formatDate } from "./BoxScore";
+import { formatDate } from "@/lib/format";
 import { fmtMinutes, fmtSigned } from "@/lib/stats";
 import type { PlayerHistorySummary, PlayerGameInsight } from "@/lib/playerHistory";
 
