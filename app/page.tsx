@@ -132,14 +132,18 @@ export default async function Home() {
             <p className="text-sm text-muted">
               {access.windowLabel}.{" "}
               <Link
-                href="/admin"
+                href="/games/new"
                 className="font-semibold text-court-ink underline-offset-2 hover:underline"
               >
-                Admin sign in
+                Start late game (Admin) →
               </Link>
             </p>
           </div>
-          <span className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-black/[0.06] text-muted">
+          <Link
+            href="/games/new"
+            title="Start late game (Admin)"
+            className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-black/[0.06] text-muted transition hover:bg-black/10 hover:text-ink active:scale-95"
+          >
             <svg
               viewBox="0 0 24 24"
               className="h-6 w-6"
@@ -153,7 +157,7 @@ export default async function Home() {
               <rect x="5" y="11" width="14" height="9" rx="2" />
               <path d="M8 11V8a4 4 0 0 1 8 0v3" />
             </svg>
-          </span>
+          </Link>
         </div>
       )}
       {access.canPlay && (
@@ -164,12 +168,18 @@ export default async function Home() {
           <div className="pointer-events-none absolute inset-0 bg-court-soft/10" />
           <div className="relative flex items-center justify-between gap-4">
             <div className="space-y-1">
-              <div className="label text-court-ink">Ready?</div>
+              <div className="label text-court-ink">
+                {access.isAdmin && !access.windowOpen
+                  ? "👑 Admin Late Game Mode"
+                  : "Ready?"}
+              </div>
               <h1 className="text-[32px] font-extrabold leading-[38px] tracking-tight">
                 Start a game
               </h1>
               <p className="text-sm text-muted">
-                Pick teams, set the target score, tip off.
+                {access.isAdmin && !access.windowOpen
+                  ? "Standard league window is closed · Authorized to tip off late or off-hours games."
+                  : "Pick teams, set the target score, tip off."}
                 {!access.isAdmin && access.closesAt && (
                   <>
                     {" "}

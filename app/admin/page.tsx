@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { getAccess } from "@/lib/access";
 import { adminLogout } from "@/lib/actions";
 import { Countdown } from "@/app/components/Countdown";
@@ -74,6 +75,33 @@ export default async function AdminPage() {
                 Sign out
               </button>
             </form>
+          </div>
+
+          <div className="glass-1 flex items-center justify-between gap-4 rounded-2xl border border-amber-500/20 p-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xl">🏀</span>
+                <span className="font-extrabold text-ink">
+                  {a.windowOpen ? "Start a Game" : "Start Late / Off-Hours Game"}
+                </span>
+                {!a.windowOpen && (
+                  <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-800">
+                    Off-hours
+                  </span>
+                )}
+              </div>
+              <p className="mt-1 text-xs text-muted">
+                {a.windowOpen
+                  ? "Tip off a new pickup game, King of the Court tournament, or timed match."
+                  : `Window is currently closed (${a.windowLabel}). As admin, you can tip off late games, makeup games, or weeknight runs anytime.`}
+              </p>
+            </div>
+            <Link
+              href="/games/new"
+              className="shrink-0 rounded-full bg-ink px-4 py-2 text-xs font-bold text-paper shadow-xs transition active:scale-95"
+            >
+              + Tip Off
+            </Link>
           </div>
 
           {/* Record peer-voted awards (e.g. Most Spectacular Player) */}

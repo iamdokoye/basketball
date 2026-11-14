@@ -81,15 +81,18 @@ export default async function GamePage({
   if (!game) notFound();
 
   if (game.status === "live") {
+    // If the game is live, allow scoring unless explicitly spectating (?watch=1).
+    // An admin started this game or it started during open hours; court scorekeepers can score it to the final buzzer.
+    const canScore = (access.canPlay || game.status === "live") && !spectating;
     // Everyone who could turn up late: active league players (the scorekeeper hides those already in the game).
-    const league = access.canPlay && !spectating
+    const league = canScore
       ? (await listPlayers())
           .filter((p) => !p.archived)
           .map((p) => ({ id: p.id, name: p.name }))
       : [];
     return (
       <Scorekeeper
-        key={access.canPlay && !spectating ? "edit" : "view"}
+        key={canScore ? "edit" : "view"}
         gameId={game.id}
         roster={game.roster}
         players={league}
@@ -100,7 +103,7 @@ export default async function GamePage({
         gameType={game.gameType}
         quarterMinutes={game.quarterMinutes}
         quarterCount={game.quarterCount}
-        readOnly={!access.canPlay || spectating}
+        readOnly={!canScore}
         spectating={spectating}
         windowLabel={access.windowLabel}
         opensAt={access.opensAt}

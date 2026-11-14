@@ -35,10 +35,25 @@ const NEEDS_CLOCK_UPDATE =
 
 // ---- Permission guards (server-side; the UI only mirrors these) -----------
 
-/** Scoring actions: open to everyone during the window, otherwise admin only. */
-async function needPlay(): Promise<ActionResult | null> {
+/**
+ * Scoring actions: open to everyone during the window, or on an active live game, otherwise admin only.
+ * This allows an admin to start late/off-hours games that court scorekeepers can then score to completion.
+ */
+async function needPlay(gameId?: number): Promise<ActionResult | null> {
   const a = await getAccess();
   if (a.canPlay) return null;
+  if (gameId && isId(gameId)) {
+    try {
+      const { data: g } = await db()
+        .from("games")
+        .select("status")
+        .eq("id", gameId)
+        .maybeSingle();
+      if (g && g.status === "live") return null;
+    } catch {
+      // Fall through to deny
+    }
+  }
   return fail(
     `Editing is closed. Scoring opens ${a.windowLabel}, or sign in as admin.`,
   );
@@ -73,6 +88,14 @@ export async function adminLogin(
   }
   await startAdminSession();
   revalidatePath("/", "layout");
+  const returnTo = formData.get("returnTo");
+  if (
+    typeof returnTo === "string" &&
+    returnTo.startsWith("/") &&
+    !returnTo.startsWith("//")
+  ) {
+    redirect(returnTo);
+  }
   redirect("/");
 }
 
@@ -245,7 +268,11 @@ export async function createGame(input: {
   gameType?: "target" | "timed";
   quarterMinutes?: number;
   quarterCount?: number;
+  adminPassword?: string;
 }): Promise<ActionResult> {
+  if (input.adminPassword && checkPassword(input.adminPassword)) {
+    await startAdminSession();
+  }
   const denied = await needPlay();
   if (denied) return denied;
 
@@ -336,7 +363,7 @@ export async function recordGroup(
     zone?: string;
   }[],
 ): Promise<ActionResult> {
-  const denied = await needPlay();
+  const denied = await needPlay(gameId);
   if (denied) return denied;
   if (
     !isId(gameId) ||
@@ -477,7 +504,7 @@ export async function undoGroup(
   gameId: number,
   grp: string,
 ): Promise<ActionResult> {
-  const denied = await needPlay();
+  const denied = await needPlay(gameId);
   if (denied) return denied;
   if (!isId(gameId) || !UUID.test(grp)) return fail(GENERIC);
 
@@ -504,7 +531,7 @@ async function setStatus(
 }
 
 export async function finishGame(gameId: number): Promise<ActionResult> {
-  return (await needPlay()) ?? setStatus(gameId, "final");
+  return (await needPlay(gameId)) ?? setStatus(gameId, "final");
 }
 
 export async function reopenGame(gameId: number): Promise<ActionResult> {
@@ -779,7 +806,7 @@ export async function addLatePlayer(input: {
   | { ok: false; error: string }
 > {
   const bad = (error: string) => ({ ok: false as const, error });
-  const denied = await needPlay();
+  const denied = await needPlay(input?.gameId);
   if (denied) return bad(denied.ok ? GENERIC : denied.error);
   if (!isId(input?.gameId) || (input.team !== "A" && input.team !== "B"))
     return bad(GENERIC);

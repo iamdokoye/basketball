@@ -73,12 +73,16 @@ export default function NewGameForm({
   strengths,
   initialA = [],
   initialB = [],
+  isAdmin,
+  windowOpen,
 }: {
   players: { id: number; name: string; injured?: boolean }[];
   /** Player id -> strength (rating and win rate, from past games), for balancing. */
   strengths: Record<number, number>;
   initialA?: number[];
   initialB?: number[];
+  isAdmin?: boolean;
+  windowOpen?: boolean;
 }) {
   const [assign, setAssign] = useState<Record<number, Assign | undefined>>(() => {
     const init: Record<number, Assign | undefined> = {};
@@ -545,7 +549,11 @@ export default function NewGameForm({
         disabled={!ready || pending}
         className="h-14 w-full rounded-full bg-ink text-base font-semibold text-paper shadow-md transition active:scale-[0.99] disabled:opacity-40"
       >
-        {pending ? "Starting…" : `Tip off · ${a.length} vs ${b.length}`}
+        {pending
+          ? "Starting…"
+          : isAdmin && !windowOpen
+            ? `Tip off late game · ${a.length} vs ${b.length}`
+            : `Tip off · ${a.length} vs ${b.length}`}
       </button>
     </div>
   );

@@ -23,12 +23,20 @@ export default async function GamesPage() {
               Import
             </Link>
           )}
-          {access.canPlay && (
+          {access.canPlay ? (
             <Link
               href="/games/new"
               className="rounded-full bg-ink px-4 py-2 text-sm font-semibold text-paper shadow-sm active:scale-95"
             >
               + New game
+            </Link>
+          ) : (
+            <Link
+              href="/games/new"
+              className="glass-1 flex items-center gap-1.5 rounded-full border border-black/10 px-3.5 py-1.5 text-xs font-semibold text-muted transition hover:border-amber-500/40 hover:text-ink active:scale-95"
+            >
+              <span>👑</span>
+              <span>Late Game (Admin)</span>
             </Link>
           )}
         </div>
